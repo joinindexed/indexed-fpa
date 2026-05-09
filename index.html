@@ -71,9 +71,9 @@ tr.drill-row td{padding:0;background:var(--accent-light);border-bottom:1px solid
 .dc{cursor:pointer;color:var(--text3);font-size:16.0px}
 table.drt{width:100%;border-collapse:collapse;font-size:13.0px}
 table.drt th{padding:5px 8px;text-align:right;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border);font-size:12.0px}
-table.drt th:first-child,table.drt th:nth-child(2),table.drt th:nth-child(3){text-align:left}
+table.drt th:first-child{text-align:left}
 table.drt td{padding:5px 8px;text-align:right;border-bottom:1px solid var(--border);color:var(--text2)}
-table.drt td:first-child,table.drt td:nth-child(2),table.drt td:nth-child(3){text-align:left}
+table.drt td:first-child{text-align:left}
 table.drt tr:last-child td{border-bottom:none}
 /* data table */
 table.dt{width:100%;border-collapse:collapse;font-size:13.5px}
@@ -96,8 +96,9 @@ table.dt td.r{text-align:right}
 .itp{display:none}
 .itp.active{display:block}
 /* mini chart */
-.mbc{display:flex;align-items:flex-end;gap:5px;height:48px;padding:0 18px}
-.mb{flex:1;border-radius:2px 2px 0 0;min-height:2px;cursor:pointer}
+.mbc{display:flex;align-items:flex-end;gap:5px;height:120px;padding:0 18px}
+.mb{flex:1;border-radius:2px 2px 0 0;min-height:2px;cursor:pointer;position:relative}
+.mb-lbl{position:absolute;bottom:5px;left:50%;transform:translateX(-50%);font-size:10.0px;font-weight:600;color:#fff;white-space:nowrap}
 .mb:hover{opacity:.7}
 .mb.a{background:var(--accent)}
 .mbl{display:flex;gap:5px;padding:3px 18px 10px}
@@ -746,7 +747,7 @@ function renderCF(){
     <div class="mc"><div class="mc-label">YTD inflow</div><div class="mc-value pos">${$f(ytdIn)}</div><div class="mc-sub">Jan–Apr actuals</div></div>
     <div class="mc"><div class="mc-label">YTD outflow</div><div class="mc-value neg">(${$f(ytdOut).replace('$','')})</div><div class="mc-sub">Jan–Apr actuals</div></div>`;
   const max=Math.max(...d.close);
-  document.getElementById('mbc').innerHTML=d.close.map((v,i)=>`<div class="mb a" style="height:${Math.round(v/max*100)}%" title="${E[i]}: ${$f(v)}"></div>`).join('');
+  document.getElementById('mbc').innerHTML=d.close.map((v,i)=>`<div class="mb a" style="height:${Math.round(v/max*100)}%" title="${E[i]}: ${$f(v)}"><span class="mb-lbl">${$f(v)}</span></div>`).join('');
   document.getElementById('mbl').innerHTML=E.map(m=>`<span>${m}</span>`).join('');
   renderCFTable(d);
   renderBnk('bh'); renderBnk('bc');
@@ -754,47 +755,53 @@ function renderCF(){
 
 function renderCFTable(d){
   openDrill=null;
+  const ytdIn=d.in.reduce((s,v)=>s+v,0);
+  const ytdOut=d.out.reduce((s,v)=>s+v,0);
+  const ytdFX=d.fx.reduce((s,v)=>s+v,0);
   let h='<thead><tr><th>Line item</th>';
   E.forEach(m=>h+=`<th><span class="ba">A</span> ${m}</th>`);
-  h+='</tr></thead><tbody>';
+  h+='<th>YTD</th></tr></thead><tbody>';
   // Opening
   h+='<tr><td style="padding-left:10px;color:var(--text2)">Opening balance</td>';
   E.forEach((_,i)=>h+=`<td>${$f(i===0?d.open:d.close[i-1])}</td>`);
-  h+='</tr>';
+  h+=`<td>${$f(d.open)}</td></tr>`;
   // Inflow
-  h+='<tr class="sr"><td colspan="5" style="padding-left:10px">↑ Cash inflow</td></tr>';
+  h+='<tr class="sr"><td colspan="6" style="padding-left:10px">↑ Cash inflow</td></tr>';
   h+=mkDrill('inflow','Cash received from clients',d.in,'pos');
   h+='<tr class="tr"><td style="padding-left:10px">Total inflow</td>';
   d.in.forEach(v=>h+=`<td class="pos">${$f(v)}</td>`);
-  h+='</tr>';
+  h+=`<td class="pos">${$f(ytdIn)}</td></tr>`;
   // Outflow
-  h+='<tr class="sr"><td colspan="5" style="padding-left:10px">↓ Cash outflow</td></tr>';
+  h+='<tr class="sr"><td colspan="6" style="padding-left:10px">↓ Cash outflow</td></tr>';
   h+=mkDrill('outflow','Payments to vendors & expenses',d.out,'neg');
   h+='<tr class="tr"><td style="padding-left:10px">Total outflow</td>';
   d.out.forEach(v=>h+=`<td class="neg">(${$f(v).replace('$','')})</td>`);
-  h+='</tr>';
+  h+=`<td class="neg">(${$f(ytdOut).replace('$','')})</td></tr>`;
   // Net
   h+='<tr class="tr"><td style="padding-left:10px">Net movement</td>';
   E.forEach((_,i)=>{const v=d.in[i]-d.out[i];h+=`<td class="${v>=0?'pos':'neg'}">${v>=0?$f(v):'('+$f(Math.abs(v)).replace('$','')+')'}</td>`;});
-  h+='</tr>';
+  const ytdNet=ytdIn-ytdOut;
+  h+=`<td class="${ytdNet>=0?'pos':'neg'}">${ytdNet>=0?$f(ytdNet):'('+$f(Math.abs(ytdNet)).replace('$','')+')'}</td></tr>`;
   // FX
   const hasFX=d.fx.some(v=>v!==0);
   if(hasFX){
     h+='<tr class="fx"><td style="padding-left:10px">FX / revaluation (non-cash)</td>';
     d.fx.forEach(v=>h+=`<td>${v?$f(v):'—'}</td>`);
-    h+='</tr>';
+    h+=`<td>${ytdFX?$f(ytdFX):'—'}</td></tr>`;
   }
   // Closing
   h+='<tr class="br"><td style="padding-left:10px">Closing bank balance</td>';
   d.close.forEach(v=>h+=`<td>${$f(v)}</td>`);
-  h+='</tr></tbody>';
+  h+=`<td>${$f(d.close[d.close.length-1])}</td></tr></tbody>`;
   document.getElementById('cft').innerHTML=h;
 }
 
 function mkDrill(key,label,data,cls){
+  const ytd=data.reduce((s,v)=>s+v,0);
   let h=`<tr class="indent"><td onclick="togDrill('${key}','${label}')" style="padding-left:22px">${label} ▸</td>`;
   data.forEach(v=>h+=`<td class="${cls}">${$f(v)}</td>`);
-  h+=`</tr><tr class="drill-row" id="dr-${key}"><td colspan="5"><div class="di" id="dc-${key}"></div></td></tr>`;
+  h+=`<td class="${cls}">${$f(ytd)}</td>`;
+  h+=`</tr><tr class="drill-row" id="dr-${key}"><td colspan="6"><div class="di" id="dc-${key}"></div></td></tr>`;
   return h;
 }
 
@@ -844,9 +851,9 @@ function togDrill(key,label){
 
   const cls=isIn?'pos':'neg';
   let h=`<div class="dt-hd"><span>↳ ${label}</span><span class="dc" onclick="clDrill()">✕</span></div>`;
-  h+=`<table class="drt"><thead><tr><th>Group / Contact</th><th>Entity</th>`;
+  h+=`<table class="drt"><thead><tr><th>Contact</th>`;
   months.forEach(m=>h+=`<th>${m}</th>`);
-  h+=`<th>Total</th></tr></thead><tbody>`;
+  h+=`<th>YTD</th></tr></thead><tbody>`;
 
   sorted.forEach((g,gi)=>{
     const total=Object.values(g.vals).reduce((s,v)=>s+v,0);
@@ -855,8 +862,7 @@ function togDrill(key,label){
     const detId=`dd-${key}-${gi}`;
     // Group row
     h+=`<tr style="cursor:pointer" onclick="document.getElementById('${detId}').style.display=document.getElementById('${detId}').style.display==='none'?'table-row':'none'">`;
-    h+=`<td style="font-weight:600">${isGroup?'📁 ':''}${g.group}${isGroup?` <span style="font-size:11.0px;font-weight:400;color:var(--text3)">(${g.members.length})</span>`:''} ▸</td>`;
-    h+=`<td>${eb(g.entity)}</td>`;
+    h+=`<td style="font-weight:600">${isGroup?'📁 ':''}${g.group}${isGroup?` <span style="font-size:11.0px;font-weight:400;color:var(--text3)">(${g.members.length})</span>`:''} ▸ ${eb(g.entity)}</td>`;
     months.forEach(m=>h+=`<td class="${cls}">${g.vals[m]?$f(g.vals[m]):'—'}</td>`);
     h+=`<td class="${cls}" style="font-weight:700">${$f(total)}</td></tr>`;
 
