@@ -139,6 +139,13 @@ table.fin td.neg{color:var(--red)}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.12);border-radius:3px}
 input,select{font-family:var(--sans)}
+.dash-chart-wrap{padding:0 24px 0;display:flex;flex-direction:column;gap:0}
+.dash-bars{display:flex;gap:16px;align-items:flex-end;height:160px;border-bottom:1px solid var(--border)}
+.dash-bar-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:5px;height:100%}
+.dash-bar-body{width:55%;border-radius:5px 5px 0 0;background:var(--accent);min-height:4px}
+.dash-bar-val{font-size:13px;color:var(--text3);font-weight:500;white-space:nowrap}
+.dash-bar-lbls{display:flex;gap:16px;padding:8px 0 16px}
+.dash-bar-lbl{flex:1;text-align:center;font-size:15px;font-weight:600;color:var(--text3)}
 </style>
 </head>
 <body>
@@ -185,8 +192,20 @@ input,select{font-family:var(--sans)}
 
 <!-- DASHBOARD -->
 <div id="screen-dash" class="screen">
-  <div class="page-header"><div><div class="page-title">Dashboard</div><div class="page-sub">Coming soon</div></div></div>
-  <div class="content" style="text-align:center;padding-top:80px;color:var(--text3)"><div style="font-size:20.0px;font-style:italic;font-weight:500">Dashboard coming soon</div></div>
+  <div class="page-header">
+    <div><div class="page-title">Dashboard <em id="dash-el"></em></div>
+    <div class="page-sub">Apr 2026 actuals · All values in USD · Toggle entity above</div></div>
+  </div>
+  <div class="content">
+    <div class="metrics" id="dash-kpis"></div>
+    <div class="card">
+      <div class="card-head"><span class="card-title">Closing cash balance</span><span class="card-hint">Month-end bank balance</span></div>
+      <div class="dash-chart-wrap">
+        <div class="dash-bars" id="dash-bars"></div>
+        <div class="dash-bar-lbls" id="dash-lbls"></div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- CASH FLOW -->
@@ -196,7 +215,6 @@ input,select{font-family:var(--sans)}
     <div class="page-sub">Jan–Apr 2026 actuals · All values in USD</div></div>
   </div>
   <div class="content">
-    <div class="metrics" id="cfm"></div>
     <div class="card">
       <div class="card-head"><span class="card-title">Cash flow statement</span><span class="card-hint">Click a row to drill into transactions</span></div>
       <div class="cf-wrap"><table class="cf" id="cft"></table></div>
@@ -667,6 +685,102 @@ const BC_BS = [
   {label:'Total Equity',          type:'gt',v:[212538.36,245118.61,264905.55,282086.48]},
 ];
 
+// ── Consolidated Financial Statements ──
+const CONSO_BS = [
+  {g:'Assets',type:'h'},
+  {g:'Bank / Cash',type:'sh'},
+  {label:'Alaan',                    entity:'BH',type:'i',v:[6542.61,9108.16,10989.72,953.60]},
+  {label:'ENBD-AED',                 entity:'BH',type:'i',v:[31846.22,51682.97,43940.11,70864.58]},
+  {label:'Payoneer USD',             entity:'BH',type:'i',v:[22684.31,33504.15,46974.35,41815.42]},
+  {label:'PayPal USD',               entity:'BH',type:'i',v:[210.02,0,0,0]},
+  {label:'Stripe AED',               entity:'BH',type:'i',v:[0,917.52,917.56,924.59]},
+  {label:'Upwork USD',               entity:'BH',type:'i',v:[0,18.41,18.41,18.41]},
+  {label:'WIO-AED',                  entity:'BH',type:'i',v:[12.85,340.42,313.46,286.50]},
+  {label:'Payoneer USD',             entity:'BC',type:'i',v:[31454.71,52200.42,126438.46,159351.71]},
+  {label:'WIO-AED',                  entity:'BC',type:'i',v:[7595.01,5483.82,3289.58,2807.78]},
+  {label:'Total Bank / Cash',        type:'t',v:[100345.73,153255.87,232881.65,277022.59]},
+  {g:'Current Assets',type:'sh'},
+  {label:'Accounts Receivable',      entity:'BH',type:'i',v:[15481,10105,27516,31445]},
+  {label:'Prepayments',              entity:'BH',type:'i',v:[15112.63,13575.61,13026.41,12253.41]},
+  {label:'Accounts Receivable',      entity:'BC',type:'i',v:[197394,209737.5,153916,135034]},
+  {label:'Total Current Assets',     type:'t',v:[227987.63,233418.11,194458.41,178732.41]},
+  {g:'Fixed Assets',type:'sh'},
+  {label:'Office Equipment',         entity:'BH',type:'i',v:[3848.60,3848.60,3848.60,3848.60]},
+  {label:'Less Accum. Depreciation', entity:'BH',type:'i',v:[-967.53,-1065.56,-1174.07,-1279.09]},
+  {label:'Total Fixed Assets',       type:'t',v:[2881.07,2783.04,2674.53,2569.51]},
+  {label:'Total Assets',             type:'gt',v:[331214.43,389457.02,430014.59,458324.51]},
+  {g:'Liabilities',type:'h'},
+  {label:'Accounts Payable',         entity:'BH',type:'i',v:[7741.24,7232.72,6482.57,11015.29]},
+  {label:'Accruals',                 entity:'BH',type:'i',v:[291.04,5536.59,6446.18,5496.69]},
+  {label:'Directors Loan Account',   entity:'BH',type:'i',v:[20713.26,20713.26,20713.26,20713.26]},
+  {label:'Income in Advance',        entity:'BH',type:'i',v:[3775,975,975,975]},
+  {label:'Salary Payable',           entity:'BH',type:'i',v:[19054,38108,57168.58,76229.16]},
+  {label:'Sales Tax',                entity:'BH',type:'i',v:[-370.53,-375.99,-389.56,-392.19]},
+  {label:'Accounts Payable',         entity:'BC',type:'i',v:[1785,0,343.09,0]},
+  {label:'Accruals',                 entity:'BC',type:'i',v:[19870,20056,16166,12879]},
+  {label:'Loan from Director',       entity:'BC',type:'i',v:[2256.18,2256.18,2256.18,2256.18]},
+  {label:'Sales Tax',                entity:'BC',type:'i',v:[-5.82,-9.05,-26.78,-28.17]},
+  {label:'Total Liabilities',        type:'gt',v:[75109.37,94492.71,110134.52,129144.22]},
+  {g:'Equity',type:'h'},
+  {label:'Share Capital',            entity:'BH',type:'i',v:[27229.41,27229.41,27229.41,27229.41]},
+  {label:'Retained Earnings',        entity:'BH',type:'i',v:[327830.81,327830.81,327830.81,327830.81]},
+  {label:'Dividend',                 entity:'BH',type:'i',v:[-317947.87,-317947.87,-317947.87,-317947.87]},
+  {label:'Current Year Earnings',    entity:'BH',type:'i',v:[6454.35,12733.35,17862.17,9981.45]},
+  {label:'Retained Earnings',        entity:'BC',type:'i',v:[210886.71,210886.71,210886.71,210886.71]},
+  {label:'Current Year Earnings',    entity:'BC',type:'i',v:[1651.65,34231.90,54018.84,71199.77]},
+  {label:'Total Equity',             type:'gt',v:[256105.06,294964.31,319880.07,329180.28]},
+];
+
+const CONSO_PL = [
+  {g:'Income / Revenue',type:'h'},
+  {label:'Affiliate',                entity:'BH',type:'i',v:[2596,2380,1756,0]},
+  {label:'Sales',                    entity:'BH',type:'i',v:[0,220,0,0]},
+  {label:'Sales SEO Backlinks',      entity:'BH',type:'i',v:[16500,12500,21500,2500]},
+  {label:'SEO Consultancy',          entity:'BH',type:'i',v:[450,0,0,0]},
+  {label:'SEO Retainer',             entity:'BH',type:'i',v:[21170,34305,35805,38635]},
+  {label:'Marketing Operations',     entity:'BC',type:'i',v:[13230,14310,30415,13464]},
+  {label:'Web Development',          entity:'BC',type:'i',v:[12425,40862.5,9010,17229]},
+  {label:'Total Income',             type:'t',v:[66371,104577.5,98486,71828]},
+  {g:'Cost of Sales',type:'h'},
+  {label:'Payment Platform',         entity:'BH',type:'i',v:[874.02,1699.26,764.92,2029.71]},
+  {label:'SEO – Backlinks',          entity:'BH',type:'i',v:[1130,1115,1905,4785]},
+  {label:'SEO – Others',             entity:'BH',type:'i',v:[353.85,0,0,0]},
+  {label:'SEO – Writers',            entity:'BH',type:'i',v:[1460,1710,0,0]},
+  {label:'SEO Tools',                entity:'BH',type:'i',v:[774.89,778.47,975.70,853.89]},
+  {label:'Team Costs – COS',         entity:'BH',type:'i',v:[2588.71,5725.72,9500.42,9939.35]},
+  {label:'Payment Platform',         entity:'BC',type:'i',v:[297.74,504.29,1028.46,571.75]},
+  {label:'Team Costs – COS',         entity:'BC',type:'i',v:[4209,7210,9440,12106]},
+  {label:'Web Developers',           entity:'BC',type:'i',v:[17389,12770,6650,697]},
+  {label:'Total Cost of Sales',      type:'t',v:[29077.21,31512.74,30263.50,30982.70]},
+  {label:'Gross Profit',             type:'gt',v:[37293.79,73064.76,68222.50,40845.30]},
+  {g:'Operating Expenses',type:'h'},
+  {label:'Accounting & Bookkeeping', entity:'BH',type:'i',v:[687.65,517,280,0]},
+  {label:'Advertisement Spends',     entity:'BH',type:'i',v:[0,2129.59,715.72,1238.43]},
+  {label:'Bank Fees',                entity:'BH',type:'i',v:[208.45,113.83,52.63,52.63]},
+  {label:'Bank Revaluations',        entity:'BH',type:'i',v:[288.86,137.82,98.42,143.78]},
+  {label:'Depreciation',             entity:'BH',type:'i',v:[108.52,98.03,108.51,105.02]},
+  {label:'General Expenses',         entity:'BH',type:'i',v:[0,0,0,409.85]},
+  {label:'Insurance',                entity:'BH',type:'i',v:[271.71,245.49,271.80,263.00]},
+  {label:'Legal & Compliance',       entity:'BH',type:'i',v:[401.03,1841.56,413.54,510.00]},
+  {label:'Realised Currency Gains',  entity:'BH',type:'i',v:[0,0,0,186.88]},
+  {label:'Sales & Marketing',        entity:'BH',type:'i',v:[0,0,0,231.45]},
+  {label:'Staff Entertainment',      entity:'BH',type:'i',v:[90.17,0,107.88,0]},
+  {label:'Subscriptions',            entity:'BH',type:'i',v:[1870.39,2788.79,3866.11,3787.79]},
+  {label:'Team Costs – Contractors', entity:'BH',type:'i',v:[2890.41,4838.44,2110,1644.97]},
+  {label:'Team Costs – S&M',         entity:'BH',type:'i',v:[1126.79,250,1148.19,3668.59]},
+  {label:'Telephone & Internet',     entity:'BH',type:'i',v:[82.19,82.99,82,91.72]},
+  {label:'Travel – International',   entity:'BH',type:'i',v:[0,0,12466.47,0]},
+  {label:'Unrealised FX',            entity:'BH',type:'i',v:[0.01,0.01,4.29,13.08]},
+  {label:'Wages & Salaries',         entity:'BH',type:'i',v:[19054,19054,19060.58,19060.58]},
+  {label:'Accounting & Bookkeeping', entity:'BC',type:'i',v:[0,0,326.75,0]},
+  {label:'Bank Fees',                entity:'BC',type:'i',v:[64.59,64.59,68.06,27.76]},
+  {label:'Bank Revaluations',        entity:'BC',type:'i',v:[14.98,14.97,0,0]},
+  {label:'Subscriptions',            entity:'BC',type:'i',v:[28.04,28.4,109.81,109.56]},
+  {label:'Team Costs – S&M',         entity:'BC',type:'i',v:[2000,2000,2014.98,0]},
+  {label:'Total Operating Expenses', type:'t',v:[29187.79,34231.51,43305.74,31545.09]},
+  {label:'Net Profit / Income',      type:'gt',v:[8106.00,38859.25,24915.76,9300.21]},
+];
+
 // ── Helpers ──
 const $f=(n,d=0)=>{if(n===null||n===undefined)return'—';const s='$'+Math.abs(n).toLocaleString('en',{minimumFractionDigits:d,maximumFractionDigits:d});return n<0?'('+s+')':s;};
 const eb=(e)=>`<span class="ent-badge">${e}</span>`;
@@ -677,6 +791,7 @@ function go(id,el){
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   document.getElementById('screen-'+id).classList.add('active');
   if(el)el.classList.add('active');
+  if(id==='dash')renderDash();
   if(id==='cf')renderCF();
   if(id==='fin')renderFin();
   if(id==='ar')renderAR();
@@ -690,7 +805,7 @@ function setEnt(e,el){
   const lbl={'conso':'','bh':'· Braveheart FZ LLC','bc':'· Bravecore FZ LLC'};
   document.getElementById('cf-el').textContent=lbl[e];
   document.getElementById('fin-el').textContent=lbl[e];
-  renderCF(); renderFin();
+  renderDash(); renderCF(); renderFin();
 }
 
 // ── CF ──
@@ -706,13 +821,6 @@ function getD(){
 
 function renderCF(){
   const d=getD();
-  const ytdIn=d.in.reduce((s,v)=>s+v,0);
-  const ytdOut=d.out.reduce((s,v)=>s+v,0);
-  document.getElementById('cfm').innerHTML=`
-    <div class="mc"><div class="mc-label">Opening balance</div><div class="mc-value neu">${$f(d.open)}</div><div class="mc-sub">Jan 1, 2026</div></div>
-    <div class="mc"><div class="mc-label">Apr closing (bank)</div><div class="mc-value neu">${$f(d.close[3])}</div><div class="mc-sub">Apr 30, 2026</div></div>
-    <div class="mc"><div class="mc-label">YTD inflow</div><div class="mc-value pos">${$f(ytdIn)}</div><div class="mc-sub">Jan–Apr actuals</div></div>
-    <div class="mc"><div class="mc-label">YTD outflow</div><div class="mc-value neg">(${$f(ytdOut).replace('$','')})</div><div class="mc-sub">Jan–Apr actuals</div></div>`;
   renderCFTable(d);
   renderBnk();
 }
@@ -869,13 +977,13 @@ function swFin(tab,el){
 
 function renderFin(){
   if(finTab==='bs'){
-    const src=ent==='bc'?BC_BS:ent==='bh'?BH_BS:[...BH_BS,...BC_BS];
+    const src=ent==='bc'?BC_BS:ent==='bh'?BH_BS:CONSO_BS;
     const title=ent==='bc'?'Bravecore FZ LLC — Balance Sheet':ent==='bh'?'Braveheart FZ LLC — Balance Sheet':'Consolidated Balance Sheet (BH + BC)';
     document.getElementById('bs-title').textContent=title;
     renderFinTable('bst',src,ent);
   } else {
-    const src=ent==='bc'?BC_PL:ent==='bh'?BH_PL:[...BH_PL,...BC_PL];
-    const title=ent==='bc'?'Bravecore FZ LLC — Income Statement':ent==='bh'?'Braveheart FZ LLC — Profit & Loss':'Consolidated P&L (BH + BC)';
+    const src=ent==='bc'?BC_PL:ent==='bh'?BH_PL:CONSO_PL;
+    const title=ent==='bc'?'Bravecore FZ LLC — Income Statement':ent==='bh'?'Braveheart FZ LLC — Profit & Loss':'Consolidated Income Statement (BH + BC)';
     document.getElementById('pl-title').textContent=title;
     renderFinTable('plt',src,ent);
   }
@@ -1256,7 +1364,33 @@ function swCtSub(tab,el){
   ['all','clients','vendors'].forEach(t=>document.getElementById('ctg-'+t).classList.toggle('active',t===tab));
 }
 
+// ── Dashboard ──
+function renderDash(){
+  const d=getD();
+  const ytdIn=d.in.reduce((s,v)=>s+v,0);
+  const ytdOut=d.out.reduce((s,v)=>s+v,0);
+  const net=ytdIn-ytdOut;
+  const lbl={'conso':'','bh':'· Braveheart','bc':'· Bravecore'};
+  const el=document.getElementById('dash-el');
+  if(el) el.textContent=lbl[ent];
+  document.getElementById('dash-kpis').innerHTML=`
+    <div class="mc"><div class="mc-label">Closing cash balance</div><div class="mc-value neu">${$f(d.close[3])}</div><div class="mc-sub">Apr 30, 2026</div></div>
+    <div class="mc"><div class="mc-label">YTD inflow</div><div class="mc-value pos">${$f(ytdIn)}</div><div class="mc-sub">Jan–Apr 2026</div></div>
+    <div class="mc"><div class="mc-label">YTD outflow</div><div class="mc-value neg">(${$f(ytdOut).replace('$','')})</div><div class="mc-sub">Jan–Apr 2026</div></div>
+    <div class="mc"><div class="mc-label">Net cash movement</div><div class="mc-value ${net>=0?'pos':'neg'}">${net>=0?$f(net):'('+$f(Math.abs(net)).replace('$','')+')'}</div><div class="mc-sub">Jan–Apr 2026</div></div>`;
+  const maxV=Math.max(...d.close);
+  let bars='', lbls='';
+  d.close.forEach((v,i)=>{
+    const pct=Math.max(Math.round(v/maxV*100),4);
+    bars+=`<div class="dash-bar-col"><div class="dash-bar-val">${$f(v)}</div><div class="dash-bar-body" style="height:${pct}%"></div></div>`;
+    lbls+=`<div class="dash-bar-lbl">${E[i]}</div>`;
+  });
+  document.getElementById('dash-bars').innerHTML=bars;
+  document.getElementById('dash-lbls').innerHTML=lbls;
+}
+
 // ── Init ──
+renderDash();
 renderCF();
 renderAR();
 renderAP();
