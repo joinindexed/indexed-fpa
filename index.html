@@ -139,13 +139,7 @@ table.fin td.neg{color:var(--red)}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.12);border-radius:3px}
 input,select{font-family:var(--sans)}
-.dash-chart-wrap{padding:0 24px 0;display:flex;flex-direction:column;gap:0}
-.dash-bars{display:flex;gap:16px;align-items:flex-end;height:160px;border-bottom:1px solid var(--border)}
-.dash-bar-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:5px;height:100%}
-.dash-bar-body{width:55%;border-radius:5px 5px 0 0;background:var(--accent);min-height:4px}
-.dash-bar-val{font-size:13px;color:var(--text3);font-weight:500;white-space:nowrap}
-.dash-bar-lbls{display:flex;gap:16px;padding:8px 0 16px}
-.dash-bar-lbl{flex:1;text-align:center;font-size:15px;font-weight:600;color:var(--text3)}
+.dash-pl-metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:18px}
 </style>
 </head>
 <body>
@@ -194,16 +188,14 @@ input,select{font-family:var(--sans)}
 <div id="screen-dash" class="screen">
   <div class="page-header">
     <div><div class="page-title">Dashboard <em id="dash-el"></em></div>
-    <div class="page-sub">Apr 2026 actuals · All values in USD · Toggle entity above</div></div>
+    <div class="page-sub">Jan–Apr 2026 actuals · All values in USD · Toggle entity above</div></div>
   </div>
   <div class="content">
     <div class="metrics" id="dash-kpis"></div>
+    <div class="dash-pl-metrics" id="dash-pl"></div>
     <div class="card">
       <div class="card-head"><span class="card-title">Closing cash balance</span><span class="card-hint">Month-end bank balance</span></div>
-      <div class="dash-chart-wrap">
-        <div class="dash-bars" id="dash-bars"></div>
-        <div class="dash-bar-lbls" id="dash-lbls"></div>
-      </div>
+      <div id="dash-chart-area"></div>
     </div>
   </div>
 </div>
@@ -1368,28 +1360,64 @@ function swCtSub(tab,el){
 }
 
 // ── Dashboard ──
+function getPL(){
+  const src=ent==='bh'?BH_PL:ent==='bc'?BC_PL:CONSO_PL;
+  const get=label=>(src.find(r=>r.label===label)||{v:[0,0,0,0]}).v;
+  const sum=v=>v.reduce((s,x)=>s+x,0);
+  const revLbl=ent==='bh'?'Total Trading Income':'Total Income';
+  const netLbl=ent==='bh'?'Net Profit':ent==='bc'?'Net Income':'Net Profit / Income';
+  const ytdRev=sum(get(revLbl));
+  const ytdGP=sum(get('Gross Profit'));
+  const ytdNet=sum(get(netLbl));
+  const ytdWages=ent==='bc'?0:sum((BH_PL.find(r=>r.label==='Wages & Salaries')||{v:[0,0,0,0]}).v);
+  const adjNet=ytdNet+ytdWages;
+  return{ytdRev,ytdGP,ytdNet,adjNet,
+    gpPct:ytdRev?ytdGP/ytdRev:0,
+    adjNetPct:ytdRev?adjNet/ytdRev:0};
+}
+
 function renderDash(){
   const d=getD();
   const ytdIn=d.in.reduce((s,v)=>s+v,0);
   const ytdOut=d.out.reduce((s,v)=>s+v,0);
   const net=ytdIn-ytdOut;
+  const pl=getPL();
+  const pct=n=>(n*100).toFixed(1)+'%';
   const lbl={'conso':'','bh':'· Braveheart','bc':'· Bravecore'};
   const el=document.getElementById('dash-el');
   if(el) el.textContent=lbl[ent];
+
+  // Cash KPIs
   document.getElementById('dash-kpis').innerHTML=`
     <div class="mc"><div class="mc-label">Closing cash balance</div><div class="mc-value neu">${$f(d.close[3])}</div><div class="mc-sub">Apr 30, 2026</div></div>
     <div class="mc"><div class="mc-label">YTD inflow</div><div class="mc-value pos">${$f(ytdIn)}</div><div class="mc-sub">Jan–Apr 2026</div></div>
     <div class="mc"><div class="mc-label">YTD outflow</div><div class="mc-value neg">(${$f(ytdOut).replace('$','')})</div><div class="mc-sub">Jan–Apr 2026</div></div>
     <div class="mc"><div class="mc-label">Net cash movement</div><div class="mc-value ${net>=0?'pos':'neg'}">${net>=0?$f(net):'('+$f(Math.abs(net)).replace('$','')+')'}</div><div class="mc-sub">Jan–Apr 2026</div></div>`;
-  const maxV=Math.max(...d.close);
-  let bars='', lbls='';
+
+  // P&L KPIs (5-column row)
+  const adjCls=pl.adjNet>=0?'pos':'neg';
+  document.getElementById('dash-pl').innerHTML=`
+    <div class="mc"><div class="mc-label">YTD revenue</div><div class="mc-value neu">${$f(pl.ytdRev)}</div><div class="mc-sub">Jan–Apr 2026</div></div>
+    <div class="mc"><div class="mc-label">YTD gross profit</div><div class="mc-value pos">${$f(pl.ytdGP)}</div><div class="mc-sub">Jan–Apr 2026</div></div>
+    <div class="mc"><div class="mc-label">Gross profit %</div><div class="mc-value pos">${pct(pl.gpPct)}</div><div class="mc-sub">GP / Revenue</div></div>
+    <div class="mc"><div class="mc-label">Adj. net profit</div><div class="mc-value ${adjCls}">${pl.adjNet>=0?$f(pl.adjNet):'('+$f(Math.abs(pl.adjNet)).replace('$','')+')'}</div><div class="mc-sub">Net + wages &amp; salaries</div></div>
+    <div class="mc"><div class="mc-label">Adj. net profit %</div><div class="mc-value ${adjCls}">${pct(pl.adjNetPct)}</div><div class="mc-sub">Adj. net / Revenue</div></div>`;
+
+  // Chart
+  const chartH=150, maxBar=chartH-32, maxV=Math.max(...d.close);
+  let chart=`<div style="position:relative;height:${chartH}px;display:flex;align-items:flex-end;gap:14px;padding:0 24px">`;
+  [33,66].forEach(p=>chart+=`<div style="position:absolute;left:24px;right:24px;bottom:${p}%;height:1px;background:var(--border);pointer-events:none"></div>`);
   d.close.forEach((v,i)=>{
-    const pct=Math.max(Math.round(v/maxV*100),4);
-    bars+=`<div class="dash-bar-col"><div class="dash-bar-val">${$f(v)}</div><div class="dash-bar-body" style="height:${pct}%"></div></div>`;
-    lbls+=`<div class="dash-bar-lbl">${E[i]}</div>`;
+    const bh=Math.max(Math.round(v/maxV*maxBar),4);
+    chart+=`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;justify-content:flex-end;height:100%;z-index:1">
+      <div style="font-size:13px;font-weight:500;color:var(--text2);white-space:nowrap">${$f(v)}</div>
+      <div style="width:52%;height:${bh}px;background:var(--accent);border-radius:5px 5px 0 0"></div>
+    </div>`;
   });
-  document.getElementById('dash-bars').innerHTML=bars;
-  document.getElementById('dash-lbls').innerHTML=lbls;
+  chart+=`</div><div style="display:flex;gap:14px;padding:7px 24px 16px;border-top:1px solid var(--border)">`;
+  E.forEach(m=>chart+=`<div style="flex:1;text-align:center;font-size:14px;font-weight:600;color:var(--text3)">${m}</div>`);
+  chart+='</div>';
+  document.getElementById('dash-chart-area').innerHTML=chart;
 }
 
 // ── Init ──
