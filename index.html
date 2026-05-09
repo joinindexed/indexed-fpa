@@ -985,21 +985,24 @@ function renderFin(){
     const src=ent==='bc'?BC_PL:ent==='bh'?BH_PL:CONSO_PL;
     const title=ent==='bc'?'Bravecore FZ LLC — Income Statement':ent==='bh'?'Braveheart FZ LLC — Profit & Loss':'Consolidated Income Statement (BH + BC)';
     document.getElementById('pl-title').textContent=title;
-    renderFinTable('plt',src,ent);
+    renderFinTable('plt',src,ent,true);
   }
 }
 
-function renderFinTable(id,rows,curEnt){
+function renderFinTable(id,rows,curEnt,showYTD){
+  const cols=showYTD?7:6;
   let h='<thead><tr><th>Account</th><th>Entity</th>';
   E.forEach(m=>h+=`<th>${m} 2026</th>`);
+  if(showYTD) h+='<th>YTD</th>';
   h+='</tr></thead><tbody>';
   rows.forEach(r=>{
-    if(r.type==='h'){h+=`<tr class="fh"><td colspan="6">${r.g}</td></tr>`;return;}
-    if(r.type==='sh'){h+=`<tr class="fsh"><td colspan="6" style="padding-left:14px">${r.g}</td></tr>`;return;}
+    if(r.type==='h'){h+=`<tr class="fh"><td colspan="${cols}">${r.g}</td></tr>`;return;}
+    if(r.type==='sh'){h+=`<tr class="fsh"><td colspan="${cols}" style="padding-left:14px">${r.g}</td></tr>`;return;}
     const cls=r.type==='gt'?'fgt':r.type==='t'?'ft':'fi';
     const entCell=r.entity?eb(r.entity):'';
     h+=`<tr class="${cls}"><td>${r.label}</td><td>${entCell}</td>`;
     r.v.forEach(v=>{const c=v<0?'neg':'';h+=`<td class="${c}">${$f(v,2)}</td>`;});
+    if(showYTD){const ytd=r.v.reduce((s,v)=>s+v,0);const c=ytd<0?'neg':'';h+=`<td class="${c}" style="font-weight:600">${$f(ytd,2)}</td>`;}
     h+='</tr>';
   });
   h+='</tbody>';
