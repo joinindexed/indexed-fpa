@@ -203,12 +203,7 @@ input,select{font-family:var(--sans)}
     </div>
     <div class="card">
       <div class="card-head"><span class="card-title">Bank account breakdown</span></div>
-      <div class="itabs">
-        <div class="itab active" onclick="swBnk('bh',this)">Braveheart</div>
-        <div class="itab" onclick="swBnk('bc',this)">Bravecore</div>
-      </div>
-      <div id="bank-bh" class="itp active"><div class="cf-wrap"><table class="cf" id="btBH"></table></div></div>
-      <div id="bank-bc" class="itp"><div class="cf-wrap"><table class="cf" id="btBC"></table></div></div>
+      <div class="cf-wrap"><table class="cf" id="bnk-table"></table></div>
     </div>
   </div>
 </div>
@@ -744,7 +739,7 @@ function renderCF(){
     <div class="mc"><div class="mc-label">YTD inflow</div><div class="mc-value pos">${$f(ytdIn)}</div><div class="mc-sub">Jan–Apr actuals</div></div>
     <div class="mc"><div class="mc-label">YTD outflow</div><div class="mc-value neg">(${$f(ytdOut).replace('$','')})</div><div class="mc-sub">Jan–Apr actuals</div></div>`;
   renderCFTable(d);
-  renderBnk('bh'); renderBnk('bc');
+  renderBnk();
 }
 
 function renderCFTable(d){
@@ -866,26 +861,26 @@ function togDrill(key,label){
 }
 function clDrill(){if(openDrill){const r=document.getElementById('dr-'+openDrill);if(r)r.classList.remove('open');openDrill=null;}}
 
-function renderBnk(e){
-  const banks=e==='bh'?BH_BANKS:BC_BANKS;
+function renderBnk(){
   let h='<thead><tr><th>Account</th>';
   E.forEach(m=>h+=`<th><span class="ba">A</span> ${m}</th>`);
   h+='</tr></thead><tbody>';
-  Object.entries(banks).forEach(([name,vals])=>{
-    h+=`<tr><td style="font-weight:500">${name}</td>`;
-    vals.forEach(v=>h+=`<td>${$f(v)}</td>`);
+  const showBH=ent!=='bc', showBC=ent!=='bh';
+  const totals=E.map(()=>0);
+  if(showBH) Object.entries(BH_BANKS).forEach(([name,vals])=>{
+    h+=`<tr><td style="font-weight:500">${name}${ent==='conso'?` <span class="ent-badge">BH</span>`:''}</td>`;
+    vals.forEach((v,i)=>{h+=`<td>${$f(v)}</td>`;totals[i]+=v;});
+    h+='</tr>';
+  });
+  if(showBC) Object.entries(BC_BANKS).forEach(([name,vals])=>{
+    h+=`<tr><td style="font-weight:500">${name}${ent==='conso'?` <span class="ent-badge">BC</span>`:''}</td>`;
+    vals.forEach((v,i)=>{h+=`<td>${$f(v)}</td>`;totals[i]+=v;});
     h+='</tr>';
   });
   h+='<tr class="tr"><td>Total</td>';
-  E.forEach((_,i)=>h+=`<td>${$f(Object.values(banks).reduce((s,v)=>s+v[i],0))}</td>`);
+  totals.forEach(v=>h+=`<td>${$f(v)}</td>`);
   h+='</tr></tbody>';
-  document.getElementById('bt'+e.toUpperCase()).innerHTML=h;
-}
-
-function swBnk(tab,el){
-  document.querySelectorAll('.card .itabs .itab').forEach(t=>t.classList.remove('active'));
-  el.classList.add('active');
-  ['bh','bc'].forEach(e=>document.getElementById('bank-'+e).classList.toggle('active',e===tab));
+  document.getElementById('bnk-table').innerHTML=h;
 }
 
 // ── Financials ──
