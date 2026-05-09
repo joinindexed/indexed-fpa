@@ -8,89 +8,89 @@
 <style>
 :root{--bg:#f5f6f4;--surface:#fff;--surface2:#f8f9f7;--surface3:#f0f2ee;--border:#e4e8e0;--border2:#d4d9ce;--accent:#2d6a4f;--accent-light:#e8f4ef;--accent-mid:#52b788;--text:#1a1f18;--text2:#4a5146;--text3:#8a9186;--red:#c0392b;--green:#1e6f45;--green-dim:#eaf5ee;--blue:#1a5276;--blue-dim:#eaf1f8;--amber:#7d5a0a;--amber-dim:#fef9ec;--sans:'Poppins',sans-serif}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13px;min-height:100vh}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15.0px;min-height:100vh}
 .shell{display:flex;height:100vh;overflow:hidden}
 .sidebar{width:216px;min-width:216px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column}
 .main{flex:1;overflow-y:auto}
 .logo{padding:22px 20px 18px;border-bottom:1px solid var(--border)}
-.logo-text{font-size:15px;font-weight:600;color:var(--accent)}
-.logo-sub{font-size:10px;color:var(--text3);letter-spacing:.05em;text-transform:uppercase;margin-top:2px}
+.logo-text{font-size:17.0px;font-weight:600;color:var(--accent)}
+.logo-sub{font-size:12.0px;color:var(--text3);letter-spacing:.05em;text-transform:uppercase;margin-top:2px}
 .nav{padding:12px 10px;flex:1}
-.nav-section{font-size:9px;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;font-weight:600;padding:0 8px;margin:14px 0 5px}
-.nav-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:7px;cursor:pointer;color:var(--text2);font-size:12.5px;transition:all .13s;margin-bottom:1px}
+.nav-section{font-size:11.0px;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;font-weight:600;padding:0 8px;margin:14px 0 5px}
+.nav-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:7px;cursor:pointer;color:var(--text2);font-size:14.5px;transition:all .13s;margin-bottom:1px}
 .nav-item:hover{background:var(--surface2);color:var(--text)}
 .nav-item.active{background:var(--accent-light);color:var(--accent);font-weight:500}
 .nav-item svg{width:15px;height:15px;flex-shrink:0;opacity:.6}
 .nav-item.active svg{opacity:1}
 .sidebar-footer{padding:14px;border-top:1px solid var(--border)}
 .cw{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px}
-.cw-label{font-size:9px;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;font-weight:600;margin-bottom:7px}
+.cw-label{font-size:11.0px;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;font-weight:600;margin-bottom:7px}
 .entity-pills{display:flex;gap:4px;margin-top:8px}
-.epill{flex:1;text-align:center;padding:5px 0;border-radius:5px;font-size:10.5px;cursor:pointer;border:1px solid var(--border2);color:var(--text3);transition:all .13s}
+.epill{flex:1;text-align:center;padding:5px 0;border-radius:5px;font-size:12.5px;cursor:pointer;border:1px solid var(--border2);color:var(--text3);transition:all .13s}
 .epill.on{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:500}
 .page-header{padding:24px 30px 16px;border-bottom:1px solid var(--border);background:var(--surface);display:flex;align-items:flex-start;justify-content:space-between}
-.page-title{font-size:21px;font-weight:600;color:var(--text);letter-spacing:-.3px}
+.page-title{font-size:23.0px;font-weight:600;color:var(--text);letter-spacing:-.3px}
 .page-title em{font-style:italic;color:var(--accent);font-weight:300}
-.page-sub{font-size:11px;color:var(--text3);margin-top:3px}
+.page-sub{font-size:13.0px;color:var(--text3);margin-top:3px}
 .content{padding:20px 30px}
 .screen{display:none}
 .screen.active{display:block}
 .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
 .mc{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
-.mc-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;font-weight:600;margin-bottom:6px}
-.mc-value{font-size:20px;font-weight:600;letter-spacing:-.4px}
+.mc-label{font-size:12.0px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;font-weight:600;margin-bottom:6px}
+.mc-value{font-size:22.0px;font-weight:600;letter-spacing:-.4px}
 .mc-value.pos{color:var(--green)}
 .mc-value.neg{color:var(--red)}
 .mc-value.neu{color:var(--accent)}
-.mc-sub{font-size:10px;color:var(--text3);margin-top:2px}
+.mc-sub{font-size:12.0px;color:var(--text3);margin-top:2px}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:14px;overflow:hidden}
 .card-head{padding:12px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
-.card-title{font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.07em}
-.card-hint{font-size:10px;color:var(--text3)}
+.card-title{font-size:13.0px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.07em}
+.card-hint{font-size:12.0px;color:var(--text3)}
 .cf-wrap{overflow-x:auto}
-table.cf{width:100%;border-collapse:collapse;font-size:11.5px}
-table.cf th{padding:8px 10px;text-align:right;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border);white-space:nowrap;background:var(--surface2);font-size:10.5px}
+table.cf{width:100%;border-collapse:collapse;font-size:13.5px}
+table.cf th{padding:8px 10px;text-align:right;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border);white-space:nowrap;background:var(--surface2);font-size:12.5px}
 table.cf th:first-child{text-align:left;min-width:200px}
 table.cf td{padding:6px 10px;text-align:right;border-bottom:1px solid var(--border);color:var(--text2)}
 table.cf td:first-child{text-align:left}
-table.cf tr.sr td{background:var(--surface3);color:var(--text);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.06em}
+table.cf tr.sr td{background:var(--surface3);color:var(--text);font-weight:600;font-size:12.0px;text-transform:uppercase;letter-spacing:.06em}
 table.cf tr.indent td:first-child{padding-left:22px;cursor:pointer}
 table.cf tr.indent td:first-child:hover{color:var(--accent)}
 table.cf tr.tr td{color:var(--text);font-weight:600;border-top:1px solid var(--border2);background:var(--surface2)}
-table.cf tr.br td{color:var(--accent);font-weight:600;font-size:12px;border-top:2px solid var(--border2);background:var(--accent-light)}
-table.cf tr.fx td{color:var(--text3);font-style:italic;font-size:11px}
+table.cf tr.br td{color:var(--accent);font-weight:600;font-size:14.0px;border-top:2px solid var(--border2);background:var(--accent-light)}
+table.cf tr.fx td{color:var(--text3);font-style:italic;font-size:13.0px}
 table.cf td.pos{color:var(--green)}
 table.cf td.neg{color:var(--red)}
-.ba{display:inline-block;background:var(--green-dim);color:var(--green);border-radius:3px;padding:1px 4px;font-size:8px;margin-left:3px;vertical-align:middle;font-weight:600}
+.ba{display:inline-block;background:var(--green-dim);color:var(--green);border-radius:3px;padding:1px 4px;font-size:10.0px;margin-left:3px;vertical-align:middle;font-weight:600}
 /* drill row */
 tr.drill-row{display:none}
 tr.drill-row.open{display:table-row}
 tr.drill-row td{padding:0;background:var(--accent-light);border-bottom:1px solid var(--border)}
 .di{padding:12px 16px 12px 24px}
-.dt-hd{font-size:10px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;display:flex;justify-content:space-between}
-.dc{cursor:pointer;color:var(--text3);font-size:14px}
-table.drt{width:100%;border-collapse:collapse;font-size:11px}
-table.drt th{padding:5px 8px;text-align:right;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border);font-size:10px}
+.dt-hd{font-size:12.0px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;display:flex;justify-content:space-between}
+.dc{cursor:pointer;color:var(--text3);font-size:16.0px}
+table.drt{width:100%;border-collapse:collapse;font-size:13.0px}
+table.drt th{padding:5px 8px;text-align:right;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border);font-size:12.0px}
 table.drt th:first-child,table.drt th:nth-child(2),table.drt th:nth-child(3){text-align:left}
 table.drt td{padding:5px 8px;text-align:right;border-bottom:1px solid var(--border);color:var(--text2)}
 table.drt td:first-child,table.drt td:nth-child(2),table.drt td:nth-child(3){text-align:left}
 table.drt tr:last-child td{border-bottom:none}
 /* data table */
-table.dt{width:100%;border-collapse:collapse;font-size:11.5px}
-table.dt th{padding:8px 10px;text-align:left;color:var(--text3);font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap;font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;background:var(--surface2)}
+table.dt{width:100%;border-collapse:collapse;font-size:13.5px}
+table.dt th{padding:8px 10px;text-align:left;color:var(--text3);font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap;font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;background:var(--surface2)}
 table.dt td{padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text2);vertical-align:middle}
 table.dt td.bold{color:var(--text);font-weight:500}
 table.dt tr:hover td{background:var(--surface2)}
 table.dt tr:last-child td{border-bottom:none}
 table.dt td.r{text-align:right}
 /* status */
-.st{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:600}
+.st{display:inline-block;padding:2px 7px;border-radius:4px;font-size:12.0px;font-weight:600}
 .st-p{background:var(--green-dim);color:var(--green)}
 .st-o{background:var(--amber-dim);color:var(--amber)}
 .st-n{background:var(--surface3);color:var(--text3)}
 /* tabs */
 .itabs{display:flex;border-bottom:1px solid var(--border);padding:0 18px;background:var(--surface)}
-.itab{padding:9px 14px;font-size:11px;font-weight:500;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .13s}
+.itab{padding:9px 14px;font-size:13.0px;font-weight:500;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .13s}
 .itab:hover{color:var(--text)}
 .itab.active{color:var(--accent);border-bottom-color:var(--accent)}
 .itp{display:none}
@@ -101,7 +101,7 @@ table.dt td.r{text-align:right}
 .mb:hover{opacity:.7}
 .mb.a{background:var(--accent)}
 .mbl{display:flex;gap:5px;padding:3px 18px 10px}
-.mbl span{flex:1;text-align:center;font-size:9px;color:var(--text3);font-weight:500}
+.mbl span{flex:1;text-align:center;font-size:11.0px;color:var(--text3);font-weight:500}
 /* import */
 .ig{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px}
 .ie{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px}
@@ -111,28 +111,28 @@ table.dt td.r{text-align:right}
 .ui svg{width:13px;height:13px;color:var(--text3)}
 .us.filled .ui{background:var(--accent-light)}
 .us.filled .ui svg{color:var(--accent)}
-.ul{font-size:11.5px;font-weight:500;color:var(--text2)}
+.ul{font-size:13.5px;font-weight:500;color:var(--text2)}
 .us.filled .ul{color:var(--green)}
-.usub{font-size:10px;color:var(--text3);margin-top:1px}
-.es{margin-top:9px;padding:8px 11px;background:var(--surface2);border-radius:6px;font-size:10.5px;color:var(--text3)}
-.add-row{display:flex;align-items:center;gap:8px;padding:9px 12px;color:var(--text3);font-size:11px;font-weight:500;cursor:pointer;border-top:1px dashed var(--border);transition:all .13s}
+.usub{font-size:12.0px;color:var(--text3);margin-top:1px}
+.es{margin-top:9px;padding:8px 11px;background:var(--surface2);border-radius:6px;font-size:12.5px;color:var(--text3)}
+.add-row{display:flex;align-items:center;gap:8px;padding:9px 12px;color:var(--text3);font-size:13.0px;font-weight:500;cursor:pointer;border-top:1px dashed var(--border);transition:all .13s}
 .add-row:hover{color:var(--accent);background:var(--accent-light)}
 /* financials */
-table.fin{width:100%;border-collapse:collapse;font-size:11.5px}
-table.fin th{padding:8px 12px;text-align:right;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border);background:var(--surface2);font-size:10.5px;white-space:nowrap}
+table.fin{width:100%;border-collapse:collapse;font-size:13.5px}
+table.fin th{padding:8px 12px;text-align:right;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border);background:var(--surface2);font-size:12.5px;white-space:nowrap}
 table.fin th:first-child{text-align:left;min-width:220px}
 table.fin th:nth-child(2){text-align:left;min-width:60px}
 table.fin td{padding:5px 12px;text-align:right;border-bottom:1px solid var(--border);color:var(--text2)}
 table.fin td:first-child{text-align:left}
-table.fin td:nth-child(2){text-align:left;font-size:10px}
-table.fin tr.fh td{background:var(--surface3);font-weight:600;color:var(--text);font-size:10px;text-transform:uppercase;letter-spacing:.06em}
-table.fin tr.fsh td{background:var(--surface2);color:var(--text3);font-size:10px;font-style:italic}
+table.fin td:nth-child(2){text-align:left;font-size:12.0px}
+table.fin tr.fh td{background:var(--surface3);font-weight:600;color:var(--text);font-size:12.0px;text-transform:uppercase;letter-spacing:.06em}
+table.fin tr.fsh td{background:var(--surface2);color:var(--text3);font-size:12.0px;font-style:italic}
 table.fin tr.fi td:first-child{padding-left:24px}
 table.fin tr.ft td{font-weight:600;color:var(--text);border-top:1px solid var(--border2);background:var(--surface2)}
 table.fin tr.fgt td{font-weight:600;color:var(--accent);border-top:2px solid var(--border2);background:var(--accent-light)}
 table.fin td.pos{color:var(--green)}
 table.fin td.neg{color:var(--red)}
-.ent-badge{display:inline-block;font-size:10px;font-weight:600;color:var(--accent);background:var(--accent-light);padding:1px 6px;border-radius:3px}
+.ent-badge{display:inline-block;font-size:12.0px;font-weight:600;color:var(--accent);background:var(--accent-light);padding:1px 6px;border-radius:3px}
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
@@ -169,7 +169,7 @@ input,select{font-family:var(--sans)}
   <div class="sidebar-footer">
     <div class="cw">
       <div class="cw-label">Actuals through</div>
-      <div style="padding:6px 8px;background:var(--accent-light);border-radius:5px;font-size:12px;font-weight:500;color:var(--accent);text-align:center">April 2026</div>
+      <div style="padding:6px 8px;background:var(--accent-light);border-radius:5px;font-size:14.0px;font-weight:500;color:var(--accent);text-align:center">April 2026</div>
       <div class="entity-pills">
         <div class="epill on" onclick="setEnt('conso',this)">Conso</div>
         <div class="epill" onclick="setEnt('bh',this)">BH</div>
@@ -184,7 +184,7 @@ input,select{font-family:var(--sans)}
 <!-- DASHBOARD -->
 <div id="screen-dash" class="screen">
   <div class="page-header"><div><div class="page-title">Dashboard</div><div class="page-sub">Coming soon</div></div></div>
-  <div class="content" style="text-align:center;padding-top:80px;color:var(--text3)"><div style="font-size:16px;font-style:italic;font-weight:500">Dashboard coming soon</div></div>
+  <div class="content" style="text-align:center;padding-top:80px;color:var(--text3)"><div style="font-size:18.0px;font-style:italic;font-weight:500">Dashboard coming soon</div></div>
 </div>
 
 <!-- CASH FLOW -->
@@ -240,7 +240,7 @@ input,select{font-family:var(--sans)}
 <!-- AR -->
 <div id="screen-ar" class="screen">
   <div class="page-header"><div><div class="page-title">AR</div><div class="page-sub">Customer invoices · actuals from Xero</div></div>
-    <div><button onclick="addAR()" style="padding:7px 14px;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">+ Add invoice</button></div>
+    <div><button onclick="addAR()" style="padding:7px 14px;border-radius:6px;font-size:14.0px;font-weight:500;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">+ Add invoice</button></div>
   </div>
   <div class="content">
     <div class="card"><div class="card-head"><span class="card-title">Invoice register</span></div>
@@ -253,7 +253,7 @@ input,select{font-family:var(--sans)}
 <!-- AP -->
 <div id="screen-ap" class="screen">
   <div class="page-header"><div><div class="page-title">AP</div><div class="page-sub">Vendor payments · actuals from Xero</div></div>
-    <div><button onclick="addAP()" style="padding:7px 14px;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">+ Add expense</button></div>
+    <div><button onclick="addAP()" style="padding:7px 14px;border-radius:6px;font-size:14.0px;font-weight:500;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">+ Add expense</button></div>
   </div>
   <div class="content">
     <div class="card"><div class="card-head"><span class="card-title">Expense register</span></div>
@@ -267,7 +267,7 @@ input,select{font-family:var(--sans)}
 <div id="screen-contacts" class="screen">
   <div class="page-header">
     <div><div class="page-title">Contacts</div><div class="page-sub">Cash flow by contact · Map contacts to display groups · Jan–Apr actuals</div></div>
-    <div><button onclick="saveMappings()" style="padding:7px 14px;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">Save mappings</button></div>
+    <div><button onclick="saveMappings()" style="padding:7px 14px;border-radius:6px;font-size:14.0px;font-weight:500;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">Save mappings</button></div>
   </div>
   <div class="content">
     <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:14px">
@@ -294,7 +294,7 @@ input,select{font-family:var(--sans)}
         </div>
         <div style="overflow-x:auto"><table class="dt" id="ctMap"></table></div>
       </div>
-      <div style="background:var(--accent-light);border:1px solid var(--border);border-radius:8px;padding:12px 16px;font-size:11px;color:var(--text2);margin-top:4px">
+      <div style="background:var(--accent-light);border:1px solid var(--border);border-radius:8px;padding:12px 16px;font-size:13.0px;color:var(--text2);margin-top:4px">
         <strong style="color:var(--accent)">How it works:</strong> Assign the same group name to multiple contacts and they'll be merged into one row in the Summary. Click any group row to expand and see the underlying contacts. Changes apply immediately when you click Save.
       </div>
     </div>
@@ -308,10 +308,10 @@ input,select{font-family:var(--sans)}
     <div class="ig">
       <div class="ie">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-          <div style="font-size:14px;font-weight:600">Braveheart FZ LLC</div>
+          <div style="font-size:16.0px;font-weight:600">Braveheart FZ LLC</div>
           <div style="display:flex;border:1px solid var(--border2);border-radius:5px;overflow:hidden">
-            <div style="padding:4px 12px;font-size:10.5px;font-weight:500;background:var(--accent);color:#fff">Month</div>
-            <div style="padding:4px 12px;font-size:10.5px;font-weight:500;color:var(--text3)">YTD</div>
+            <div style="padding:4px 12px;font-size:12.5px;font-weight:500;background:var(--accent);color:#fff">Month</div>
+            <div style="padding:4px 12px;font-size:12.5px;font-weight:500;color:var(--text3)">YTD</div>
           </div>
         </div>
         <div class="us filled"><div class="ui"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 17v-2m3 2v-4m3 4v-6M9 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V9l-5-6z"/></svg></div><div><div class="ul">Braveheart_Account_Transactions.xlsx</div><div class="usub">Loaded · Jan–Apr 2026</div></div></div>
@@ -321,10 +321,10 @@ input,select{font-family:var(--sans)}
       </div>
       <div class="ie">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-          <div style="font-size:14px;font-weight:600">Bravecore FZ LLC</div>
+          <div style="font-size:16.0px;font-weight:600">Bravecore FZ LLC</div>
           <div style="display:flex;border:1px solid var(--border2);border-radius:5px;overflow:hidden">
-            <div style="padding:4px 12px;font-size:10.5px;font-weight:500;background:var(--accent);color:#fff">Month</div>
-            <div style="padding:4px 12px;font-size:10.5px;font-weight:500;color:var(--text3)">YTD</div>
+            <div style="padding:4px 12px;font-size:12.5px;font-weight:500;background:var(--accent);color:#fff">Month</div>
+            <div style="padding:4px 12px;font-size:12.5px;font-weight:500;color:var(--text3)">YTD</div>
           </div>
         </div>
         <div class="us filled"><div class="ui"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 17v-2m3 2v-4m3 4v-6M9 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V9l-5-6z"/></svg></div><div><div class="ul">Bravecore_Account_Transactions.xlsx</div><div class="usub">Loaded · Jan–Apr 2026</div></div></div>
@@ -333,7 +333,7 @@ input,select{font-family:var(--sans)}
         <div class="es"><span style="color:var(--green)">⬤</span> &nbsp;All 3 files loaded — actuals Jan–Apr 2026</div>
       </div>
     </div>
-    <div style="display:flex;justify-content:flex-end"><button style="padding:7px 14px;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">Process &amp; import →</button></div>
+    <div style="display:flex;justify-content:flex-end"><button style="padding:7px 14px;border-radius:6px;font-size:14.0px;font-weight:500;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">Process &amp; import →</button></div>
   </div>
 </div>
 
@@ -855,7 +855,7 @@ function togDrill(key,label){
     const detId=`dd-${key}-${gi}`;
     // Group row
     h+=`<tr style="cursor:pointer" onclick="document.getElementById('${detId}').style.display=document.getElementById('${detId}').style.display==='none'?'table-row':'none'">`;
-    h+=`<td style="font-weight:600">${isGroup?'📁 ':''}${g.group}${isGroup?` <span style="font-size:9px;font-weight:400;color:var(--text3)">(${g.members.length})</span>`:''} ▸</td>`;
+    h+=`<td style="font-weight:600">${isGroup?'📁 ':''}${g.group}${isGroup?` <span style="font-size:11.0px;font-weight:400;color:var(--text3)">(${g.members.length})</span>`:''} ▸</td>`;
     h+=`<td>${eb(g.entity)}</td>`;
     months.forEach(m=>h+=`<td class="${cls}">${g.vals[m]?$f(g.vals[m]):'—'}</td>`);
     h+=`<td class="${cls}" style="font-weight:700">${$f(total)}</td></tr>`;
@@ -863,7 +863,7 @@ function togDrill(key,label){
     // Expandable: member contacts + their individual transactions
     h+=`<tr id="${detId}" style="display:none"><td colspan="6" style="padding:0;background:var(--surface3)">
       <div style="padding:10px 16px 10px 26px">
-        <table style="width:100%;border-collapse:collapse;font-size:10.5px">
+        <table style="width:100%;border-collapse:collapse;font-size:12.5px">
           <thead><tr>
             <th style="text-align:left;padding:4px 8px;color:var(--text3);border-bottom:1px solid var(--border)">Contact</th>
             <th style="text-align:left;padding:4px 8px;color:var(--text3);border-bottom:1px solid var(--border)">Date</th>
@@ -880,7 +880,7 @@ function togDrill(key,label){
             <td style="padding:3px 8px;color:var(--text3)">${tx.date}</td>
             <td style="padding:3px 8px;color:var(--text3)">${m}</td>
             <td style="padding:3px 8px;text-align:right;color:${isIn?'var(--green)':'var(--red)'};font-weight:500">${isIn?'':'-'}${$f(tx.amt)}</td>
-            ${isIn&&tx.inv?`<td style="padding:3px 8px;color:var(--text3);font-size:10px">${tx.inv}</td>`:''}
+            ${isIn&&tx.inv?`<td style="padding:3px 8px;color:var(--text3);font-size:12.0px">${tx.inv}</td>`:''}
           </tr>`;
         });
       });
@@ -994,17 +994,17 @@ function renderAR(){
     <th class="r">Net cash</th><th>Cash month</th><th>Status</th></tr></thead><tbody>`;
   AR_ROWS.forEach(r=>{
     h+=`<tr><td style="color:var(--text3)">${r.sr}</td>
-      <td class="bold">${getGroup(r.client,r.ent)||r.client}${getGroup(r.client,r.ent)&&getGroup(r.client,r.ent)!==r.client?'<br><span style="font-size:9px;color:var(--text3);font-weight:400">'+r.client+'</span>':''}</td><td>${r.trade}</td><td>${r.part}</td><td>${r.seg}</td>
+      <td class="bold">${getGroup(r.client,r.ent)||r.client}${getGroup(r.client,r.ent)&&getGroup(r.client,r.ent)!==r.client?'<br><span style="font-size:11.0px;color:var(--text3);font-weight:400">'+r.client+'</span>':''}</td><td>${r.trade}</td><td>${r.part}</td><td>${r.seg}</td>
       <td>${eb(r.ent)}</td>
-      <td style="font-size:11px">${r.inv}</td><td style="font-size:11px">${r.due}</td><td style="font-size:11px">${r.pay}</td>
-      <td style="font-size:11px">${r.cur}</td>
-      <td class="r" style="font-size:11px">$${r.amt.toLocaleString()}</td>
-      <td style="text-align:center;font-size:11px">${r.fx}</td>
-      <td class="r" style="font-size:11px">$${r.usd.toLocaleString()}</td>
-      <td style="font-size:11px">${r.mode}</td>
-      <td style="text-align:center;font-size:11px">${r.fee}</td>
-      <td class="r" style="font-size:11px;color:var(--green);font-weight:600">$${r.net.toLocaleString()}</td>
-      <td style="font-size:11px">${r.month}</td>
+      <td style="font-size:13.0px">${r.inv}</td><td style="font-size:13.0px">${r.due}</td><td style="font-size:13.0px">${r.pay}</td>
+      <td style="font-size:13.0px">${r.cur}</td>
+      <td class="r" style="font-size:13.0px">$${r.amt.toLocaleString()}</td>
+      <td style="text-align:center;font-size:13.0px">${r.fx}</td>
+      <td class="r" style="font-size:13.0px">$${r.usd.toLocaleString()}</td>
+      <td style="font-size:13.0px">${r.mode}</td>
+      <td style="text-align:center;font-size:13.0px">${r.fee}</td>
+      <td class="r" style="font-size:13.0px;color:var(--green);font-weight:600">$${r.net.toLocaleString()}</td>
+      <td style="font-size:13.0px">${r.month}</td>
       <td><span class="st ${sc[r.st]}">${sl[r.st]}</span></td></tr>`;
   });
   document.getElementById('art').innerHTML=h+'</tbody>';
@@ -1012,20 +1012,20 @@ function renderAR(){
 
 function addAR(){
   const tbody=document.getElementById('art').querySelector('tbody');
-  const sel=o=>`<select style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-size:11px;border-radius:4px;padding:2px 4px;font-family:var(--sans)">${o.map(x=>`<option>${x}</option>`).join('')}</select>`;
-  const inp=(p,w='110px')=>`<input placeholder="${p}" style="background:transparent;border:none;border-bottom:1px solid var(--border2);color:var(--text);width:${w};font-size:11px;font-family:var(--sans)">`;
+  const sel=o=>`<select style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-size:13.0px;border-radius:4px;padding:2px 4px;font-family:var(--sans)">${o.map(x=>`<option>${x}</option>`).join('')}</select>`;
+  const inp=(p,w='110px')=>`<input placeholder="${p}" style="background:transparent;border:none;border-bottom:1px solid var(--border2);color:var(--text);width:${w};font-size:13.0px;font-family:var(--sans)">`;
   const tr=document.createElement('tr');
   tr.innerHTML=`<td style="color:var(--text3)">—</td><td>${inp('Client','120px')}</td><td>${inp('Trade')}</td><td>${inp('Particulars')}</td>
     <td>${sel(['SEO','Web Dev','Affiliate','Mktg Ops'])}</td><td>${sel(['BH','BC'])}</td>
-    <td><input type="date" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-size:11px;border-radius:4px;padding:2px 4px"></td>
-    <td><input type="date" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-size:11px;border-radius:4px;padding:2px 4px"></td>
-    <td><input type="date" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-size:11px;border-radius:4px;padding:2px 4px"></td>
+    <td><input type="date" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-size:13.0px;border-radius:4px;padding:2px 4px"></td>
+    <td><input type="date" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-size:13.0px;border-radius:4px;padding:2px 4px"></td>
+    <td><input type="date" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-size:13.0px;border-radius:4px;padding:2px 4px"></td>
     <td>${sel(['USD','AED'])}</td>
-    <td><input type="number" placeholder="0" style="background:transparent;border:none;border-bottom:1px solid var(--border2);color:var(--text);width:80px;font-size:11px;text-align:right"></td>
-    <td><input type="number" value="1" style="background:transparent;border:none;border-bottom:1px solid var(--border2);color:var(--text);width:36px;font-size:11px;text-align:center"></td>
+    <td><input type="number" placeholder="0" style="background:transparent;border:none;border-bottom:1px solid var(--border2);color:var(--text);width:80px;font-size:13.0px;text-align:right"></td>
+    <td><input type="number" value="1" style="background:transparent;border:none;border-bottom:1px solid var(--border2);color:var(--text);width:36px;font-size:13.0px;text-align:center"></td>
     <td style="color:var(--text3)">—</td>
     <td>${sel(['Stripe','Bank Transfer','Payoneer','PayPal','Upwork'])}</td>
-    <td><input type="number" placeholder="5" style="background:transparent;border:none;border-bottom:1px solid var(--border2);color:var(--text);width:36px;font-size:11px;text-align:center"></td>
+    <td><input type="number" placeholder="5" style="background:transparent;border:none;border-bottom:1px solid var(--border2);color:var(--text);width:36px;font-size:13.0px;text-align:center"></td>
     <td style="color:var(--green);font-weight:600">—</td>
     <td>${sel(['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'])}</td>
     <td><span class="st" style="background:var(--blue-dim);color:var(--blue)">Forecast</span></td>`;
@@ -1094,24 +1094,24 @@ function renderAP(){
     <th>Payment date</th><th class="r">Amount (USD)</th><th>Cash month</th><th>Segment</th></tr></thead><tbody>`;
   AP_ROWS.forEach(r=>{
     const tc=r.type==='Fixed'?'var(--amber)':'var(--text2)';
-    h+=`<tr><td class="bold">${getGroup(r.vendor,r.ent)||r.vendor}${getGroup(r.vendor,r.ent)&&getGroup(r.vendor,r.ent)!==r.vendor?'<br><span style="font-size:9px;color:var(--text3);font-weight:400">'+r.vendor+'</span>':''}</td><td>${eb(r.ent)}</td>
-      <td><span style="font-size:10.5px;font-weight:500;color:${tc}">${r.type}</span></td>
-      <td style="font-size:11px">${r.src}</td><td style="font-size:11px">${r.pay}</td>
-      <td class="r" style="font-size:11px;color:var(--red);font-weight:500">($${r.amt.toLocaleString()})</td>
-      <td style="font-size:11px">${r.month}</td><td style="font-size:11px">${r.seg}</td></tr>`;
+    h+=`<tr><td class="bold">${getGroup(r.vendor,r.ent)||r.vendor}${getGroup(r.vendor,r.ent)&&getGroup(r.vendor,r.ent)!==r.vendor?'<br><span style="font-size:11.0px;color:var(--text3);font-weight:400">'+r.vendor+'</span>':''}</td><td>${eb(r.ent)}</td>
+      <td><span style="font-size:12.5px;font-weight:500;color:${tc}">${r.type}</span></td>
+      <td style="font-size:13.0px">${r.src}</td><td style="font-size:13.0px">${r.pay}</td>
+      <td class="r" style="font-size:13.0px;color:var(--red);font-weight:500">($${r.amt.toLocaleString()})</td>
+      <td style="font-size:13.0px">${r.month}</td><td style="font-size:13.0px">${r.seg}</td></tr>`;
   });
   document.getElementById('apt').innerHTML=h+'</tbody>';
 }
 
 function addAP(){
   const tbody=document.getElementById('apt').querySelector('tbody');
-  const sel=o=>`<select style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-size:11px;border-radius:4px;padding:2px 4px;font-family:var(--sans)">${o.map(x=>`<option>${x}</option>`).join('')}</select>`;
-  const inp=(p,w='130px')=>`<input placeholder="${p}" style="background:transparent;border:none;border-bottom:1px solid var(--border2);color:var(--text);width:${w};font-size:11px;font-family:var(--sans)">`;
+  const sel=o=>`<select style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-size:13.0px;border-radius:4px;padding:2px 4px;font-family:var(--sans)">${o.map(x=>`<option>${x}</option>`).join('')}</select>`;
+  const inp=(p,w='130px')=>`<input placeholder="${p}" style="background:transparent;border:none;border-bottom:1px solid var(--border2);color:var(--text);width:${w};font-size:13.0px;font-family:var(--sans)">`;
   const tr=document.createElement('tr');
   tr.innerHTML=`<td class="bold">${inp('Vendor name','150px')}</td><td>${sel(['BH','BC'])}</td>
     <td>${sel(['Fixed','Variable'])}</td><td>${sel(['Skuad','Payoneer','Alaan','Bank Transfer','WIO'])}</td>
-    <td><input type="date" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-size:11px;border-radius:4px;padding:2px 4px"></td>
-    <td class="r"><input type="number" placeholder="0" style="background:transparent;border:none;border-bottom:1px solid var(--border2);color:var(--red);width:80px;font-size:11px;text-align:right"></td>
+    <td><input type="date" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-size:13.0px;border-radius:4px;padding:2px 4px"></td>
+    <td class="r"><input type="number" placeholder="0" style="background:transparent;border:none;border-bottom:1px solid var(--border2);color:var(--red);width:80px;font-size:13.0px;text-align:right"></td>
     <td>${sel(['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'])}</td>
     <td>${inp('Segment','90px')}</td>`;
   tbody.appendChild(tr);
@@ -1191,17 +1191,17 @@ function renderGrpTable(id,data){
     const rid=`cr-${id}-${i}`;
     const label=g.group;
     h+=`<tr style="cursor:pointer" onclick="document.getElementById('${rid}').style.display=document.getElementById('${rid}').style.display==='none'?'table-row':'none'">
-      <td class="bold">${isGroup?'📁 ':''}${label}${isGroup?' <span style=\'font-size:9px;color:var(--text3);font-weight:400\'>('+g.members.length+' contacts)</span>':''} ▸</td>
+      <td class="bold">${isGroup?'📁 ':''}${label}${isGroup?' <span style=\'font-size:11.0px;color:var(--text3);font-weight:400\'>('+g.members.length+' contacts)</span>':''} ▸</td>
       <td>${eb(g.entity)}</td>
-      <td><span style="font-size:10.5px;font-weight:500;color:${tc}">${g.type}</span></td>
+      <td><span style="font-size:12.5px;font-weight:500;color:${tc}">${g.type}</span></td>
       <td class="r pos">${g.inflow?$f(g.inflow):'—'}</td>
       <td class="r neg">${g.outflow?'('+$f(g.outflow).replace('$','')+')'  :'—'}</td>
       <td class="r ${net>=0?'pos':'neg'}" style="font-weight:600">${$f(net)}</td>
     </tr><tr id="${rid}" style="display:none"><td colspan="6" style="padding:0;background:var(--accent-light)">
       <div style="padding:10px 18px 10px 24px">
-        ${isGroup?`<div style="font-size:9px;font-weight:600;color:var(--accent);text-transform:uppercase;margin-bottom:8px">Members of "${label}"</div>
-        <table style="width:100%;border-collapse:collapse;font-size:11px">
-          <tr>${['Contact','Jan','Feb','Mar','Apr','Total'].map(h=>`<th style="text-align:${h==='Contact'?'left':'right'};padding:4px 8px;color:var(--text3);border-bottom:1px solid var(--border);font-size:10px">${h}</th>`).join('')}</tr>
+        ${isGroup?`<div style="font-size:11.0px;font-weight:600;color:var(--accent);text-transform:uppercase;margin-bottom:8px">Members of "${label}"</div>
+        <table style="width:100%;border-collapse:collapse;font-size:13.0px">
+          <tr>${['Contact','Jan','Feb','Mar','Apr','Total'].map(h=>`<th style="text-align:${h==='Contact'?'left':'right'};padding:4px 8px;color:var(--text3);border-bottom:1px solid var(--border);font-size:12.0px">${h}</th>`).join('')}</tr>
           ${g.members.map(m=>{
             const mvals=['Jan','Feb','Mar','Apr'].map(mo=>{
               const inv=([...(BH_IN_D[mo]||[]),...(BC_IN_D[mo]||[])]).filter(t=>t.contact===m.contact&&t.entity===m.entity).reduce((s,t)=>s+t.amt,0);
@@ -1215,7 +1215,7 @@ function renderGrpTable(id,data){
               mvals.map(v=>'<td class="r '+cls+'" style="padding:4px 8px">' + (v?$f(v):'—') + '</td>').join('') +
               '<td class="r '+cls+'" style="padding:4px 8px;font-weight:600">' + $f(tot) + '</td></tr>';
           }).join('')}
-        </table>`:`<div style="font-size:9px;font-weight:600;color:var(--accent);text-transform:uppercase;margin-bottom:6px">${label} · monthly</div>
+        </table>`:`<div style="font-size:11.0px;font-weight:600;color:var(--accent);text-transform:uppercase;margin-bottom:6px">${label} · monthly</div>
         <div style="display:flex;gap:16px;flex-wrap:wrap">
           ${['Jan','Feb','Mar','Apr'].map(mo=>{
             const inv=([...(BH_IN_D[mo]||[]),...(BC_IN_D[mo]||[])]).filter(t=>t.contact===g.members[0]?.contact&&t.entity===g.entity).reduce((s,t)=>s+t.amt,0);
@@ -1223,7 +1223,7 @@ function renderGrpTable(id,data){
             const v=inv||out;
             if(!v)return '';
             const col=g.type==='client'?'var(--green)':'var(--red)';
-            return '<div><div style="font-size:9px;color:var(--text3);font-weight:600;text-transform:uppercase">' + mo + ' 2026</div><div style="font-size:13px;font-weight:600;color:' + col + '">' + $f(v) + '</div></div>';
+            return '<div><div style="font-size:11.0px;color:var(--text3);font-weight:600;text-transform:uppercase">' + mo + ' 2026</div><div style="font-size:15.0px;font-weight:600;color:' + col + '">' + $f(v) + '</div></div>';
           }).join('')}
         </div>`}
       </div>
@@ -1251,8 +1251,8 @@ function renderMappingTable(){
     h+=`<tr>
       <td class="bold">${c.contact}</td>
       <td>${eb(c.entity)}</td>
-      <td><span style="font-size:10.5px;font-weight:500;color:${tc}">${c.type}</span></td>
-      <td class="r" style="font-size:11px;color:${c.type==='client'?'var(--green)':'var(--red)'}">${$f(total)}</td>
+      <td><span style="font-size:12.5px;font-weight:500;color:${tc}">${c.type}</span></td>
+      <td class="r" style="font-size:13.0px;color:${c.type==='client'?'var(--green)':'var(--red)'}">${$f(total)}</td>
       <td>
         <input
           id="grp-${i}"
@@ -1260,7 +1260,7 @@ function renderMappingTable(){
           value="${currentGroup}"
           placeholder="e.g. Online Tools, Backlink Vendors…"
           list="grp-suggestions"
-          style="width:100%;background:${isCustom?'var(--accent-light)':'var(--surface2)'};border:1px solid ${isCustom?'var(--accent-mid)':'var(--border2)'};border-radius:5px;padding:5px 8px;font-size:11px;font-family:var(--sans);color:var(--text)"
+          style="width:100%;background:${isCustom?'var(--accent-light)':'var(--surface2)'};border:1px solid ${isCustom?'var(--accent-mid)':'var(--border2)'};border-radius:5px;padding:5px 8px;font-size:13.0px;font-family:var(--sans);color:var(--text)"
           oninput="this.style.background='var(--amber-dim)';this.style.borderColor='var(--amber)'"
         >
       </td>
