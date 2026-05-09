@@ -385,10 +385,10 @@ const BH_IN_D = {
 };
 
 const BC_IN_D = {
-  Jan:[{date:'16-Jan',contact:'RRVS Holdings (RecNation Storage)',entity:'BC',amt:16233.26,fee:240.74}],
-  Feb:[{date:'10-Feb',contact:'RRVS Holdings (RecNation Storage)',entity:'BC',amt:42343.71,fee:485.29}],
+  Jan:[{date:'16-Jan',contact:'RRVS Holdings (RecNation Storage)',entity:'BC',amt:16309.26,fee:164.74}],
+  Feb:[{date:'10-Feb',contact:'RRVS Holdings (RecNation Storage)',entity:'BC',amt:42400.71,fee:428.29}],
   Mar:[{date:'6-Mar',contact:'RRVS Holdings (RecNation Storage)',entity:'BC',amt:94294.04,fee:952.46}],
-  Apr:[{date:'29-Apr',contact:'RRVS Holdings (RecNation Storage)',entity:'BC',amt:49575}],
+  Apr:[{date:'29-Apr',contact:'RRVS Holdings (RecNation Storage)',entity:'BC',amt:49079.25,fee:495.75}],
 };
 
 // BH outflow — all vendors (key ones; others grouped as 'Subscriptions & tools')
@@ -518,11 +518,11 @@ const BC_OUT_D = {
   ]
 };
 
-// Totals (from GL, inflows net of platform fees GL 323/404)
-const BH_IN  = [31505.48, 50555.11, 41207.94, 35461.29];
-const BH_OUT = [23607.28, 16009.56, 33500.58, 23582.07];
-const BC_IN  = [16233.26, 42343.71, 94294.04, 49575.00];
-const BC_OUT = [30775.04, 23626.40, 22180.79, 16618.65];
+// Totals (from GL, inflows net of payment receipt fees GL 323)
+const BH_IN  = [31686.98, 50509.88, 41207.94, 35461.29];
+const BH_OUT = [23788.78, 16096.44, 33527.54, 23609.03];
+const BC_IN  = [16309.26, 42400.71, 94294.04, 49079.25];
+const BC_OUT = [30918.86, 23751.22, 22250.24, 16647.80];
 // FX adjustments (AED account revaluations, non-cash)
 const BH_FX  = [0, -2399.39, -1363.98, -1855.98];
 const BC_FX  = [0, -14.97, 0, 0];
