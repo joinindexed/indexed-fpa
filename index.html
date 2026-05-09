@@ -191,11 +191,15 @@ input,select{font-family:var(--sans)}
     <div class="page-sub">Jan–Apr 2026 actuals · All values in USD · Toggle entity above</div></div>
   </div>
   <div class="content">
-    <div class="metrics" id="dash-kpis"></div>
+    <div class="metrics" id="dash-kpis" style="grid-template-columns:repeat(5,1fr)"></div>
     <div class="dash-pl-metrics" id="dash-pl"></div>
     <div class="card">
       <div class="card-head"><span class="card-title">Closing cash balance</span><span class="card-hint">Month-end bank balance</span></div>
       <div id="dash-chart-area"></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><span class="card-title">Liabilities</span><span class="card-hint" id="dash-liab-sub"></span></div>
+      <div class="metrics" id="dash-liab" style="grid-template-columns:repeat(4,1fr);padding:14px 16px"></div>
     </div>
   </div>
 </div>
@@ -1376,23 +1380,52 @@ function getPL(){
     adjNetPct:ytdRev?adjNet/ytdRev:0};
 }
 
+function getBSMetrics(){
+  const i=3; // closing period index
+  const bhGet=label=>(BH_BS.find(r=>r.label===label)||{v:[0,0,0,0]}).v[i];
+  const bcGet=label=>(BC_BS.find(r=>r.label===label)||{v:[0,0,0,0]}).v[i];
+  if(ent==='bh') return{
+    ar:bhGet('Accounts Receivable'),
+    ap:bhGet('Accounts Payable'),
+    accruals:bhGet('Accruals'),
+    dirLoan:bhGet('Directors Loan Account'),
+    loanDir:0
+  };
+  if(ent==='bc') return{
+    ar:bcGet('Accounts Receivable'),
+    ap:bcGet('Accounts Payable'),
+    accruals:bcGet('Accruals'),
+    dirLoan:0,
+    loanDir:bcGet('Loan from Director')
+  };
+  return{
+    ar:bhGet('Accounts Receivable')+bcGet('Accounts Receivable'),
+    ap:bhGet('Accounts Payable')+bcGet('Accounts Payable'),
+    accruals:bhGet('Accruals')+bcGet('Accruals'),
+    dirLoan:bhGet('Directors Loan Account'),
+    loanDir:bcGet('Loan from Director')
+  };
+}
+
 function renderDash(){
   const d=getD();
   const ytdIn=d.in.reduce((s,v)=>s+v,0);
   const ytdOut=d.out.reduce((s,v)=>s+v,0);
   const net=ytdIn-ytdOut;
   const pl=getPL();
+  const bs=getBSMetrics();
   const pct=n=>(n*100).toFixed(1)+'%';
   const lbl={'conso':'','bh':'· Braveheart','bc':'· Bravecore'};
   const el=document.getElementById('dash-el');
   if(el) el.textContent=lbl[ent];
 
-  // Cash KPIs
+  // Cash KPIs (5-col: add AR)
   document.getElementById('dash-kpis').innerHTML=`
     <div class="mc"><div class="mc-label">Closing cash balance</div><div class="mc-value neu">${$f(d.close[3])}</div><div class="mc-sub">Apr 30, 2026</div></div>
     <div class="mc"><div class="mc-label">YTD inflow</div><div class="mc-value pos">${$f(ytdIn)}</div><div class="mc-sub">Jan–Apr 2026</div></div>
     <div class="mc"><div class="mc-label">YTD outflow</div><div class="mc-value neg">(${$f(ytdOut).replace('$','')})</div><div class="mc-sub">Jan–Apr 2026</div></div>
-    <div class="mc"><div class="mc-label">Net cash movement</div><div class="mc-value ${net>=0?'pos':'neg'}">${net>=0?$f(net):'('+$f(Math.abs(net)).replace('$','')+')'}</div><div class="mc-sub">Jan–Apr 2026</div></div>`;
+    <div class="mc"><div class="mc-label">Net cash movement</div><div class="mc-value ${net>=0?'pos':'neg'}">${net>=0?$f(net):'('+$f(Math.abs(net)).replace('$','')+')'}</div><div class="mc-sub">Jan–Apr 2026</div></div>
+    <div class="mc"><div class="mc-label">Accounts receivable</div><div class="mc-value neu">${$f(bs.ar)}</div><div class="mc-sub">Apr 30, 2026</div></div>`;
 
   // P&L KPIs (5-column row)
   const adjCls=pl.adjNet>=0?'pos':'neg';
@@ -1418,6 +1451,19 @@ function renderDash(){
   E.forEach(m=>chart+=`<div style="flex:1;text-align:center;font-size:14px;font-weight:600;color:var(--text3)">${m}</div>`);
   chart+='</div>';
   document.getElementById('dash-chart-area').innerHTML=chart;
+
+  // Liabilities
+  const periodLbl=`Apr 30, 2026`;
+  document.getElementById('dash-liab-sub').textContent=periodLbl;
+  const liabItems=[
+    ['Accounts payable',     bs.ap],
+    ['Accruals',             bs.accruals],
+    ['Directors loan acct',  bs.dirLoan],
+    ['Loan from director',   bs.loanDir],
+  ];
+  document.getElementById('dash-liab').innerHTML=liabItems.map(([label,val])=>
+    `<div class="mc"><div class="mc-label">${label}</div><div class="mc-value ${val>0?'neg':'neu'}">${val>0?'('+$f(val).replace('$','')+')':(val===0?'—':$f(val))}</div><div class="mc-sub">${periodLbl}</div></div>`
+  ).join('');
 }
 
 // ── Init ──
