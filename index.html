@@ -812,7 +812,7 @@ function setEnt(e,el){
   ent=e;
   document.querySelectorAll('.epill').forEach(p=>p.classList.remove('on'));
   el.classList.add('on');
-  const lbl={'conso':'','bh':'· Braveheart FZ LLC','bc':'· Bravecore FZ LLC'};
+  const lbl={'conso':'· Consolidated (Braveheart & Bravecore)','bh':'· Braveheart FZ LLC','bc':'· Bravecore FZ LLC'};
   document.getElementById('cf-el').textContent=lbl[e];
   document.getElementById('fin-el').textContent=lbl[e];
   renderDash(); renderCF(); renderFin();
@@ -858,13 +858,13 @@ function renderCFTable(d){
   h+=`<tr class="sr"><td colspan="${cfCols}" style="padding-left:10px">↓ Cash outflow</td></tr>`;
   h+=mkDrill('outflow','Payments to vendors & expenses',d.out,'neg');
   h+='<tr class="tr"><td style="padding-left:10px">Total outflow</td>';
-  d.out.forEach(v=>h+=`<td class="neg">(${$f(v).replace('$','')})</td>`);
+  d.out.forEach(v=>h+=`<td class="neg">($${$f(v).replace('$','')})</td>`);
   h+=`<td class="neg">(${$f(ytdOut).replace('$','')})</td></tr>`;
   // Net
   h+='<tr class="tr"><td style="padding-left:10px">Net movement</td>';
-  E.forEach((_,i)=>{const v=d.in[i]-d.out[i];h+=`<td class="${v>=0?'pos':'neg'}">${v>=0?$f(v):'('+$f(Math.abs(v)).replace('$','')+')'}</td>`;});
+  E.forEach((_,i)=>{const v=d.in[i]-d.out[i];h+=`<td class="${v>=0?'pos':'neg'}">${v>=0?$f(v):'($'+$f(Math.abs(v)).replace('$','')+')'}</td>`;});
   const ytdNet=ytdIn-ytdOut;
-  h+=`<td class="${ytdNet>=0?'pos':'neg'}">${ytdNet>=0?$f(ytdNet):'('+$f(Math.abs(ytdNet)).replace('$','')+')'}</td></tr>`;
+  h+=`<td class="${ytdNet>=0?'pos':'neg'}">${ytdNet>=0?$f(ytdNet):'($'+$f(Math.abs(ytdNet)).replace('$','')+')'}</td></tr>`;
   // FX
   const hasFX=d.fx.some(v=>v!==0);
   if(hasFX){
@@ -1258,7 +1258,7 @@ function renderGrpTable(id,data){
       <td>${eb(g.entity)}</td>
       <td><span style="font-size:14.5px;font-weight:500;color:${tc}">${g.type}</span></td>
       <td class="r pos">${g.inflow?$f(g.inflow):'—'}</td>
-      <td class="r neg">${g.outflow?'('+$f(g.outflow).replace('$','')+')'  :'—'}</td>
+      <td class="r neg">${g.outflow?'($'+$f(g.outflow).replace('$','')+')':'—'}</td>
       <td class="r ${net>=0?'pos':'neg'}" style="font-weight:600">${$f(net)}</td>
     </tr><tr id="${rid}" style="display:none"><td colspan="6" style="padding:0;background:var(--accent-light)">
       <div style="padding:10px 18px 10px 24px">
@@ -1430,7 +1430,7 @@ function renderDash(){
   const pl=getPL();
   const bs=getBSMetrics();
   const pct=n=>(n*100).toFixed(1)+'%';
-  const lbl={'conso':'','bh':'· Braveheart','bc':'· Bravecore'};
+  const lbl={'conso':'· Consolidated (Braveheart & Bravecore)','bh':'· Braveheart','bc':'· Bravecore'};
   const el=document.getElementById('dash-el');
   if(el) el.textContent=lbl[ent];
 
@@ -1440,8 +1440,8 @@ function renderDash(){
     <div class="mc"><div class="mc-label">Closing cash balance</div><div class="mc-value neu">${$f(d.close[E.length-1])}</div><div class="mc-sub">${closeLbl}</div></div>
     <div class="mc"><div class="mc-label">Accounts receivable</div><div class="mc-value neu">${$f(bs.ar)}</div><div class="mc-sub">${closeLbl}</div></div>
     <div class="mc"><div class="mc-label">YTD inflow</div><div class="mc-value pos">${$f(ytdIn)}</div><div class="mc-sub">${ytdLbl}</div></div>
-    <div class="mc"><div class="mc-label">YTD outflow</div><div class="mc-value neg">(${$f(ytdOut).replace('$','')})</div><div class="mc-sub">${ytdLbl}</div></div>
-    <div class="mc"><div class="mc-label">Net cash movement</div><div class="mc-value ${net>=0?'pos':'neg'}">${net>=0?$f(net):'('+$f(Math.abs(net)).replace('$','')+')'}</div><div class="mc-sub">${ytdLbl}</div></div>`;
+    <div class="mc"><div class="mc-label">YTD outflow</div><div class="mc-value neg">($${$f(ytdOut).replace('$','')})</div><div class="mc-sub">${ytdLbl}</div></div>
+    <div class="mc"><div class="mc-label">Net cash movement</div><div class="mc-value ${net>=0?'pos':'neg'}">${net>=0?$f(net):'($'+$f(Math.abs(net)).replace('$','')+')'}</div><div class="mc-sub">${ytdLbl}</div></div>`;
 
   // P&L KPIs (5-column row)
   const adjCls=pl.adjNet>=0?'pos':'neg';
@@ -1449,7 +1449,7 @@ function renderDash(){
     <div class="mc"><div class="mc-label">YTD revenue</div><div class="mc-value neu">${$f(pl.ytdRev)}</div><div class="mc-sub">${ytdLbl}</div></div>
     <div class="mc"><div class="mc-label">YTD gross profit</div><div class="mc-value pos">${$f(pl.ytdGP)}</div><div class="mc-sub">${ytdLbl}</div></div>
     <div class="mc"><div class="mc-label">Gross profit %</div><div class="mc-value pos">${pct(pl.gpPct)}</div><div class="mc-sub">GP / Revenue</div></div>
-    <div class="mc"><div class="mc-label">Adj. net profit</div><div class="mc-value ${adjCls}">${pl.adjNet>=0?$f(pl.adjNet):'('+$f(Math.abs(pl.adjNet)).replace('$','')+')'}</div><div class="mc-sub">Net + wages &amp; salaries</div></div>
+    <div class="mc"><div class="mc-label">Adj. net profit</div><div class="mc-value ${adjCls}">${pl.adjNet>=0?$f(pl.adjNet):'($'+$f(Math.abs(pl.adjNet)).replace('$','')+')'}</div><div class="mc-sub">Net + wages &amp; salaries</div></div>
     <div class="mc"><div class="mc-label">Adj. net profit %</div><div class="mc-value ${adjCls}">${pct(pl.adjNetPct)}</div><div class="mc-sub">Adj. net / Revenue</div></div>`;
 
   // Chart
@@ -1478,7 +1478,7 @@ function renderDash(){
     ['Loan from director',   bs.loanDir],
   ];
   document.getElementById('dash-liab').innerHTML=liabItems.map(([label,val])=>
-    `<div class="mc"><div class="mc-label">${label}</div><div class="mc-value ${val>0?'neg':'neu'}">${val>0?'('+$f(val).replace('$','')+')':(val===0?'—':$f(val))}</div><div class="mc-sub">${periodLbl}</div></div>`
+    `<div class="mc"><div class="mc-label">${label}</div><div class="mc-value ${val>0?'neg':'neu'}">${val>0?'($'+$f(val).replace('$','')+')':(val===0?'—':$f(val))}</div><div class="mc-sub">${periodLbl}</div></div>`
   ).join('');
 }
 
@@ -1634,8 +1634,8 @@ function renderImportPreview(entity,parsed){
         ${inT.map(v=>`<td style="text-align:right;padding:5px 8px;color:var(--green)">${$f(v)}</td>`).join('')}
         <td style="text-align:right;padding:5px 8px;color:var(--green);font-weight:600">${$f(ytdIn)}</td></tr>
       <tr><td style="padding:5px 8px;color:var(--text2)">Outflow</td>
-        ${outT.map(v=>`<td style="text-align:right;padding:5px 8px;color:var(--red)">(${$f(v).replace('$','')})</td>`).join('')}
-        <td style="text-align:right;padding:5px 8px;color:var(--red);font-weight:600">(${$f(ytdOut).replace('$','')})</td></tr>
+        ${outT.map(v=>`<td style="text-align:right;padding:5px 8px;color:var(--red)">($${$f(v).replace('$','')})</td>`).join('')}
+        <td style="text-align:right;padding:5px 8px;color:var(--red);font-weight:600">($${$f(ytdOut).replace('$','')})</td></tr>
     </tbody></table>
     <div style="text-align:right;margin-top:12px">
       <button onclick="applyImport('${entity}')" style="padding:6px 16px;border-radius:6px;font-size:15px;font-weight:600;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">Apply import →</button>
