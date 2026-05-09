@@ -143,20 +143,23 @@ input,select{font-family:var(--sans)}
 .drop-zone{border:2px dashed var(--border2);border-radius:8px;padding:28px 16px;text-align:center;cursor:pointer;transition:all .15s;display:flex;flex-direction:column;align-items:center;gap:0}
 .drop-zone:hover,.drop-zone.drag-over{border-color:var(--accent);background:var(--accent-light)}
 .drop-zone input[type="file"]{display:none}
+.itr{display:flex;align-items:center;gap:9px;padding:7px 10px;background:var(--surface2);border-radius:6px;font-size:14.5px;margin-top:6px}
+.itr-label{flex:1;color:var(--text2);font-weight:500}
+.itr-status{font-size:13px;color:var(--text3)}
 </style>
 </head>
 <body>
 <div class="shell">
 <aside class="sidebar">
-  <div class="logo">
+  <div class="logo" style="cursor:pointer" onclick="go('dash',document.querySelector('.nav-item'))">
     <div class="logo-text">Indexed FP&A</div>
     <div class="logo-sub">Financial planning &amp; analysis</div>
   </div>
   <nav class="nav">
     <div class="nav-section">Overview</div>
-    <div class="nav-item" onclick="go('dash',this)">
+    <div class="nav-item active" onclick="go('dash',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Dashboard</div>
-    <div class="nav-item active" onclick="go('cf',this)">
+    <div class="nav-item" onclick="go('cf',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>Cash flow</div>
     <div class="nav-item" onclick="go('fin',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 17v-2m3 2v-4m3 4v-6M9 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V9l-5-6z"/></svg>Financials</div>
@@ -188,7 +191,7 @@ input,select{font-family:var(--sans)}
 <main class="main">
 
 <!-- DASHBOARD -->
-<div id="screen-dash" class="screen">
+<div id="screen-dash" class="screen active">
   <div class="page-header">
     <div><div class="page-title">Dashboard <em id="dash-el"></em></div>
     <div class="page-sub">Jan–Apr 2026 actuals · All values in USD · Toggle entity above</div></div>
@@ -208,7 +211,7 @@ input,select{font-family:var(--sans)}
 </div>
 
 <!-- CASH FLOW -->
-<div id="screen-cf" class="screen active">
+<div id="screen-cf" class="screen">
   <div class="page-header">
     <div><div class="page-title">Cash flow <em id="cf-el"></em></div>
     <div class="page-sub">Jan–Apr 2026 actuals · All values in USD</div></div>
@@ -313,34 +316,38 @@ input,select{font-family:var(--sans)}
 
 <!-- IMPORT -->
 <div id="screen-import" class="screen">
-  <div class="page-header"><div><div class="page-title">Import data</div><div class="page-sub">Drop Xero Account Transactions exports to update cash flow data · All screens refresh automatically</div></div></div>
+  <div class="page-header"><div><div class="page-title">Import data</div><div class="page-sub">Drop any Xero export — file type auto-detected · All screens refresh automatically</div></div></div>
   <div class="content">
     <div class="ig">
       <div class="ie">
         <div style="font-size:18px;font-weight:600;margin-bottom:14px">Braveheart FZ LLC</div>
         <div class="drop-zone" id="dz-bh">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:36px;height:36px;color:var(--text3);margin-bottom:10px"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M16 12l-4 4m0 0l-4-4m4 4V4"/></svg>
-          <div style="font-size:15.5px;font-weight:500;color:var(--text2)">Drop Account Transactions XLSX here</div>
-          <div style="font-size:13.5px;color:var(--text3);margin-top:5px">or click to browse</div>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:34px;height:34px;color:var(--text3);margin-bottom:8px"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M16 12l-4 4m0 0l-4-4m4 4V4"/></svg>
+          <div style="font-size:15px;font-weight:500;color:var(--text2)">Drop any Xero XLSX export here</div>
+          <div style="font-size:13px;color:var(--text3);margin-top:4px">Account Transactions · Balance Sheet · P&amp;L</div>
           <input type="file" id="fi-bh" accept=".xlsx,.xls">
         </div>
-        <div id="import-status-bh" style="margin-top:9px;font-size:14px;color:var(--text3)">No file loaded</div>
+        <div class="itr"><span>📊</span><span class="itr-label">Account Transactions</span><span class="itr-status" id="ist-bh-gl">Not loaded</span></div>
+        <div class="itr"><span>🗂</span><span class="itr-label">Balance Sheet</span><span class="itr-status" id="ist-bh-bs">Not loaded</span></div>
+        <div class="itr"><span>📈</span><span class="itr-label">Profit &amp; Loss</span><span class="itr-status" id="ist-bh-pl">Not loaded</span></div>
         <div id="import-preview-bh"></div>
       </div>
       <div class="ie">
         <div style="font-size:18px;font-weight:600;margin-bottom:14px">Bravecore FZ LLC</div>
         <div class="drop-zone" id="dz-bc">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:36px;height:36px;color:var(--text3);margin-bottom:10px"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M16 12l-4 4m0 0l-4-4m4 4V4"/></svg>
-          <div style="font-size:15.5px;font-weight:500;color:var(--text2)">Drop Account Transactions XLSX here</div>
-          <div style="font-size:13.5px;color:var(--text3);margin-top:5px">or click to browse</div>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:34px;height:34px;color:var(--text3);margin-bottom:8px"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M16 12l-4 4m0 0l-4-4m4 4V4"/></svg>
+          <div style="font-size:15px;font-weight:500;color:var(--text2)">Drop any Xero XLSX export here</div>
+          <div style="font-size:13px;color:var(--text3);margin-top:4px">Account Transactions · Balance Sheet · P&amp;L</div>
           <input type="file" id="fi-bc" accept=".xlsx,.xls">
         </div>
-        <div id="import-status-bc" style="margin-top:9px;font-size:14px;color:var(--text3)">No file loaded</div>
+        <div class="itr"><span>📊</span><span class="itr-label">Account Transactions</span><span class="itr-status" id="ist-bc-gl">Not loaded</span></div>
+        <div class="itr"><span>🗂</span><span class="itr-label">Balance Sheet</span><span class="itr-status" id="ist-bc-bs">Not loaded</span></div>
+        <div class="itr"><span>📈</span><span class="itr-label">Profit &amp; Loss</span><span class="itr-status" id="ist-bc-pl">Not loaded</span></div>
         <div id="import-preview-bc"></div>
       </div>
     </div>
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 16px;font-size:14.5px;color:var(--text3)">
-      <strong style="color:var(--text2)">How to export from Xero:</strong> Go to <em>Accounting → Reports → Account Transactions</em>, set your date range, export to Excel (.xlsx), and drop the file above for the correct entity. Cash inflows and outflows are auto-detected and all screens refresh instantly.
+      <strong style="color:var(--text2)">How to export from Xero:</strong> Go to <em>Accounting → Reports</em>, export <em>Account Transactions</em>, <em>Balance Sheet</em>, and <em>Profit &amp; Loss</em> as Excel (.xlsx). Drop each file above — the type is detected automatically from the filename.
     </div>
   </div>
 </div>
@@ -1495,6 +1502,15 @@ function loadSheetJS(cb){
   document.head.appendChild(s);
 }
 
+function detectFileType(name){
+  const n=name.toLowerCase();
+  if(n.includes('account_transaction')||n.includes('account transaction'))return'gl';
+  if(n.includes('balance_sheet')||n.includes('balance sheet'))return'bs';
+  if(n.includes('profit')||n.includes('income_statement')||n.includes('income statement'))return'pl';
+  return'gl';
+}
+function normKey(s){return String(s||'').toLowerCase().replace(/\s+/g,' ').trim();}
+
 function initImport(){
   ['bh','bc'].forEach(e=>{
     const dz=document.getElementById('dz-'+e);
@@ -1510,24 +1526,28 @@ function initImport(){
 }
 
 function processImport(file,entity){
-  const st=document.getElementById('import-status-'+entity);
-  if(st)st.innerHTML=`<span style="color:var(--text3)">Parsing ${file.name}…</span>`;
+  const ftype=detectFileType(file.name);
+  const stEl=document.getElementById(`ist-${entity}-${ftype}`);
+  if(stEl)stEl.textContent='Parsing…';
   loadSheetJS(()=>{
     file.arrayBuffer().then(buf=>{
       try{
         const wb=window.XLSX.read(buf,{type:'array',cellDates:false,raw:false});
         const ws=wb.Sheets[wb.SheetNames[0]];
         const rows=window.XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});
-        const parsed=parseXeroAccountTx(rows,entity.toUpperCase());
-        importState[entity]=parsed;
-        renderImportPreview(entity,parsed);
-        if(st){
-          const ml=parsed.months.join(', ')||'none detected';
-          if(parsed.months.length)st.innerHTML=`<span style="color:var(--green)">✓ Detected: ${ml}</span>`;
-          else st.innerHTML=`<span style="color:var(--amber)">⚠ No bank transactions found. Ensure this is a Xero Account Transactions export.</span>`;
+        let parsed;
+        if(ftype==='gl')parsed=parseXeroAccountTx(rows,entity.toUpperCase());
+        else if(ftype==='bs')parsed=parseXeroBS(rows,entity.toUpperCase());
+        else parsed=parseXeroPL(rows,entity.toUpperCase());
+        parsed.ftype=ftype;
+        importState[entity+'-'+ftype]=parsed;
+        renderImportPreview(entity,parsed,ftype);
+        if(stEl){
+          const ml=parsed.months.join(', ')||'none';
+          stEl.innerHTML=parsed.months.length?`<span style="color:var(--green)">✓ ${ml}</span>`:`<span style="color:var(--amber)">⚠ No data found</span>`;
         }
       }catch(err){
-        if(st)st.innerHTML=`<span style="color:var(--red)">Error: ${err.message}</span>`;
+        if(stEl)stEl.innerHTML=`<span style="color:var(--red)">Error</span>`;
         console.error(err);
       }
     });
@@ -1611,41 +1631,129 @@ function parseXeroAccountTx(rows,entity){
   return result;
 }
 
-function renderImportPreview(entity,parsed){
+function parseXeroBS(rows,entity){
+  // Supports "As at DD Month YYYY" single-period or comparative with month column headers
+  const result={entity,ftype:'bs',months:[],rows:[]};
+  const parseFl=v=>parseFloat(String(v||'').replace(/[,$\s]/g,''))||0;
+
+  // Find month columns — look for a header row containing 2+ month names
+  let colMonths=[], headerRow=-1;
+  for(let i=0;i<Math.min(rows.length,15);i++){
+    const rs=rows[i].map(c=>String(c||'').trim());
+    const hits=rs.map((c,ci)=>{
+      // "As at DD Month YYYY" or "Jan 2026" or "January 2026"
+      const m=c.match(/(?:as at\s+\d+\s+)?([A-Za-z]{3,9})\s+\d{4}/i);
+      return m?{ci,month:m[1].substring(0,3)}:null;
+    }).filter(Boolean);
+    if(hits.length>=1){colMonths=hits;headerRow=i;break;}
+  }
+
+  if(colMonths.length===0){
+    // Single "As at" period in page title rows
+    for(let i=0;i<Math.min(rows.length,8);i++){
+      const cell=String(rows[i][0]||'').trim();
+      const m=cell.match(/as at\s+\d+\s+([A-Za-z]{3,9})\s+\d{4}/i);
+      if(m){colMonths=[{ci:rows[i].length-1,month:m[1].substring(0,3)}];headerRow=i;break;}
+    }
+  }
+
+  if(colMonths.length===0)return result;
+  colMonths.forEach(({month})=>{if(!result.months.includes(month))result.months.push(month);});
+
+  // Parse account rows after header
+  for(let i=headerRow+1;i<rows.length;i++){
+    const rs=rows[i].map(c=>String(c||'').trim());
+    const label=rs[0];
+    if(!label||/^total|^grand/i.test(label))continue;
+    const vals={};
+    colMonths.forEach(({ci,month})=>{vals[month]=parseFl(rs[ci]);});
+    result.rows.push({label,vals});
+  }
+  return result;
+}
+
+function parseXeroPL(rows,entity){
+  // P&L: column header row has month names; account rows follow
+  const result={entity,ftype:'pl',months:[],rows:[]};
+  const parseFl=v=>parseFloat(String(v||'').replace(/[,$\s]/g,''))||0;
+
+  let colMonths=[], headerRow=-1;
+  for(let i=0;i<Math.min(rows.length,20);i++){
+    const rs=rows[i].map(c=>String(c||'').trim());
+    const hits=rs.map((c,ci)=>{
+      const m=c.match(/^([A-Za-z]{3,9})(?:\s+\d{4})?$/);
+      if(!m)return null;
+      const idx=MO.findIndex(mo=>mo.toLowerCase()===m[1].toLowerCase().substring(0,3));
+      return idx>=0?{ci,month:MO[idx]}:null;
+    }).filter(Boolean);
+    if(hits.length>=2){colMonths=hits;headerRow=i;break;}
+  }
+
+  if(colMonths.length===0)return result;
+  colMonths.forEach(({month})=>{if(!result.months.includes(month))result.months.push(month);});
+
+  for(let i=headerRow+1;i<rows.length;i++){
+    const rs=rows[i].map(c=>String(c||'').trim());
+    const label=rs[0];
+    if(!label||/^total|^grand/i.test(label))continue;
+    const vals={};
+    colMonths.forEach(({ci,month})=>{vals[month]=parseFl(rs[ci]);});
+    result.rows.push({label,vals});
+  }
+  return result;
+}
+
+function renderImportPreview(entity,parsed,ftype){
   const el=document.getElementById('import-preview-'+entity);
   if(!el)return;
-  if(!parsed.months.length){
-    el.innerHTML=`<div class="es" style="color:var(--amber);margin-top:10px">No bank transactions detected — ensure the file is a Xero Account Transactions export.</div>`;
+  if(!parsed.months||!parsed.months.length){
+    el.innerHTML=`<div class="es" style="color:var(--amber);margin-top:10px">No data detected in this file.</div>`;
     return;
   }
   const months=parsed.months;
-  const inT=months.map(m=>(parsed.inflow[m]||[]).reduce((s,r)=>s+r.amt,0));
-  const outT=months.map(m=>(parsed.outflow[m]||[]).reduce((s,r)=>s+r.amt,0));
-  const ytdIn=inT.reduce((s,v)=>s+v,0),ytdOut=outT.reduce((s,v)=>s+v,0);
-  let h=`<div style="margin-top:12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px">
-    <div style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Preview — ${months.join(', ')}</div>
-    <table style="width:100%;border-collapse:collapse;font-size:14.5px">
-      <thead><tr>
-        <th style="text-align:left;padding:4px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)"></th>
-        ${months.map(m=>`<th style="text-align:right;padding:4px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">${m}</th>`).join('')}
-        <th style="text-align:right;padding:4px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">YTD</th>
-      </tr></thead><tbody>
+  let rowsHtml='';
+
+  if(ftype==='gl'){
+    const inT=months.map(m=>(parsed.inflow[m]||[]).reduce((s,r)=>s+r.amt,0));
+    const outT=months.map(m=>(parsed.outflow[m]||[]).reduce((s,r)=>s+r.amt,0));
+    const ytdIn=inT.reduce((s,v)=>s+v,0),ytdOut=outT.reduce((s,v)=>s+v,0);
+    rowsHtml=`
       <tr><td style="padding:5px 8px;color:var(--text2)">Inflow</td>
         ${inT.map(v=>`<td style="text-align:right;padding:5px 8px;color:var(--green)">${$f(v)}</td>`).join('')}
         <td style="text-align:right;padding:5px 8px;color:var(--green);font-weight:600">${$f(ytdIn)}</td></tr>
       <tr><td style="padding:5px 8px;color:var(--text2)">Outflow</td>
         ${outT.map(v=>`<td style="text-align:right;padding:5px 8px;color:var(--red)">($${$f(v).replace('$','')})</td>`).join('')}
-        <td style="text-align:right;padding:5px 8px;color:var(--red);font-weight:600">($${$f(ytdOut).replace('$','')})</td></tr>
-    </tbody></table>
+        <td style="text-align:right;padding:5px 8px;color:var(--red);font-weight:600">($${$f(ytdOut).replace('$','')})</td></tr>`;
+  } else {
+    // BS or PL — show first 6 non-zero rows as preview
+    const preview=(parsed.rows||[]).filter(r=>months.some(m=>r.vals[m]!==0)).slice(0,6);
+    const ytdCol=ftype==='pl';
+    rowsHtml=preview.map(r=>{
+      const cells=months.map(m=>`<td style="text-align:right;padding:5px 8px">${$f(r.vals[m]||0)}</td>`).join('');
+      const ytd=ytdCol?`<td style="text-align:right;padding:5px 8px;font-weight:600">${$f(months.reduce((s,m)=>s+(r.vals[m]||0),0))}</td>`:'<td></td>';
+      return `<tr><td style="padding:5px 8px;color:var(--text2)">${r.label}</td>${cells}${ytd}</tr>`;
+    }).join('');
+    if(!rowsHtml)rowsHtml=`<tr><td colspan="${months.length+2}" style="padding:8px;color:var(--text3);text-align:center">No rows detected</td></tr>`;
+  }
+
+  const ftLabel={gl:'Account Transactions',bs:'Balance Sheet',pl:'Profit & Loss'}[ftype]||ftype.toUpperCase();
+  el.innerHTML=`<div style="margin-top:12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px">
+    <div style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">${ftLabel} Preview — ${months.join(', ')}</div>
+    <table style="width:100%;border-collapse:collapse;font-size:14.5px">
+      <thead><tr>
+        <th style="text-align:left;padding:4px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)"></th>
+        ${months.map(m=>`<th style="text-align:right;padding:4px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">${m}</th>`).join('')}
+        <th style="text-align:right;padding:4px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">${ftype==='bs'?'':'YTD'}</th>
+      </tr></thead><tbody>${rowsHtml}</tbody></table>
     <div style="text-align:right;margin-top:12px">
-      <button onclick="applyImport('${entity}')" style="padding:6px 16px;border-radius:6px;font-size:15px;font-weight:600;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">Apply import →</button>
+      <button onclick="applyImport('${entity}','${ftype}')" style="padding:6px 16px;border-radius:6px;font-size:15px;font-weight:600;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">Apply import →</button>
     </div>
   </div>`;
-  el.innerHTML=h;
 }
 
-function applyImport(entity){
-  const parsed=importState[entity];
+function applyImport(entity,ftype){
+  ftype=ftype||(importState[entity+'-gl']?'gl':importState[entity+'-bs']?'bs':'pl');
+  const parsed=importState[entity+'-'+ftype];
   if(!parsed)return;
 
   // Extend E + all parallel arrays for any new months
@@ -1660,44 +1768,74 @@ function applyImport(entity){
     [...BH_PL,...BC_PL,...CONSO_PL,...BH_BS,...BC_BS,...CONSO_BS].forEach(r=>{if(r.v)r.v.splice(insertAt,0,0);});
   });
 
-  // Update detail + totals for the entity
   const isB=entity==='bh';
-  const IN_D=isB?BH_IN_D:BC_IN_D, OUT_D=isB?BH_OUT_D:BC_OUT_D;
-  const IN=isB?BH_IN:BC_IN, OUT=isB?BH_OUT:BC_OUT;
-  const BANKS=isB?BH_BANKS:BC_BANKS, CLOSE=isB?BH_CLOSE:BC_CLOSE;
 
-  parsed.months.forEach(m=>{
-    IN_D[m]=parsed.inflow[m]||[];
-    OUT_D[m]=parsed.outflow[m]||[];
-    const idx=E.indexOf(m);
-    if(idx>=0){
-      IN[idx]=IN_D[m].reduce((s,r)=>s+r.amt,0);
-      OUT[idx]=OUT_D[m].reduce((s,r)=>s+r.amt,0);
-    }
-  });
+  if(ftype==='gl'){
+    const IN_D=isB?BH_IN_D:BC_IN_D, OUT_D=isB?BH_OUT_D:BC_OUT_D;
+    const IN=isB?BH_IN:BC_IN, OUT=isB?BH_OUT:BC_OUT;
+    const BANKS=isB?BH_BANKS:BC_BANKS, CLOSE=isB?BH_CLOSE:BC_CLOSE;
+    parsed.months.forEach(m=>{
+      IN_D[m]=parsed.inflow[m]||[];
+      OUT_D[m]=parsed.outflow[m]||[];
+      const idx=E.indexOf(m);
+      if(idx>=0){
+        IN[idx]=IN_D[m].reduce((s,r)=>s+r.amt,0);
+        OUT[idx]=OUT_D[m].reduce((s,r)=>s+r.amt,0);
+      }
+    });
+    const closeFn=isB?bhClose:bcClose;
+    Object.entries(parsed.bankClose).forEach(([acct,mMap])=>{
+      const clean=n=>n.replace(/^\d+\s*[-–]\s*/,'').toLowerCase().replace(/[-\s]+/g,' ').trim();
+      const key=Object.keys(BANKS).find(k=>clean(acct).includes(clean(k))||clean(k).includes(clean(acct)));
+      if(key){Object.entries(mMap).forEach(([m,v])=>{const i=E.indexOf(m);if(i>=0)BANKS[key][i]=v;});}
+    });
+    E.forEach((_,i)=>{CLOSE[i]=closeFn(i);});
+  }
 
-  // Update bank balances if we parsed them
-  const closeFn=isB?bhClose:bcClose;
-  Object.entries(parsed.bankClose).forEach(([acct,mMap])=>{
-    // Fuzzy match account name
-    const clean=n=>n.replace(/^\d+\s*[-–]\s*/,'').toLowerCase().replace(/[-\s]+/g,' ').trim();
-    const key=Object.keys(BANKS).find(k=>clean(acct).includes(clean(k))||clean(k).includes(clean(acct)));
-    if(key){
-      Object.entries(mMap).forEach(([m,v])=>{const i=E.indexOf(m);if(i>=0)BANKS[key][i]=v;});
-    }
-  });
-  E.forEach((_,i)=>{CLOSE[i]=closeFn(i);});
+  if(ftype==='bs'){
+    const target=isB?BH_BS:BC_BS;
+    parsed.rows.forEach(r=>{
+      const key=normKey(r.label);
+      const row=target.find(t=>normKey(t.label)===key||normKey(t.label).includes(key)||key.includes(normKey(t.label)));
+      if(row&&row.v){
+        parsed.months.forEach(m=>{const i=E.indexOf(m);if(i>=0)row.v[i]=r.vals[m]||0;});
+      }
+    });
+    // Rebuild conso BS
+    CONSO_BS.forEach(cr=>{
+      const bhr=BH_BS.find(r=>normKey(r.label)===normKey(cr.label));
+      const bcr=BC_BS.find(r=>normKey(r.label)===normKey(cr.label));
+      if(cr.v&&(bhr||bcr)){cr.v=E.map((_,i)=>((bhr&&bhr.v?bhr.v[i]:0)|0)+((bcr&&bcr.v?bcr.v[i]:0)|0));}
+    });
+  }
 
-  // Update sidebar
+  if(ftype==='pl'){
+    const target=isB?BH_PL:BC_PL;
+    parsed.rows.forEach(r=>{
+      const key=normKey(r.label);
+      const row=target.find(t=>normKey(t.label)===key||normKey(t.label).includes(key)||key.includes(normKey(t.label)));
+      if(row&&row.v){
+        parsed.months.forEach(m=>{const i=E.indexOf(m);if(i>=0)row.v[i]=r.vals[m]||0;});
+      }
+    });
+    // Rebuild conso PL
+    CONSO_PL.forEach(cr=>{
+      const bhr=BH_PL.find(r=>normKey(r.label)===normKey(cr.label));
+      const bcr=BC_PL.find(r=>normKey(r.label)===normKey(cr.label));
+      if(cr.v&&(bhr||bcr)){cr.v=E.map((_,i)=>((bhr&&bhr.v?bhr.v[i]:0)|0)+((bcr&&bcr.v?bcr.v[i]:0)|0));}
+    });
+  }
+
+  // Update sidebar actuals label
   const sa=document.getElementById('sidebar-actuals');
   if(sa)sa.textContent=`${E[E.length-1]} 2026`;
 
-  // Show success
   const prev=document.getElementById('import-preview-'+entity);
-  if(prev)prev.innerHTML=`<div class="es" style="border-color:var(--accent-border);background:var(--accent-light);margin-top:10px"><span style="color:var(--green)">✓</span> &nbsp;${parsed.months.length} month(s) applied — ${parsed.months.join(', ')}</div>`;
+  const ftLabel={gl:'Account Transactions',bs:'Balance Sheet',pl:'P&L'}[ftype]||ftype;
+  if(prev)prev.innerHTML=`<div class="es" style="border-color:var(--accent-border);background:var(--accent-light);margin-top:10px"><span style="color:var(--green)">✓</span> &nbsp;${ftLabel}: ${parsed.months.length} month(s) applied — ${parsed.months.join(', ')}</div>`;
 
   renderDash();renderCF();renderFin();
-  delete importState[entity];
+  delete importState[entity+'-'+ftype];
 }
 
 // ── Password gate ──
