@@ -931,11 +931,15 @@ const BC_OUT_D = {
   ]
 };
 
-// Totals (from Xero Account Transactions, Jan-Apr 2026)
-const BH_IN  = [32333, 52691.53, 42380, 37207];
-const BH_OUT = [24434.8, 18278.09, 34699.6, 25353.74];
-const BC_IN  = [16474, 42829, 95246.5, 49575];
-const BC_OUT = [31083.6, 24179.51, 23202.7, 17143.55];
+// Platform fee / bank charge contacts — netted from inflow, excluded from outflow display
+const FEE_CONTACTS=new Set(['Payoneer','Stripe','Bank Fee','Bank Fees','Bank Fees ','WIO','Wio','ENBD','Paypal']);
+const isFee=c=>FEE_CONTACTS.has(c)||/^(stripe|payoneer|bank fee|bank fees|wio|enbd|paypal)$/i.test(c);
+
+// Totals — net of platform fees (gross inflow minus fee outflows; operating outflows only)
+const BH_IN  = [31487.15, 50427.77, 41152.67, 35407.02];
+const BH_OUT = [23588.95, 16014.33, 33472.27, 23553.76];
+const BC_IN  = [16241.44, 42332.89, 94224.59, 49052.29];
+const BC_OUT = [30851.04, 23683.40, 22180.79, 16620.84];
 // FX adjustments (AED account revaluations, non-cash)
 const BH_FX  = [0, -2399.39, -1363.98, -1855.98];
 const BC_FX  = [0, -14.97, 0, 0];
@@ -1232,6 +1236,7 @@ function buildCFGroups(isIn){
       :[...(BH_OUT_D[m]||[]),...(BC_OUT_D[m]||[])];
     txList.forEach(tx=>{
       if(ent!=='conso'&&tx.entity!==ent.toUpperCase())return;
+      if(!isIn&&isFee(tx.contact))return;
       const mapKey=tx.contact+'||'+tx.entity;
       const grpName=merged[mapKey]?.group||tx.contact;
       if(!groups[grpName])groups[grpName]={group:grpName,vals:{},entities:{BH:{vals:{}},BC:{vals:{}}}};
@@ -1338,7 +1343,7 @@ function togCFDrill(drId,isIn){
         const etot=E.reduce((s,m)=>s+(ev[m]||0),0);
         if(!etot)return;
         h+=`<tr id="${rowId}-${ek}" style="display:none;background:var(--accent-light)">`;
-        h+=`<td style="padding-left:28px;color:var(--text2)">${ENT_FULL[ek]}</td>`;
+        h+=`<td style="padding-left:28px;color:var(--text2)">${g.group}</td>`;
         h+=`<td>${eb(ek)}</td>`;
         E.forEach(m=>h+=`<td class="${cls}" style="font-size:13px">${ev[m]?fmt(ev[m]):'—'}</td>`);
         h+=`<td class="${cls}" style="font-size:13px">${fmt(etot)}</td></tr>`;
