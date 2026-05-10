@@ -882,35 +882,23 @@ function renderCFTable(d){
   h+='<tr><td style="padding-left:10px;color:var(--text2)">Opening balance</td>';
   E.forEach((_,i)=>h+=`<td>${$f(i===0?d.open:d.close[i-1])}</td>`);
   h+=`<td>${$f(d.open)}</td></tr>`;
-  // Inflow groups
+  // Inflow — single expandable row
   h+=`<tr class="sr"><td colspan="${cfCols}" style="padding-left:10px">↑ Cash inflow</td></tr>`;
-  _cfInGroups.forEach((g,gi)=>{
-    const total=E.reduce((s,m)=>s+(g.vals[m]||0),0);
-    if(!total)return;
-    const multi=g.members.length>1;
-    const drId=`cfi-${gi}`;
-    h+=`<tr class="indent"${multi?` style="cursor:pointer" onclick="togCFDrill('${drId}',true,${gi})"`:''}>`;
-    h+=`<td style="padding-left:22px">${multi?'📁 ':''}${g.group}${multi?` <span style="font-size:13px;color:var(--text3)">(${g.members.length})</span> ▸`:''}</td>`;
-    E.forEach(m=>h+=`<td class="pos">${g.vals[m]?$f(g.vals[m]):'—'}</td>`);
-    h+=`<td class="pos" style="font-weight:600">${$f(total)}</td></tr>`;
-    if(multi)h+=`<tr class="drill-row" id="dr-${drId}"><td colspan="${cfCols}"><div class="di" id="dc-${drId}"></div></td></tr>`;
-  });
+  h+=`<tr class="indent" style="cursor:pointer" onclick="togCFDrill('inflow',true)">`;
+  h+=`<td style="padding-left:22px">Cash received from clients ▸</td>`;
+  d.in.forEach(v=>h+=`<td class="pos">${$f(v)}</td>`);
+  h+=`<td class="pos">${$f(ytdIn)}</td></tr>`;
+  h+=`<tr class="drill-row" id="dr-inflow"><td colspan="${cfCols}"><div class="di" id="dc-inflow"></div></td></tr>`;
   h+='<tr class="tr"><td style="padding-left:10px">Total inflow</td>';
   d.in.forEach(v=>h+=`<td class="pos">${$f(v)}</td>`);
   h+=`<td class="pos">${$f(ytdIn)}</td></tr>`;
-  // Outflow groups
+  // Outflow — single expandable row
   h+=`<tr class="sr"><td colspan="${cfCols}" style="padding-left:10px">↓ Cash outflow</td></tr>`;
-  _cfOutGroups.forEach((g,gi)=>{
-    const total=E.reduce((s,m)=>s+(g.vals[m]||0),0);
-    if(!total)return;
-    const multi=g.members.length>1;
-    const drId=`cfo-${gi}`;
-    h+=`<tr class="indent"${multi?` style="cursor:pointer" onclick="togCFDrill('${drId}',false,${gi})"`:''}>`;
-    h+=`<td style="padding-left:22px">${multi?'📁 ':''}${g.group}${multi?` <span style="font-size:13px;color:var(--text3)">(${g.members.length})</span> ▸`:''}</td>`;
-    E.forEach(m=>h+=`<td class="neg">${g.vals[m]?'($'+$f(g.vals[m]).replace('$','')+')':'—'}</td>`);
-    h+=`<td class="neg" style="font-weight:600">($${$f(total).replace('$','')})</td></tr>`;
-    if(multi)h+=`<tr class="drill-row" id="dr-${drId}"><td colspan="${cfCols}"><div class="di" id="dc-${drId}"></div></td></tr>`;
-  });
+  h+=`<tr class="indent" style="cursor:pointer" onclick="togCFDrill('outflow',false)">`;
+  h+=`<td style="padding-left:22px">Payments to vendors &amp; expenses ▸</td>`;
+  d.out.forEach(v=>h+=`<td class="neg">($${$f(v).replace('$','')})</td>`);
+  h+=`<td class="neg">(${$f(ytdOut).replace('$','')})</td></tr>`;
+  h+=`<tr class="drill-row" id="dr-outflow"><td colspan="${cfCols}"><div class="di" id="dc-outflow"></div></td></tr>`;
   h+='<tr class="tr"><td style="padding-left:10px">Total outflow</td>';
   d.out.forEach(v=>h+=`<td class="neg">($${$f(v).replace('$','')})</td>`);
   h+=`<td class="neg">(${$f(ytdOut).replace('$','')})</td></tr>`;
@@ -933,25 +921,29 @@ function renderCFTable(d){
   document.getElementById('cft').innerHTML=h;
 }
 
-function togCFDrill(drId,isIn,gi){
+function togCFDrill(drId,isIn){
   const row=document.getElementById('dr-'+drId);
   if(!row)return;
   if(openDrill===drId){row.classList.remove('open');openDrill=null;return;}
   if(openDrill){const p=document.getElementById('dr-'+openDrill);if(p)p.classList.remove('open');}
   openDrill=drId; row.classList.add('open');
-  const g=(isIn?_cfInGroups:_cfOutGroups)[gi];
-  if(!g)return;
+  const groups=isIn?_cfInGroups:_cfOutGroups;
   const cls=isIn?'pos':'neg';
   const fmt=v=>isIn?$f(v):'($'+$f(v).replace('$','')+')';
-  let h=`<div class="dt-hd"><span>↳ ${g.group}</span><span class="dc" onclick="clDrill()">✕</span></div>`;
-  h+=`<table class="drt"><thead><tr><th>Contact</th><th>Entity</th>`;
+  const label=isIn?'Cash inflow by group':'Cash outflow by group';
+  let h=`<div class="dt-hd"><span>↳ ${label}</span><span class="dc" onclick="clDrill()">✕</span></div>`;
+  h+=`<table class="drt"><thead><tr><th>Display group</th><th>Contacts</th>`;
   E.forEach(m=>h+=`<th>${m}</th>`);
   h+=`<th>YTD</th></tr></thead><tbody>`;
-  g.members.forEach(mem=>{
-    const total=E.reduce((s,m)=>s+(mem.vals[m]||0),0);
-    h+=`<tr><td style="font-weight:500">${mem.contact}</td><td>${eb(mem.entity)}</td>`;
-    E.forEach(m=>h+=`<td class="${cls}">${mem.vals[m]?fmt(mem.vals[m]):'—'}</td>`);
-    h+=`<td class="${cls}" style="font-weight:600">${fmt(total)}</td></tr>`;
+  groups.forEach(g=>{
+    const total=E.reduce((s,m)=>s+(g.vals[m]||0),0);
+    if(!total)return;
+    const names=g.members.map(m=>m.contact).join(', ');
+    h+=`<tr>`;
+    h+=`<td style="font-weight:600">${g.group}</td>`;
+    h+=`<td style="font-size:13px;color:var(--text3);max-width:220px;white-space:normal">${names}</td>`;
+    E.forEach(m=>h+=`<td class="${cls}">${g.vals[m]?fmt(g.vals[m]):'—'}</td>`);
+    h+=`<td class="${cls}" style="font-weight:700">${fmt(total)}</td></tr>`;
   });
   h+='</tbody></table>';
   document.getElementById('dc-'+drId).innerHTML=h;
