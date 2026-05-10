@@ -842,11 +842,39 @@ function renderCF(){
   renderBnk();
 }
 
+let _cfInGroups=[], _cfOutGroups=[];
+
+function buildCFGroups(isIn){
+  const merged=getMergedMap();
+  const groups={};
+  E.forEach(m=>{
+    const txList=isIn
+      ?[...(BH_IN_D[m]||[]),...(BC_IN_D[m]||[])]
+      :[...(BH_OUT_D[m]||[]),...(BC_OUT_D[m]||[])];
+    txList.forEach(tx=>{
+      if(ent!=='conso'&&tx.entity!==ent.toUpperCase())return;
+      const mapKey=tx.contact+'||'+tx.entity;
+      const grpName=merged[mapKey]?.group||tx.contact;
+      if(!groups[grpName])groups[grpName]={group:grpName,vals:{},members:{}};
+      groups[grpName].vals[m]=(groups[grpName].vals[m]||0)+tx.amt;
+      const memKey=tx.contact+'||'+tx.entity;
+      if(!groups[grpName].members[memKey])groups[grpName].members[memKey]={contact:tx.contact,entity:tx.entity,vals:{}};
+      groups[grpName].members[memKey].vals[m]=(groups[grpName].members[memKey].vals[m]||0)+tx.amt;
+    });
+  });
+  return Object.values(groups)
+    .map(g=>({...g,members:Object.values(g.members)}))
+    .sort((a,b)=>E.reduce((s,m)=>s+(b.vals[m]||0),0)-E.reduce((s,m)=>s+(a.vals[m]||0),0));
+}
+
 function renderCFTable(d){
   openDrill=null;
+  _cfInGroups=buildCFGroups(true);
+  _cfOutGroups=buildCFGroups(false);
   const ytdIn=d.in.reduce((s,v)=>s+v,0);
   const ytdOut=d.out.reduce((s,v)=>s+v,0);
   const ytdFX=d.fx.reduce((s,v)=>s+v,0);
+  const cfCols=E.length+2;
   let h='<thead><tr><th>Line item</th>';
   E.forEach(m=>h+=`<th><span class="ba">A</span> ${m}</th>`);
   h+='<th>YTD</th></tr></thead><tbody>';
@@ -854,16 +882,35 @@ function renderCFTable(d){
   h+='<tr><td style="padding-left:10px;color:var(--text2)">Opening balance</td>';
   E.forEach((_,i)=>h+=`<td>${$f(i===0?d.open:d.close[i-1])}</td>`);
   h+=`<td>${$f(d.open)}</td></tr>`;
-  // Inflow
-  const cfCols=E.length+2;
+  // Inflow groups
   h+=`<tr class="sr"><td colspan="${cfCols}" style="padding-left:10px">↑ Cash inflow</td></tr>`;
-  h+=mkDrill('inflow','Cash received from clients',d.in,'pos');
+  _cfInGroups.forEach((g,gi)=>{
+    const total=E.reduce((s,m)=>s+(g.vals[m]||0),0);
+    if(!total)return;
+    const multi=g.members.length>1;
+    const drId=`cfi-${gi}`;
+    h+=`<tr class="indent"${multi?` style="cursor:pointer" onclick="togCFDrill('${drId}',true,${gi})"`:''}>`;
+    h+=`<td style="padding-left:22px">${multi?'📁 ':''}${g.group}${multi?` <span style="font-size:13px;color:var(--text3)">(${g.members.length})</span> ▸`:''}</td>`;
+    E.forEach(m=>h+=`<td class="pos">${g.vals[m]?$f(g.vals[m]):'—'}</td>`);
+    h+=`<td class="pos" style="font-weight:600">${$f(total)}</td></tr>`;
+    if(multi)h+=`<tr class="drill-row" id="dr-${drId}"><td colspan="${cfCols}"><div class="di" id="dc-${drId}"></div></td></tr>`;
+  });
   h+='<tr class="tr"><td style="padding-left:10px">Total inflow</td>';
   d.in.forEach(v=>h+=`<td class="pos">${$f(v)}</td>`);
   h+=`<td class="pos">${$f(ytdIn)}</td></tr>`;
-  // Outflow
+  // Outflow groups
   h+=`<tr class="sr"><td colspan="${cfCols}" style="padding-left:10px">↓ Cash outflow</td></tr>`;
-  h+=mkDrill('outflow','Payments to vendors & expenses',d.out,'neg');
+  _cfOutGroups.forEach((g,gi)=>{
+    const total=E.reduce((s,m)=>s+(g.vals[m]||0),0);
+    if(!total)return;
+    const multi=g.members.length>1;
+    const drId=`cfo-${gi}`;
+    h+=`<tr class="indent"${multi?` style="cursor:pointer" onclick="togCFDrill('${drId}',false,${gi})"`:''}>`;
+    h+=`<td style="padding-left:22px">${multi?'📁 ':''}${g.group}${multi?` <span style="font-size:13px;color:var(--text3)">(${g.members.length})</span> ▸`:''}</td>`;
+    E.forEach(m=>h+=`<td class="neg">${g.vals[m]?'($'+$f(g.vals[m]).replace('$','')+')':'—'}</td>`);
+    h+=`<td class="neg" style="font-weight:600">($${$f(total).replace('$','')})</td></tr>`;
+    if(multi)h+=`<tr class="drill-row" id="dr-${drId}"><td colspan="${cfCols}"><div class="di" id="dc-${drId}"></div></td></tr>`;
+  });
   h+='<tr class="tr"><td style="padding-left:10px">Total outflow</td>';
   d.out.forEach(v=>h+=`<td class="neg">($${$f(v).replace('$','')})</td>`);
   h+=`<td class="neg">(${$f(ytdOut).replace('$','')})</td></tr>`;
@@ -886,78 +933,28 @@ function renderCFTable(d){
   document.getElementById('cft').innerHTML=h;
 }
 
-function mkDrill(key,label,data,cls){
-  const ytd=data.reduce((s,v)=>s+v,0);
-  let h=`<tr class="indent"><td onclick="togDrill('${key}','${label}')" style="padding-left:22px">${label} ▸</td>`;
-  data.forEach(v=>h+=`<td class="${cls}">${$f(v)}</td>`);
-  h+=`<td class="${cls}">${$f(ytd)}</td>`;
-  h+=`</tr><tr class="drill-row" id="dr-${key}"><td colspan="${E.length+2}"><div class="di" id="dc-${key}"></div></td></tr>`;
-  return h;
-}
-
-function togDrill(key,label){
-  const row=document.getElementById('dr-'+key);
+function togCFDrill(drId,isIn,gi){
+  const row=document.getElementById('dr-'+drId);
   if(!row)return;
-  if(openDrill===key){row.classList.remove('open');openDrill=null;return;}
+  if(openDrill===drId){row.classList.remove('open');openDrill=null;return;}
   if(openDrill){const p=document.getElementById('dr-'+openDrill);if(p)p.classList.remove('open');}
-  openDrill=key; row.classList.add('open');
-  const isIn=key==='inflow';
-  const months=E.slice();
-  const merged=getMergedMap();
-
-  // Step 1: build raw contact→month data
-  const raw={};
-  months.forEach(m=>{
-    const txList=isIn?[...(BH_IN_D[m]||[]),...(BC_IN_D[m]||[])]:[...(BH_OUT_D[m]||[]),...(BC_OUT_D[m]||[])];
-    txList.forEach(tx=>{
-      if(ent!=='conso'&&tx.entity!==ent.toUpperCase())return;
-      const k=tx.contact+'||'+tx.entity;
-      if(!raw[k])raw[k]={contact:tx.contact,entity:tx.entity,vals:{Jan:0,Feb:0,Mar:0,Apr:0},txs:{Jan:[],Feb:[],Mar:[],Apr:[]}};
-      raw[k].vals[m]+=tx.amt;
-      raw[k].txs[m].push(tx);
-    });
-  });
-
-  // Step 2: group by display group
-  const groups={};
-  Object.values(raw).forEach(r=>{
-    const mapKey=r.contact+'||'+r.entity;
-    const grpName=merged[mapKey]?.group||r.contact; // fallback = raw name
-    const grpKey=grpName+'||'+r.entity;
-    if(!groups[grpKey])groups[grpKey]={
-      group:grpName, entity:r.entity,
-      vals:{Jan:0,Feb:0,Mar:0,Apr:0},
-      members:[]
-    };
-    months.forEach(m=>groups[grpKey].vals[m]+=r.vals[m]);
-    groups[grpKey].members.push(r);
-  });
-
-  const sorted=Object.values(groups).sort((a,b)=>{
-    const ta=Object.values(a.vals).reduce((s,v)=>s+v,0);
-    const tb=Object.values(b.vals).reduce((s,v)=>s+v,0);
-    return tb-ta;
-  });
-
+  openDrill=drId; row.classList.add('open');
+  const g=(isIn?_cfInGroups:_cfOutGroups)[gi];
+  if(!g)return;
   const cls=isIn?'pos':'neg';
-  let h=`<div class="dt-hd"><span>↳ ${label}</span><span class="dc" onclick="clDrill()">✕</span></div>`;
+  const fmt=v=>isIn?$f(v):'($'+$f(v).replace('$','')+')';
+  let h=`<div class="dt-hd"><span>↳ ${g.group}</span><span class="dc" onclick="clDrill()">✕</span></div>`;
   h+=`<table class="drt"><thead><tr><th>Contact</th><th>Entity</th>`;
-  months.forEach(m=>h+=`<th>${m}</th>`);
+  E.forEach(m=>h+=`<th>${m}</th>`);
   h+=`<th>YTD</th></tr></thead><tbody>`;
-
-  sorted.forEach((g,gi)=>{
-    const total=Object.values(g.vals).reduce((s,v)=>s+v,0);
-    if(!total)return;
-    const isGroup=g.members.length>1||(g.group!==g.members[0]?.contact);
-    h+=`<tr>`;
-    h+=`<td style="font-weight:600">${isGroup?'📁 ':''}${g.group}${isGroup?` <span style="font-size:13.0px;font-weight:400;color:var(--text3)">(${g.members.length})</span>`:''}</td>`;
-    h+=`<td>${eb(g.entity)}</td>`;
-    months.forEach(m=>h+=`<td class="${cls}">${g.vals[m]?$f(g.vals[m]):'—'}</td>`);
-    h+=`<td class="${cls}" style="font-weight:700">${$f(total)}</td></tr>`;
+  g.members.forEach(mem=>{
+    const total=E.reduce((s,m)=>s+(mem.vals[m]||0),0);
+    h+=`<tr><td style="font-weight:500">${mem.contact}</td><td>${eb(mem.entity)}</td>`;
+    E.forEach(m=>h+=`<td class="${cls}">${mem.vals[m]?fmt(mem.vals[m]):'—'}</td>`);
+    h+=`<td class="${cls}" style="font-weight:600">${fmt(total)}</td></tr>`;
   });
-
   h+='</tbody></table>';
-  document.getElementById('dc-'+key).innerHTML=h;
+  document.getElementById('dc-'+drId).innerHTML=h;
   row.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 function clDrill(){if(openDrill){const r=document.getElementById('dr-'+openDrill);if(r)r.classList.remove('open');openDrill=null;}}
@@ -1209,7 +1206,7 @@ function getGroup(contact, entity){
 // ── Build raw contacts list ──
 function buildContacts(){
   const raw={};
-  const months=['Jan','Feb','Mar','Apr'];
+  const months=E.slice();
   months.forEach(m=>{
     [...(BH_IN_D[m]||[]),...(BC_IN_D[m]||[])].forEach(tx=>{
       const k=tx.contact+'||'+tx.entity;
@@ -1328,7 +1325,7 @@ function renderMappingTable(){
           id="grp-${i}"
           data-key="${k}"
           value="${currentGroup}"
-          placeholder="e.g. Online Tools, Backlink Vendors…"
+          placeholder="${c.contact}"
           list="grp-suggestions"
           style="width:100%;background:${isCustom?'var(--accent-light)':'var(--surface2)'};border:1px solid ${isCustom?'var(--accent-mid)':'var(--border2)'};border-radius:5px;padding:5px 8px;font-size:15.0px;font-family:var(--sans);color:var(--text)"
           oninput="this.style.background='var(--amber-dim)';this.style.borderColor='var(--amber)'"
@@ -1362,6 +1359,7 @@ function saveMappings(){
   });
   try { localStorage.setItem('ct_map',JSON.stringify(CT_MAP)); } catch(e){}
   renderContacts();
+  renderCF();
   // Flash confirm
   const btn=document.querySelector('#screen-contacts button');
   const orig=btn.textContent;
