@@ -290,6 +290,28 @@ input,select{font-family:var(--sans)}
   </div>
   <div class="content">
     <div class="fsum" id="fcar-summary"></div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:13px;color:var(--text2);white-space:nowrap">Client</span>
+        <select id="ar-f-client" onchange="renderFcastAR()" style="font-size:13px;padding:5px 8px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-family:var(--sans);min-width:140px"><option value="">All</option></select>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:13px;color:var(--text2);white-space:nowrap">Entity</span>
+        <select id="ar-f-entity" onchange="renderFcastAR()" style="font-size:13px;padding:5px 8px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-family:var(--sans)">
+          <option value="">All</option>
+          <option value="BH">BH</option>
+          <option value="BC">BC</option>
+        </select>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:13px;color:var(--text2);white-space:nowrap">Cash Month</span>
+        <select id="ar-f-month" onchange="renderFcastAR()" style="font-size:13px;padding:5px 8px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-family:var(--sans)">
+          <option value="">All</option>
+        </select>
+      </div>
+      <button onclick="clearARFilters()" id="ar-f-clear" style="display:none;font-size:12px;padding:5px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text2);cursor:pointer;font-family:var(--sans)">✕ Clear filters</button>
+      <span id="ar-f-count" style="font-size:12px;color:var(--text3);margin-left:4px"></span>
+    </div>
     <div class="fcst-scroll">
       <table class="fcst-table" id="fcar-table"></table>
     </div>
@@ -2164,9 +2186,14 @@ function thSort(label,col,sort,fn,align){
   return`<th onclick="${fn}('${col}')" style="${style}">${label}${arrow}</th>`;
 }
 
+function clearARFilters(){
+  ['ar-f-client','ar-f-entity','ar-f-month'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  renderFcastAR();
+}
+
 // ── Forecast AR render ──
 function renderFcastAR(){
-  // Summary bar
+  // Summary bar (always uses full unfiltered data)
   const sumEl=document.getElementById('fcar-summary');
   if(sumEl){
     sumEl.innerHTML=FCST_MONTHS.map(m=>{
@@ -2174,6 +2201,36 @@ function renderFcastAR(){
       return `<div class="fsum-card"><div class="fsc-m">${m}</div><div class="fsc-v">${v?$f(v):'—'}</div></div>`;
     }).join('');
   }
+  // Populate client filter options (unique sorted clients)
+  const fClientEl=document.getElementById('ar-f-client');
+  const fEntityEl=document.getElementById('ar-f-entity');
+  const fMonthEl=document.getElementById('ar-f-month');
+  if(fClientEl){
+    const curClient=fClientEl.value;
+    const clients=[...new Set(AR_FCST.map(r=>r.client||'').filter(Boolean))].sort();
+    fClientEl.innerHTML=`<option value="">All</option>`+clients.map(c=>`<option${c===curClient?' selected':''}>${c}</option>`).join('');
+  }
+  if(fMonthEl){
+    const curMonth=fMonthEl.value;
+    const months=FCST_MONTHS.filter(m=>AR_FCST.some(r=>normalizeCashMonth(r.cashMonth)===m));
+    fMonthEl.innerHTML=`<option value="">All</option>`+months.map(m=>`<option${m===curMonth?' selected':''}>${m}</option>`).join('');
+  }
+  // Read active filters
+  const fClient=fClientEl?fClientEl.value:'';
+  const fEntity=fEntityEl?fEntityEl.value:'';
+  const fMonth=fMonthEl?fMonthEl.value:'';
+  const hasFilter=!!(fClient||fEntity||fMonth);
+  const clearBtn=document.getElementById('ar-f-clear');
+  if(clearBtn)clearBtn.style.display=hasFilter?'':'none';
+  // Apply filters
+  const filtered=AR_FCST.filter(r=>{
+    if(fClient&&(r.client||'')!==fClient)return false;
+    if(fEntity&&(r.entity||'BH')!==fEntity)return false;
+    if(fMonth&&normalizeCashMonth(r.cashMonth)!==fMonth)return false;
+    return true;
+  });
+  const countEl=document.getElementById('ar-f-count');
+  if(countEl)countEl.textContent=hasFilter?`${filtered.length} of ${AR_FCST.length} rows`:'';
   // Table
   const tEl=document.getElementById('fcar-table');
   if(!tEl)return;
@@ -2199,9 +2256,9 @@ function renderFcastAR(){
     ${thSort('Status','status',s,sf)}
     <th>Actions</th>
   </tr></thead><tbody>`;
-  const displayRows=sortedRows(AR_FCST,AR_SORT,AR_NUM_COLS,AR_DATE_COLS,AR_MONTH_COLS);
+  const displayRows=sortedRows(filtered,AR_SORT,AR_NUM_COLS,AR_DATE_COLS,AR_MONTH_COLS);
   if(displayRows.length===0){
-    h+=`<tr><td colspan="18" style="text-align:center;color:var(--text3);padding:28px">No forecast invoices yet — click ＋ Add invoice to get started</td></tr>`;
+    h+=`<tr><td colspan="18" style="text-align:center;color:var(--text3);padding:28px">${AR_FCST.length?'No rows match the current filters — click ✕ Clear filters to reset':'No forecast invoices yet — click ＋ Add invoice to get started'}</td></tr>`;
   } else {
     displayRows.forEach(r=>{
       const sc=stClass[r.status]||'st-draft';
