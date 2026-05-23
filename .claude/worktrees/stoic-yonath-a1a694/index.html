@@ -285,6 +285,7 @@ input,select{font-family:var(--sans)}
       <label style="padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:var(--sans);white-space:nowrap">↑ Import
         <input type="file" id="fi-ar-import" accept=".csv,.xlsx,.xls" style="display:none" onchange="importARFile(this.files[0]);this.value=''">
       </label>
+      <button onclick="clearAllAR()" style="padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--red);background:transparent;color:var(--red);font-family:var(--sans)">🗑 Clear all</button>
       <button onclick="openARModal(null)" style="padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">＋ Add invoice</button>
     </div>
   </div>
@@ -327,6 +328,7 @@ input,select{font-family:var(--sans)}
       <label style="padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:var(--sans);white-space:nowrap">↑ Import
         <input type="file" id="fi-ap-import" accept=".csv,.xlsx,.xls" style="display:none" onchange="importAPFile(this.files[0]);this.value=''">
       </label>
+      <button onclick="clearAllAP()" style="padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--red);background:transparent;color:var(--red);font-family:var(--sans)">🗑 Clear all</button>
       <button onclick="openAPModal(null)" style="padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">＋ Add payment</button>
     </div>
   </div>
@@ -2203,6 +2205,21 @@ try{AR_FCST=AR_FCST.map(recalcARRow);}catch(e){}
 
 function saveFcastAR(){ try{localStorage.setItem('ar_fcst',JSON.stringify(AR_FCST));}catch(e){} }
 function saveFcastAP(){ try{localStorage.setItem('ap_fcst',JSON.stringify(AP_FCST));}catch(e){} }
+
+function clearAllAR(){
+  if(!confirm(`Clear all ${AR_FCST.length} AR forecast invoices? This cannot be undone.\n\nTip: Export a backup first using "↓ Export CSV".`))return;
+  AR_FCST=[];
+  saveFcastAR();
+  renderFcastAR();
+  renderCF();
+}
+function clearAllAP(){
+  if(!confirm(`Clear all ${AP_FCST.length} AP forecast payments? This cannot be undone.\n\nTip: Export a backup first using "↓ Export CSV".`))return;
+  AP_FCST=[];
+  saveFcastAP();
+  renderFcastAP();
+  renderCF();
+}
 
 function normalizeCashMonth(val){
   if(!val)return'';
