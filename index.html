@@ -1188,7 +1188,7 @@ function buildFcastCFGroups(isIn){
     const entity=(r.entity||'BH').toUpperCase();
     if(ent!=='conso'&&entity!==ent.toUpperCase())return;
     const contact=isIn?(r.client||'Unknown'):(r.vendor||'Unknown');
-    const m=r.cashMonth;
+    const m=normalizeCashMonth(r.cashMonth);
     if(!FCST_MONTHS.includes(m))return;
     const amt=isIn?(r.cash||0):(r.amount||0);
     if(!amt)return;
@@ -2113,10 +2113,10 @@ function normalizeCashMonth(val){
 }
 
 function getFcastInflow(month){
-  return AR_FCST.filter(r=>r.cashMonth===month&&r.status!=='Paid').reduce((s,r)=>s+(r.cash||0),0);
+  return AR_FCST.filter(r=>normalizeCashMonth(r.cashMonth)===month&&r.status!=='Paid').reduce((s,r)=>s+(r.cash||0),0);
 }
 function getFcastOutflow(month){
-  return AP_FCST.filter(r=>r.cashMonth===month).reduce((s,r)=>s+(r.amount||0),0);
+  return AP_FCST.filter(r=>normalizeCashMonth(r.cashMonth)===month).reduce((s,r)=>s+(r.amount||0),0);
 }
 
 // ── Sort state ──
