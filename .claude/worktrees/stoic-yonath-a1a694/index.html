@@ -2175,28 +2175,31 @@ function normalizeToISO(v){
   return v;
 }
 
+const _MO_NAMES=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function recalcARRow(r){
-  if(!r.fx)r.fx=1;
-  if(r.amount){r.usdValue=parseFloat((r.amount*r.fx).toFixed(2));}
-  const ibPct=r.ibPct!==undefined?r.ibPct:1;
-  r.ibPct=ibPct;
-  r.usdValue=r.usdValue||0;
-  r.interbank=parseFloat(((r.usdValue*ibPct/100)||0).toFixed(2));
-  r.cash=parseFloat((r.usdValue-(r.fee||0)-r.interbank).toFixed(2));
-  // Normalize dates to ISO YYYY-MM-DD
-  if(r.invoiceDate)r.invoiceDate=normalizeToISO(r.invoiceDate);
-  if(r.dueDate)r.dueDate=normalizeToISO(r.dueDate);
-  if(r.paymentDate)r.paymentDate=normalizeToISO(r.paymentDate);
-  if(!r.invoiceMonth&&r.invoiceDate){
-    const d=new Date(r.invoiceDate);
-    if(!isNaN(d))r.invoiceMonth=ALL_MONTHS[d.getMonth()];
-  }
-  if(r.cashMonth)r.cashMonth=normalizeCashMonth(r.cashMonth);
+  try{
+    if(!r.fx)r.fx=1;
+    if(r.amount){r.usdValue=parseFloat((r.amount*r.fx).toFixed(2));}
+    const ibPct=r.ibPct!==undefined?r.ibPct:1;
+    r.ibPct=ibPct;
+    r.usdValue=r.usdValue||0;
+    r.interbank=parseFloat(((r.usdValue*ibPct/100)||0).toFixed(2));
+    r.cash=parseFloat((r.usdValue-(r.fee||0)-r.interbank).toFixed(2));
+    // Normalize dates to ISO YYYY-MM-DD
+    if(r.invoiceDate)r.invoiceDate=normalizeToISO(r.invoiceDate);
+    if(r.dueDate)r.dueDate=normalizeToISO(r.dueDate);
+    if(r.paymentDate)r.paymentDate=normalizeToISO(r.paymentDate);
+    if(!r.invoiceMonth&&r.invoiceDate){
+      const d=new Date(r.invoiceDate);
+      if(!isNaN(d))r.invoiceMonth=_MO_NAMES[d.getMonth()];
+    }
+    if(r.cashMonth)r.cashMonth=normalizeCashMonth(r.cashMonth);
+  }catch(e){}
   return r;
 }
 
-// Auto-recalculate all existing rows on load
-AR_FCST=AR_FCST.map(recalcARRow);
+// Auto-recalculate all existing rows on load (wrapped in try/catch so a bad row never crashes the page)
+try{AR_FCST=AR_FCST.map(recalcARRow);}catch(e){}
 
 function saveFcastAR(){ try{localStorage.setItem('ar_fcst',JSON.stringify(AR_FCST));}catch(e){} }
 function saveFcastAP(){ try{localStorage.setItem('ap_fcst',JSON.stringify(AP_FCST));}catch(e){} }
@@ -2963,12 +2966,12 @@ function submitPwd(){
     sessionStorage.setItem('fpa_auth','1');
     document.getElementById('auth-overlay').style.display='none';
     document.querySelector('.shell').style.display='flex';
-    // Scroll main area to top so KPI cards are visible, then render
     const mainEl=document.querySelector('.main');
     if(mainEl)mainEl.scrollTop=0;
-    requestAnimationFrame(()=>{
-      renderDash();renderCF();renderFcastAR();renderFcastAP();
-    });
+    try{renderDash();}catch(e){}
+    try{renderCF();}catch(e){}
+    try{renderFcastAR();}catch(e){}
+    try{renderFcastAP();}catch(e){}
   } else {
     const err=document.getElementById('pwd-err');
     if(err){err.textContent='Incorrect password';err.style.display='block';}
@@ -2977,11 +2980,17 @@ function submitPwd(){
 }
 
 // ── Init ──
-requestAnimationFrame(()=>{
-  renderDash();
-  renderCF();
-});
+// Run immediately (script is at bottom of body so DOM is ready)
+try{renderDash();}catch(e){}
+try{renderCF();}catch(e){}
 checkAuth();
+// Also re-render on the nav click that activates the dash screen,
+// and add a window.onload backup in case something above failed
+window.addEventListener('load',()=>{
+  if(document.getElementById('dash-kpis')&&!document.getElementById('dash-kpis').innerHTML){
+    try{renderDash();}catch(e){}
+  }
+});
 </script>
 </body>
 </html>
