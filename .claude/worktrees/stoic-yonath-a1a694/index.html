@@ -1,0 +1,2754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Indexed FP&A</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0A0A0A;--surface:#141414;--surface2:#181818;--surface3:#1e1e1e;--border:rgba(255,255,255,0.08);--border2:rgba(255,255,255,0.12);--accent:#57D7E2;--accent-light:rgba(87,215,226,0.06);--accent-mid:#85E2E9;--accent-dark:#20B0BC;--accent-glow:rgba(87,215,226,0.25);--accent-border:rgba(87,215,226,0.20);--text:#F2F2F2;--text2:rgba(255,255,255,0.55);--text3:rgba(255,255,255,0.25);--red:#F87171;--green:#34D399;--green-dim:rgba(52,211,153,0.10);--blue:#57D7E2;--blue-dim:rgba(87,215,226,0.06);--amber:#FBBF24;--amber-dim:rgba(251,191,36,0.10);--sans:'Barlow',sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:17.0px;min-height:100vh}
+.shell{display:flex;height:100vh;overflow:hidden}
+.sidebar{width:216px;min-width:216px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column}
+.main{flex:1;overflow-y:auto}
+.logo{padding:22px 20px 18px;border-bottom:1px solid var(--border)}
+.logo-text{font-size:19.0px;font-weight:800;color:var(--accent);letter-spacing:-.02em}
+.logo-sub{font-size:12.0px;color:var(--text3);letter-spacing:.10em;text-transform:uppercase;margin-top:2px;font-weight:700}
+.nav{padding:12px 10px;flex:1}
+.nav-section{font-size:12.0px;color:rgba(255,255,255,0.35);letter-spacing:.10em;text-transform:uppercase;font-weight:700;padding:0 8px;margin:14px 0 5px}
+.nav-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:7px;cursor:pointer;color:var(--text2);font-size:16.5px;font-weight:500;transition:all .13s;margin-bottom:1px}
+.nav-item:hover{background:var(--surface2);color:var(--text)}
+.nav-item.active{background:var(--accent-light);color:var(--accent);font-weight:600;border:1px solid var(--accent-border)}
+.nav-item svg{width:15px;height:15px;flex-shrink:0;opacity:.6}
+.nav-item.active svg{opacity:1}
+.sidebar-footer{padding:14px;border-top:1px solid var(--border)}
+.cw{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px}
+.cw-label{font-size:13.0px;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;font-weight:600;margin-bottom:7px}
+.entity-pills{display:flex;gap:4px;margin-top:8px}
+.epill{flex:1;text-align:center;padding:5px 0;border-radius:5px;font-size:14.5px;cursor:pointer;border:1px solid var(--border2);color:var(--text3);transition:all .13s}
+.epill.on{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:500}
+.page-header{padding:24px 30px 16px;border-bottom:1px solid var(--border);background:var(--surface);display:flex;align-items:flex-start;justify-content:space-between}
+.page-title{font-size:26.0px;font-weight:800;color:var(--text);letter-spacing:-.02em}
+.page-title em{font-style:italic;color:var(--accent);font-weight:400}
+.page-sub{font-size:15.0px;color:var(--text2);margin-top:3px}
+.content{padding:20px 30px}
+.screen{display:none}
+.screen.active{display:block}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+.mc{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
+.mc-label{font-size:12.0px;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:.10em;font-weight:700;margin-bottom:6px}
+.mc-value{font-size:34.0px;font-weight:800;letter-spacing:-.03em;color:var(--text)}
+.mc-value.pos{color:var(--green)}
+.mc-value.neg{color:var(--red)}
+.mc-value.neu{color:var(--accent)}
+.mc-sub{font-size:13.0px;color:var(--text2);margin-top:2px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:14px;overflow:hidden}
+.card-head{padding:12px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.card-title{font-size:12.0px;font-weight:700;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:.10em}
+.card-hint{font-size:13.0px;color:var(--text3)}
+.cf-wrap{overflow-x:auto}
+table.cf{width:100%;border-collapse:collapse;font-size:15.5px;table-layout:fixed}
+table.cf th{padding:8px 10px;text-align:right;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border);white-space:nowrap;background:var(--surface2);font-size:14.5px;width:14%}
+table.cf th:first-child{text-align:left;width:30%}
+table.cf td{padding:6px 10px;text-align:right;border-bottom:1px solid var(--border);color:var(--text2)}
+table.cf td:first-child{text-align:left}
+table.cf tr.sr td{background:var(--surface3);color:rgba(255,255,255,0.35);font-weight:700;font-size:12.0px;text-transform:uppercase;letter-spacing:.10em}
+table.cf tr.indent td:first-child{padding-left:22px;cursor:pointer}
+table.cf tr.indent td:first-child:hover{color:var(--accent)}
+table.cf tr.tr td{color:var(--text);font-weight:700;border-top:1px solid var(--border2);background:var(--surface2)}
+table.cf tr.br td{color:var(--accent);font-weight:800;font-size:16.0px;border-top:2px solid var(--accent-border);background:var(--accent-light)}
+table.cf tr.fx td{color:var(--text3);font-style:italic;font-size:15.0px}
+table.cf td.pos{color:var(--green)}
+table.cf td.neg{color:var(--red)}
+.ba{display:inline-block;background:var(--accent-light);color:var(--accent);border-radius:3px;padding:1px 4px;font-size:12.0px;margin-left:3px;vertical-align:middle;font-weight:700;border:1px solid var(--accent-border)}
+/* drill row */
+tr.drill-row{display:none}
+tr.drill-row.open{display:table-row}
+tr.drill-row td{padding:0;background:var(--accent-light);border-bottom:1px solid var(--accent-border)}
+.di{padding:12px 16px 12px 24px}
+.dt-hd{font-size:12.0px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.10em;margin-bottom:8px;display:flex;justify-content:space-between}
+.dc{cursor:pointer;color:var(--text3);font-size:18.0px}
+table.drt{width:100%;border-collapse:collapse;font-size:15.0px;table-layout:fixed}
+table.drt th{padding:5px 8px;text-align:right;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border);font-size:14.0px;width:14%}
+table.drt th:first-child{text-align:left;width:22%}
+table.drt th:nth-child(2){text-align:left;width:8%}
+table.drt td{padding:5px 8px;text-align:right;border-bottom:1px solid var(--border);color:var(--text2)}
+table.drt td:first-child,table.drt td:nth-child(2){text-align:left}
+table.drt tr:last-child td{border-bottom:none}
+/* data table */
+table.dt{width:100%;border-collapse:collapse;font-size:15.5px}
+table.dt th{padding:8px 10px;text-align:left;color:var(--text3);font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap;font-size:13.5px;text-transform:uppercase;letter-spacing:.06em;background:var(--surface2)}
+table.dt td{padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text2);vertical-align:middle}
+table.dt td.bold{color:var(--text);font-weight:500}
+table.dt tr:hover td{background:var(--surface2)}
+table.dt tr:last-child td{border-bottom:none}
+table.dt td.r{text-align:right}
+/* status */
+.st{display:inline-block;padding:2px 7px;border-radius:4px;font-size:13.0px;font-weight:600}
+.st-p{background:var(--green-dim);color:var(--green)}
+.st-o{background:var(--amber-dim);color:var(--amber)}
+.st-n{background:var(--surface3);color:var(--text3)}
+/* tabs */
+.itabs{display:flex;border-bottom:1px solid var(--border);padding:0 18px;background:var(--surface)}
+.itab{padding:9px 14px;font-size:15.0px;font-weight:500;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .13s}
+.itab:hover{color:var(--text)}
+.itab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.itp{display:none}
+.itp.active{display:block}
+/* mini chart */
+.mbc{display:flex;align-items:flex-end;gap:5px;height:120px;padding:0 18px}
+.mb{flex:1;border-radius:2px 2px 0 0;min-height:2px;cursor:pointer;position:relative}
+.mb-lbl{position:absolute;bottom:5px;left:50%;transform:translateX(-50%);font-size:12.0px;font-weight:600;color:#fff;white-space:nowrap}
+.mb:hover{opacity:.7}
+.mb.a{background:var(--accent)}
+.mbl{display:flex;gap:5px;padding:3px 18px 10px}
+.mbl span{flex:1;text-align:center;font-size:13.0px;color:var(--text3);font-weight:500}
+/* import */
+.ig{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px}
+.ie{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px}
+.us{border:1.5px dashed var(--border2);border-radius:7px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px}
+.us.filled{border-color:var(--accent-border);border-style:solid;background:var(--accent-light)}
+.ui{width:28px;height:28px;background:var(--surface2);border-radius:5px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ui svg{width:13px;height:13px;color:var(--text3)}
+.us.filled .ui{background:var(--accent-light)}
+.us.filled .ui svg{color:var(--accent)}
+.ul{font-size:15.5px;font-weight:500;color:var(--text2)}
+.us.filled .ul{color:var(--accent)}
+.usub{font-size:14.0px;color:var(--text3);margin-top:1px}
+.es{margin-top:9px;padding:8px 11px;background:var(--surface2);border-radius:6px;font-size:14.5px;color:var(--text3)}
+.add-row{display:flex;align-items:center;gap:8px;padding:9px 12px;color:var(--text3);font-size:15.0px;font-weight:500;cursor:pointer;border-top:1px dashed var(--border);transition:all .13s}
+.add-row:hover{color:var(--accent);background:var(--accent-light)}
+/* financials */
+table.fin{width:100%;border-collapse:collapse;font-size:15.5px}
+table.fin th{padding:8px 12px;text-align:right;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border);background:var(--surface2);font-size:14.5px;white-space:nowrap}
+table.fin th:first-child{text-align:left;min-width:220px}
+table.fin th:nth-child(2){text-align:left;min-width:60px}
+table.fin td{padding:5px 12px;text-align:right;border-bottom:1px solid var(--border);color:var(--text2)}
+table.fin td:first-child{text-align:left}
+table.fin td:nth-child(2){text-align:left;font-size:14.0px}
+table.fin tr.fh td{background:var(--surface3);font-weight:700;color:rgba(255,255,255,0.35);font-size:12.0px;text-transform:uppercase;letter-spacing:.10em}
+table.fin tr.fsh td{background:var(--surface2);color:var(--text3);font-size:14.0px;font-style:italic}
+table.fin tr.fi td:first-child{padding-left:24px}
+table.fin tr.ft td{font-weight:700;color:var(--text);border-top:1px solid var(--border2);background:var(--surface2)}
+table.fin tr.fgt td{font-weight:800;color:var(--accent);border-top:2px solid var(--accent-border);background:var(--accent-light)}
+table.fin td.pos{color:var(--green)}
+table.fin td.neg{color:var(--red)}
+.ent-badge{display:inline-block;font-size:12.0px;font-weight:700;color:var(--accent);background:var(--accent-light);padding:1px 6px;border-radius:3px;border:1px solid var(--accent-border)}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.12);border-radius:3px}
+input,select{font-family:var(--sans)}
+/* Forecast table */
+.fcst-table{width:100%;border-collapse:collapse;font-size:14.5px}
+.fcst-table th{padding:8px 10px;text-align:left;color:var(--text3);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--border);white-space:nowrap}
+.fcst-table td{padding:8px 10px;border-bottom:1px solid var(--border);white-space:nowrap;vertical-align:middle}
+.fcst-table tr:hover td{background:var(--surface2)}
+.fcst-scroll{overflow-x:auto;border:1px solid var(--border);border-radius:8px}
+.fsum{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px}
+.fsum-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;min-width:100px}
+.fsum-card .fsc-m{font-size:12px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+.fsum-card .fsc-v{font-size:17px;font-weight:700;color:var(--green);margin-top:3px}
+.fsum-card.out .fsc-v{color:var(--red)}
+/* Status badges */
+.st-badge{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:4px}
+.st-draft{background:rgba(255,255,255,0.06);color:var(--text3)}
+.st-invoiced{background:rgba(87,215,226,0.12);color:var(--accent)}
+.st-partial{background:rgba(251,191,36,0.12);color:var(--amber)}
+.st-paid{background:rgba(52,211,153,0.12);color:var(--green)}
+.st-overdue{background:rgba(248,113,113,0.12);color:var(--red)}
+/* Modal form */
+.fcst-form{display:grid;grid-template-columns:1fr 1fr;gap:14px 20px}
+.fcst-form .full{grid-column:1/-1}
+.fcst-form label{font-size:13px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:4px}
+.fcst-form input,.fcst-form select{width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:7px 10px;font-size:15px;color:var(--text);font-family:var(--sans)}
+.fcst-form input[readonly]{color:var(--accent);background:var(--accent-light);border-color:var(--accent-border)}
+/* Forecast badge */
+.bf{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:3px;font-size:10px;font-weight:700;background:rgba(251,191,36,0.15);color:#FBBF24;margin-right:3px}
+.dash-pl-metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:18px}
+.drop-zone{border:2px dashed var(--border2);border-radius:8px;padding:28px 16px;text-align:center;cursor:pointer;transition:all .15s;display:flex;flex-direction:column;align-items:center;gap:0}
+.drop-zone:hover,.drop-zone.drag-over{border-color:var(--accent);background:var(--accent-light)}
+.drop-zone input[type="file"]{display:none}
+.itr{display:flex;align-items:center;gap:9px;padding:7px 10px;background:var(--surface2);border-radius:6px;font-size:14.5px;margin-top:6px}
+.itr-label{flex:1;color:var(--text2);font-weight:500}
+.itr-status{font-size:13px;color:var(--text3)}
+</style>
+</head>
+<body>
+<div class="shell">
+<aside class="sidebar">
+  <div class="logo" style="cursor:pointer" onclick="go('dash',document.querySelector('.nav-item'))">
+    <div class="logo-text">Indexed FP&A</div>
+    <div class="logo-sub">Financial planning &amp; analysis</div>
+  </div>
+  <nav class="nav">
+    <div class="nav-section">Overview</div>
+    <div class="nav-item active" onclick="go('dash',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Dashboard</div>
+    <div class="nav-item" onclick="go('cf',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>Cash flow</div>
+    <div class="nav-item" onclick="go('fin',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 17v-2m3 2v-4m3 4v-6M9 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V9l-5-6z"/></svg>Financials</div>
+    <div class="nav-section">Inputs</div>
+    <div class="nav-item" onclick="go('ar',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>AR</div>
+    <div class="nav-item" onclick="go('ap',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>AP</div>
+    <div class="nav-section">Forecast</div>
+    <div class="nav-item" onclick="go('fcast-ar',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>AR Pipeline</div>
+    <div class="nav-item" onclick="go('fcast-ap',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2M9 12h6m-6 4h6"/></svg>AP Schedule</div>
+    <div class="nav-section">Mapping</div>
+    <div class="nav-item" onclick="go('contacts',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Contacts</div>
+    <div class="nav-section">Settings</div>
+    <div class="nav-item" onclick="go('import',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M16 12l-4 4m0 0l-4-4m4 4V4"/></svg>Import data</div>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="cw">
+      <div class="cw-label">Actuals through</div>
+      <div id="sidebar-actuals" style="padding:6px 8px;background:var(--accent-light);border-radius:5px;font-size:16.0px;font-weight:500;color:var(--accent);text-align:center">April 2026</div>
+      <div class="entity-pills">
+        <div class="epill on" onclick="setEnt('conso',this)">Conso</div>
+        <div class="epill" onclick="setEnt('bh',this)">BH</div>
+        <div class="epill" onclick="setEnt('bc',this)">BC</div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<main class="main">
+
+<!-- DASHBOARD -->
+<div id="screen-dash" class="screen active">
+  <div class="page-header">
+    <div><div class="page-title">Dashboard <em id="dash-el"></em></div>
+    <div class="page-sub">Jan–Apr 2026 actuals · All values in USD · Toggle entity above</div></div>
+  </div>
+  <div class="content">
+    <div class="metrics" id="dash-kpis" style="grid-template-columns:repeat(5,1fr)"></div>
+    <div class="dash-pl-metrics" id="dash-pl"></div>
+    <div class="card">
+      <div class="card-head"><span class="card-title">Liabilities</span><span class="card-hint" id="dash-liab-sub"></span></div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:16px" id="dash-liab"></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><span class="card-title">Closing cash balance</span><span class="card-hint">Month-end bank balance</span></div>
+      <div id="dash-chart-area"></div>
+    </div>
+  </div>
+</div>
+
+<!-- CASH FLOW -->
+<div id="screen-cf" class="screen">
+  <div class="page-header">
+    <div><div class="page-title">Cash flow <em id="cf-el"></em></div>
+    <div class="page-sub">Jan–Apr 2026 actuals · All values in USD</div></div>
+  </div>
+  <div class="content">
+    <div class="card">
+      <div class="card-head"><span class="card-title">Cash flow statement</span><span class="card-hint">Click a row to drill into transactions</span></div>
+      <div class="cf-wrap"><table class="cf" id="cft"></table></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><span class="card-title">Bank account breakdown</span></div>
+      <div class="cf-wrap"><table class="cf" id="bnk-table"></table></div>
+    </div>
+  </div>
+</div>
+
+<!-- FINANCIALS -->
+<div id="screen-fin" class="screen">
+  <div class="page-header">
+    <div><div class="page-title">Financials <em id="fin-el">· Consolidated</em></div>
+    <div class="page-sub">Jan–Apr 2026 · Exact from Xero · Toggle entity above</div></div>
+  </div>
+  <div class="content">
+    <div class="itabs" style="background:transparent;padding:0;margin-bottom:14px;border-bottom:1px solid var(--border)">
+      <div class="itab active" onclick="swFin('bs',this)">Balance sheet</div>
+      <div class="itab" onclick="swFin('pl',this)">Profit &amp; Loss</div>
+    </div>
+    <div id="fin-bs" class="itp active">
+      <div class="card"><div class="card-head"><span class="card-title" id="bs-title">Balance sheet</span></div>
+        <div class="cf-wrap"><table class="fin" id="bst"></table></div></div>
+    </div>
+    <div id="fin-pl" class="itp">
+      <div class="card"><div class="card-head"><span class="card-title" id="pl-title">Profit &amp; Loss</span></div>
+        <div class="cf-wrap"><table class="fin" id="plt"></table></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- AR -->
+<div id="screen-ar" class="screen">
+  <div class="page-header"><div><div class="page-title">AR</div><div class="page-sub">Customer invoices · actuals from Xero</div></div>
+    <div><button onclick="addAR()" style="padding:7px 14px;border-radius:6px;font-size:16.0px;font-weight:500;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">+ Add invoice</button></div>
+  </div>
+  <div class="content">
+    <div class="card"><div class="card-head"><span class="card-title">Invoice register</span></div>
+      <div style="overflow-x:auto"><table class="dt" id="art"></table></div>
+      <div class="add-row" onclick="addAR()">＋ Add forecast invoice</div>
+    </div>
+  </div>
+</div>
+
+<!-- AP -->
+<div id="screen-ap" class="screen">
+  <div class="page-header"><div><div class="page-title">AP</div><div class="page-sub">Vendor payments · actuals from Xero</div></div>
+    <div><button onclick="addAP()" style="padding:7px 14px;border-radius:6px;font-size:16.0px;font-weight:500;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">+ Add expense</button></div>
+  </div>
+  <div class="content">
+    <div class="card"><div class="card-head"><span class="card-title">Expense register</span></div>
+      <div style="overflow-x:auto"><table class="dt" id="apt"></table></div>
+      <div class="add-row" onclick="addAP()">＋ Add forecast expense</div>
+    </div>
+  </div>
+</div>
+
+<!-- FCAST AR -->
+<div id="screen-fcast-ar" class="screen">
+  <div class="page-header">
+    <div><div class="page-title">AR Pipeline</div><div class="page-sub">Forecast cash collections · May–Dec 2026</div></div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button onclick="exportARCSV()" style="padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:var(--sans)">↓ Export CSV</button>
+      <label style="padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:var(--sans);white-space:nowrap">↑ Import
+        <input type="file" id="fi-ar-import" accept=".csv,.xlsx,.xls" style="display:none" onchange="importARFile(this.files[0]);this.value=''">
+      </label>
+      <button onclick="openARModal(null)" style="padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">＋ Add invoice</button>
+    </div>
+  </div>
+  <div class="content">
+    <div class="fsum" id="fcar-summary"></div>
+    <div class="fcst-scroll">
+      <table class="fcst-table" id="fcar-table"></table>
+    </div>
+  </div>
+</div>
+
+<!-- FCAST AP -->
+<div id="screen-fcast-ap" class="screen">
+  <div class="page-header">
+    <div><div class="page-title">AP Schedule</div><div class="page-sub">Forecast cash payments · May–Dec 2026</div></div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button onclick="exportAPCSV()" style="padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:var(--sans)">↓ Export CSV</button>
+      <label style="padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:var(--sans);white-space:nowrap">↑ Import
+        <input type="file" id="fi-ap-import" accept=".csv,.xlsx,.xls" style="display:none" onchange="importAPFile(this.files[0]);this.value=''">
+      </label>
+      <button onclick="openAPModal(null)" style="padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">＋ Add payment</button>
+    </div>
+  </div>
+  <div class="content">
+    <div class="fsum" id="fcap-summary"></div>
+    <div class="fcst-scroll">
+      <table class="fcst-table" id="fcap-table"></table>
+    </div>
+  </div>
+</div>
+
+<!-- CONTACTS -->
+<div id="screen-contacts" class="screen">
+  <div class="page-header">
+    <div><div class="page-title">Contacts</div><div class="page-sub">Cash flow by contact · Map contacts to display groups · Jan–Apr actuals</div></div>
+    <div><button onclick="saveMappings()" style="padding:7px 14px;border-radius:6px;font-size:16.0px;font-weight:500;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">Save mappings</button></div>
+  </div>
+  <div class="content">
+    <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:14px">
+      <div class="itab active" onclick="swCtMain('summary',this)" style="padding:9px 16px">Summary</div>
+      <div class="itab" onclick="swCtMain('mapping',this)" style="padding:9px 16px">Contact mapping ✎</div>
+    </div>
+    <div id="ct-summary">
+      <div class="card">
+        <div class="itabs">
+          <div class="itab active" onclick="swCtSub('all',this)">All groups</div>
+          <div class="itab" onclick="swCtSub('clients',this)">Clients</div>
+          <div class="itab" onclick="swCtSub('vendors',this)">Vendors</div>
+        </div>
+        <div id="ctg-all" class="itp active"><div style="overflow-x:auto"><table class="dt" id="ctAll"></table></div></div>
+        <div id="ctg-clients" class="itp"><div style="overflow-x:auto"><table class="dt" id="ctCli"></table></div></div>
+        <div id="ctg-vendors" class="itp"><div style="overflow-x:auto"><table class="dt" id="ctVen"></table></div></div>
+      </div>
+    </div>
+    <div id="ct-mapping" style="display:none">
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">Contact → Display group</span>
+          <span class="card-hint">Type a group name to merge contacts · blank = each contact shown individually</span>
+        </div>
+        <div style="overflow-x:auto"><table class="dt" id="ctMap"></table></div>
+      </div>
+      <div style="background:var(--accent-light);border:1px solid var(--border);border-radius:8px;padding:12px 16px;font-size:15.0px;color:var(--text2);margin-top:4px">
+        <strong style="color:var(--accent)">How it works:</strong> Assign the same group name to multiple contacts and they'll be merged into one row in the Summary. Click any group row to expand and see the underlying contacts. Changes apply immediately when you click Save.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- IMPORT -->
+<div id="screen-import" class="screen">
+  <div class="page-header"><div><div class="page-title">Import data</div><div class="page-sub">Drop any Xero export — file type auto-detected · All screens refresh automatically</div></div></div>
+  <div class="content">
+    <div class="ig">
+      <div class="ie">
+        <div style="font-size:18px;font-weight:600;margin-bottom:14px">Braveheart FZ LLC</div>
+        <div class="drop-zone" id="dz-bh">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:34px;height:34px;color:var(--text3);margin-bottom:8px"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M16 12l-4 4m0 0l-4-4m4 4V4"/></svg>
+          <div style="font-size:15px;font-weight:500;color:var(--text2)">Drop any Xero XLSX export here</div>
+          <div style="font-size:13px;color:var(--text3);margin-top:4px">Account Transactions · Balance Sheet · P&amp;L</div>
+          <input type="file" id="fi-bh" accept=".xlsx,.xls">
+        </div>
+        <div class="itr"><span>📊</span><span class="itr-label">Account Transactions</span><span class="itr-status" id="ist-bh-gl">Not loaded</span></div>
+        <div class="itr"><span>🗂</span><span class="itr-label">Balance Sheet</span><span class="itr-status" id="ist-bh-bs">Not loaded</span></div>
+        <div class="itr"><span>📈</span><span class="itr-label">Profit &amp; Loss</span><span class="itr-status" id="ist-bh-pl">Not loaded</span></div>
+        <div id="import-preview-bh"></div>
+      </div>
+      <div class="ie">
+        <div style="font-size:18px;font-weight:600;margin-bottom:14px">Bravecore FZ LLC</div>
+        <div class="drop-zone" id="dz-bc">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:34px;height:34px;color:var(--text3);margin-bottom:8px"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M16 12l-4 4m0 0l-4-4m4 4V4"/></svg>
+          <div style="font-size:15px;font-weight:500;color:var(--text2)">Drop any Xero XLSX export here</div>
+          <div style="font-size:13px;color:var(--text3);margin-top:4px">Account Transactions · Balance Sheet · P&amp;L</div>
+          <input type="file" id="fi-bc" accept=".xlsx,.xls">
+        </div>
+        <div class="itr"><span>📊</span><span class="itr-label">Account Transactions</span><span class="itr-status" id="ist-bc-gl">Not loaded</span></div>
+        <div class="itr"><span>🗂</span><span class="itr-label">Balance Sheet</span><span class="itr-status" id="ist-bc-bs">Not loaded</span></div>
+        <div class="itr"><span>📈</span><span class="itr-label">Profit &amp; Loss</span><span class="itr-status" id="ist-bc-pl">Not loaded</span></div>
+        <div id="import-preview-bc"></div>
+      </div>
+    </div>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 16px;font-size:14.5px;color:var(--text3)">
+      <strong style="color:var(--text2)">How to export from Xero:</strong> Go to <em>Accounting → Reports</em>, export <em>Account Transactions</em>, <em>Balance Sheet</em>, and <em>Profit &amp; Loss</em> as Excel (.xlsx). Drop each file above — the type is detected automatically from the filename.
+    </div>
+  </div>
+</div>
+
+</main>
+</div>
+
+<!-- Forecast modal -->
+<div id="fcst-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:200;align-items:center;justify-content:center" onclick="if(event.target===this)closeFcstModal()">
+  <div style="background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:28px;width:640px;max-width:95vw;max-height:90vh;overflow-y:auto" id="fcst-modal-body">
+  </div>
+</div>
+
+<!-- Password overlay -->
+<div id="auth-overlay" style="display:none;position:fixed;inset:0;background:#0A0A0A;z-index:9999;align-items:center;justify-content:center">
+  <div style="background:#141414;border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:40px 44px;width:360px;text-align:center">
+    <div style="font-size:22px;font-weight:800;color:#57D7E2;letter-spacing:-.02em;margin-bottom:4px">Indexed FP&A</div>
+    <div style="font-size:13px;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:.10em;font-weight:700;margin-bottom:28px">Financial planning &amp; analysis</div>
+    <input id="pwd-input" type="password" placeholder="Enter password" onkeydown="if(event.key==='Enter')submitPwd()"
+      style="width:100%;padding:10px 14px;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:#1e1e1e;color:#F2F2F2;font-size:16px;font-family:'Barlow',sans-serif;outline:none;margin-bottom:8px">
+    <div id="pwd-err" style="display:none;color:#F87171;font-size:13.5px;margin-bottom:8px"></div>
+    <button onclick="submitPwd()" style="width:100%;padding:10px;border-radius:8px;border:none;background:#57D7E2;color:#fff;font-size:16px;font-weight:600;cursor:pointer;font-family:'Barlow',sans-serif">Unlock →</button>
+  </div>
+</div>
+
+<script>
+const E = ['Jan','Feb','Mar','Apr'];
+let ent='conso', finTab='bs', openDrill=null;
+
+// ── GL ACTUALS (net of platform fees GL 323 / GL 404 Spend Money) ──
+const BH_IN_D = {
+  Jan:[
+    {date:'12-Jan',contact:"Private EquityList",entity:'BH',amt:240.00},
+    {date:'28-Jan',contact:"Motto LLC",entity:'BH',amt:2800.00},
+    {date:'16-Jan',contact:"RRVS Holdings, LLC (RecNation Storage)",entity:'BH',amt:8068.50,fee:81.50},
+    {date:'27-Jan',contact:"Anintah",entity:'BH',amt:9900.00,fee:100.00},
+    {date:'22-Jan',contact:"Duo Strategy LLC",entity:'BH',amt:220.00},
+    {date:'3-Jan',contact:"Cloud Web Solutions",entity:'BH',amt:1032.83,fee:61.18},
+    {date:'3-Jan',contact:"Cloud Web Solutions",entity:'BH',amt:1032.83,fee:61.18},
+    {date:'7-Jan',contact:"OE Partners",entity:'BH',amt:1422.54,fee:77.46},
+    {date:'9-Jan',contact:"Phunk Creative",entity:'BH',amt:330.24,fee:19.76},
+    {date:'12-Jan',contact:"Upvolt Ltd",entity:'BH',amt:3129.92,fee:170.08},
+    {date:'14-Jan',contact:"Macol Limited",entity:'BH',amt:3400.25,fee:184.75},
+  ],
+  Feb:[
+    {date:'13-Feb',contact:"Ramp Business Corporation",entity:'BH',amt:600.00},
+    {date:'10-Feb',contact:"RRVS Holdings, LLC (RecNation Storage)",entity:'BH',amt:7865.55,fee:79.45},
+    {date:'26-Feb',contact:"Anintah",entity:'BH',amt:9900.00,fee:100.00},
+    {date:'25-Feb',contact:"Duo Strategy LLC",entity:'BH',amt:220.00},
+    {date:'2-Feb',contact:"Macol Limited",entity:'BH',amt:3395.19,fee:189.81},
+    {date:'2-Feb',contact:"OE Partners",entity:'BH',amt:1420.58,fee:79.42},
+    {date:'2-Feb',contact:"Cloud Web Solutions",entity:'BH',amt:1125.10,fee:62.90},
+    {date:'2-Feb',contact:"Cloud Web Solutions",entity:'BH',amt:1125.10,fee:62.90},
+    {date:'10-Feb',contact:"Private EquityList",entity:'BH',amt:924.55,fee:50.45},
+    {date:'12-Feb',contact:"Veriheal Inc",entity:'BH',amt:13473.82,fee:736.71},
+    {date:'12-Feb',contact:"Upvolt Ltd",entity:'BH',amt:4551.16,fee:248.84},
+    {date:'12-Feb',contact:"Upvolt Ltd",entity:'BH',amt:1611.87,fee:88.13},
+    {date:'14-Feb',contact:"Macol Limited",entity:'BH',amt:3400.25,fee:184.75},
+    {date:'28-Feb',contact:"Private EquityList",entity:'BH',amt:917.37,fee:57.63},
+    {date:'13-Feb',contact:"Gregory Brooks (Upwork Earning)",entity:'BH',amt:220.00},
+  ],
+  Mar:[
+    {date:'6-Mar',contact:"RRVS Holdings, LLC (RecNation Storage)",entity:'BH',amt:7865.55,fee:79.45},
+    {date:'26-Mar',contact:"Anintah",entity:'BH',amt:18810.00,fee:190.00},
+    {date:'2-Mar',contact:"OE Partners",entity:'BH',amt:1418.75,fee:81.25},
+    {date:'2-Mar',contact:"Cloud Web Solutions",entity:'BH',amt:1021.50,fee:58.50},
+    {date:'2-Mar',contact:"Cloud Web Solutions",entity:'BH',amt:1021.50,fee:58.50},
+    {date:'12-Mar',contact:"Upvolt Ltd",entity:'BH',amt:4552.75,fee:247.25},
+    {date:'16-Mar',contact:"InspectMind AI Inc",entity:'BH',amt:5690.95,fee:309.05},
+    {date:'28-Mar',contact:"Private EquityList",entity:'BH',amt:917.37,fee:57.63},
+  ],
+  Apr:[
+    {date:'15-Apr',contact:"PINGCAP TIDB CLOUD",entity:'BH',amt:1.00},
+    {date:'29-Apr',contact:"RRVS Holdings, LLC (RecNation Storage)",entity:'BH',amt:7865.55,fee:79.45},
+    {date:'1-Apr',contact:"Cloud Web Solutions",entity:'BH',amt:462.58,fee:415.42},
+    {date:'1-Apr',contact:"Cloud Web Solutions",entity:'BH',amt:462.58,fee:415.42},
+    {date:'2-Apr',contact:"OE Partners",entity:'BH',amt:1486.91,fee:13.09},
+    {date:'2-Apr',contact:"Veriheal Inc",entity:'BH',amt:14105.85,fee:124.15},
+    {date:'12-Apr',contact:"Upvolt Ltd",entity:'BH',amt:4552.73,fee:247.27},
+    {date:'16-Apr',contact:"InspectMind AI Inc",entity:'BH',amt:5690.96,fee:309.04},
+    {date:'27-Apr',contact:"Private EquityList",entity:'BH',amt:924.55,fee:50.45},
+  ],
+};
+
+const BC_IN_D = {
+  Jan:[
+    {date:'16-Jan',contact:"RRVS Holdings, LLC (RecNation Storage)",entity:'BC',amt:16309.26,fee:164.74},
+  ],
+  Feb:[
+    {date:'10-Feb',contact:"RRVS Holdings, LLC (RecNation Storage)",entity:'BC',amt:16309.26,fee:164.74},
+    {date:'10-Feb',contact:"RRVS Holdings, LLC (RecNation Storage)",entity:'BC',amt:693.00,fee:7.00},
+    {date:'20-Feb',contact:"RRVS Holdings, LLC (RecNation Storage)",entity:'BC',amt:25398.45,fee:256.55},
+  ],
+  Mar:[
+    {date:'6-Mar',contact:"RRVS Holdings, LLC (RecNation Storage)",entity:'BC',amt:22151.25,fee:223.75},
+    {date:'12-Mar',contact:"RRVS Holdings, LLC (RecNation Storage)",entity:'BC',amt:11261.25,fee:113.75},
+    {date:'30-Mar',contact:"RRVS Holdings, LLC (RecNation Storage)",entity:'BC',amt:16309.26,fee:164.74},
+    {date:'30-Mar',contact:"RRVS Holdings, LLC (RecNation Storage)",entity:'BC',amt:44572.28,fee:450.22},
+  ],
+  Apr:[
+    {date:'29-Apr',contact:"RRVS Holdings, LLC (RecNation Storage)",entity:'BC',amt:39030.75,fee:394.25},
+    {date:'29-Apr',contact:"RRVS Holdings, LLC (RecNation Storage)",entity:'BC',amt:10048.50,fee:101.50},
+  ],
+};
+
+// BH outflow — all vendors from Xero Account Transactions
+const BH_OUT_D = {
+  Jan:[
+    {date:'1-Jan',contact:"Digital Ocean",entity:'BH',amt:52.27},
+    {date:'1-Jan',contact:"Google",entity:'BH',amt:194.15},
+    {date:'2-Jan',contact:"Emirates Telecommunications Group Company (Etisalat Group)",entity:'BH',amt:42.89},
+    {date:'2-Jan',contact:"Emirates Telecommunications Group Company (Etisalat Group)",entity:'BH',amt:44.05},
+    {date:'2-Jan',contact:"WordPress.com",entity:'BH',amt:44.76},
+    {date:'3-Jan',contact:"Piyali Basu Mallick",entity:'BH',amt:84.80},
+    {date:'4-Jan',contact:"Miro",entity:'BH',amt:10.89},
+    {date:'5-Jan',contact:"Inayat Naqvi",entity:'BH',amt:552.41},
+    {date:'5-Jan',contact:"Paddle.com Market",entity:'BH',amt:98.31},
+    {date:'5-Jan',contact:"Asana",entity:'BH',amt:71.96},
+    {date:'7-Jan',contact:"Buffer.com",entity:'BH',amt:24.00},
+    {date:'9-Jan',contact:"LinkedIn Ireland Unlimited Company",entity:'BH',amt:132.01},
+    {date:'9-Jan',contact:"Villa Naas qlub",entity:'BH',amt:90.17},
+    {date:'11-Jan',contact:"LOOM SUBSCRIPTION",entity:'BH',amt:18.00},
+    {date:'11-Jan',contact:"OpenAI",entity:'BH',amt:21.78},
+    {date:'11-Jan',contact:"HubSpot",entity:'BH',amt:168.85},
+    {date:'13-Jan',contact:"Canva",entity:'BH',amt:36.70},
+    {date:'13-Jan',contact:"X Corp",entity:'BH',amt:11.19},
+    {date:'14-Jan',contact:"Atlassian",entity:'BH',amt:66.52},
+    {date:'15-Jan',contact:"Vibha Sharma",entity:'BH',amt:480.00},
+    {date:'19-Jan',contact:"Mine Akar",entity:'BH',amt:79.50},
+    {date:'20-Jan',contact:"Slack Technologies",entity:'BH',amt:164.28},
+    {date:'20-Jan',contact:"Dripify",entity:'BH',amt:86.03},
+    {date:'20-Jan',contact:"BrightLocal",entity:'BH',amt:69.00},
+    {date:'20-Jan',contact:"Asana",entity:'BH',amt:13.85},
+    {date:'21-Jan',contact:"LinkedIn Ireland Unlimited Company",entity:'BH',amt:124.22},
+    {date:'21-Jan',contact:"Ahrefs Pte",entity:'BH',amt:592.02},
+    {date:'23-Jan',contact:"LinkedIn Ireland Unlimited Company",entity:'BH',amt:38.72},
+    {date:'24-Jan',contact:"Nord Account",entity:'BH',amt:16.34},
+    {date:'25-Jan',contact:"Typeform",entity:'BH',amt:81.93},
+    {date:'25-Jan',contact:"Upwork Global",entity:'BH',amt:22.72},
+    {date:'26-Jan',contact:"Figma",entity:'BH',amt:72.60},
+    {date:'27-Jan',contact:"KeywordsPeopleUse.com",entity:'BH',amt:15.56},
+    {date:'28-Jan',contact:"LinkedIn Ireland Unlimited Company",entity:'BH',amt:28.90},
+    {date:'29-Jan',contact:"Claude AI",entity:'BH',amt:20.74},
+    {date:'29-Jan',contact:"Asana",entity:'BH',amt:7.14},
+    {date:'30-Jan',contact:"Upwork Global",entity:'BH',amt:157.50},
+    {date:'31-Jan',contact:"Notion Labs",entity:'BH',amt:160.56},
+    {date:'31-Jan',contact:"OpenAI",entity:'BH',amt:21.78},
+    {date:'12-Jan',contact:"Anjandeep Singh Luthra",entity:'BH',amt:618.92},
+    {date:'12-Jan',contact:"Mine Akar",entity:'BH',amt:274.35},
+    {date:'12-Jan',contact:"Livia-Ioana Blaj",entity:'BH',amt:541.99},
+    {date:'31-Jan',contact:"InZone",entity:'BH',amt:11543.91},
+    {date:'9-Jan',contact:"Jagjit Singh",entity:'BH',amt:862.50},
+    {date:'9-Jan',contact:"Anirban Dutta Choudhury",entity:'BH',amt:1153.20},
+    {date:'9-Jan',contact:"Suchi Shah",entity:'BH',amt:361.00},
+    {date:'9-Jan',contact:"Sarah Omoruku",entity:'BH',amt:750.00},
+    {date:'9-Jan',contact:"Pulkitsingh Parmar",entity:'BH',amt:70.00},
+    {date:'9-Jan',contact:"Hayley Ward",entity:'BH',amt:570.00},
+    {date:'9-Jan',contact:"SKUAD PTE",entity:'BH',amt:209.00},
+    {date:'9-Jan',contact:"Sagar Rauthan",entity:'BH',amt:216.00},
+    {date:'9-Jan',contact:"Nirav Nitinbhai Patel",entity:'BH',amt:250.00},
+    {date:'9-Jan',contact:"Karan Mehta",entity:'BH',amt:825.00},
+    {date:'9-Jan',contact:"Jayesh Ashok Jain",entity:'BH',amt:120.00},
+    {date:'9-Jan',contact:"Aeman Parwez",entity:'BH',amt:675.00},
+    {date:'19-Jan',contact:"Avyghaile Vicente Cordova",entity:'BH',amt:500.00},
+    {date:'19-Jan',contact:"SKUAD PTE",entity:'BH',amt:19.00},
+    {date:'22-Jan',contact:"Duo Strategy LLC",entity:'BH',amt:9.98},
+  ],
+  Feb:[
+    {date:'1-Feb',contact:"Digital Ocean",entity:'BH',amt:52.27},
+    {date:'1-Feb',contact:"Asana",entity:'BH',amt:184.11},
+    {date:'1-Feb',contact:"Google",entity:'BH',amt:203.39},
+    {date:'2-Feb',contact:"Zapier",entity:'BH',amt:31.10},
+    {date:'2-Feb',contact:"WordPress.com",entity:'BH',amt:45.87},
+    {date:'2-Feb',contact:"Emirates Telecommunications Group Company (Etisalat Group)",entity:'BH',amt:43.43},
+    {date:'2-Feb',contact:"Emirates Telecommunications Group Company (Etisalat Group)",entity:'BH',amt:42.89},
+    {date:'2-Feb',contact:"Inayat Naqvi",entity:'BH',amt:582.81},
+    {date:'4-Feb',contact:"Miro",entity:'BH',amt:10.89},
+    {date:'4-Feb',contact:"Upwork Global",entity:'BH',amt:171.28},
+    {date:'4-Feb',contact:"Atul Sharma",entity:'BH',amt:470.00},
+    {date:'4-Feb',contact:"Vibha Sharma",entity:'BH',amt:180.00},
+    {date:'5-Feb',contact:"Paddle.com Market",entity:'BH',amt:98.32},
+    {date:'7-Feb',contact:"OpenAI",entity:'BH',amt:21.78},
+    {date:'7-Feb',contact:"Buffer.com",entity:'BH',amt:24.89},
+    {date:'10-Feb',contact:"Upwork Global",entity:'BH',amt:171.28},
+    {date:'11-Feb',contact:"HubSpot",entity:'BH',amt:146.45},
+    {date:'11-Feb',contact:"Atlassian",entity:'BH',amt:19.60},
+    {date:'12-Feb',contact:"Upwork Global",entity:'BH',amt:171.28},
+    {date:'12-Feb',contact:"GoDaddy",entity:'BH',amt:24.16},
+    {date:'13-Feb',contact:"X Corp",entity:'BH',amt:11.35},
+    {date:'13-Feb',contact:"Canva",entity:'BH',amt:18.35},
+    {date:'14-Feb',contact:"Atlassian",entity:'BH',amt:97.43},
+    {date:'14-Feb',contact:"Facebook",entity:'BH',amt:389.70},
+    {date:'19-Feb',contact:"Facebook",entity:'BH',amt:404.39},
+    {date:'20-Feb',contact:"Dripify",entity:'BH',amt:86.03},
+    {date:'20-Feb',contact:"Slack Technologies",entity:'BH',amt:218.79},
+    {date:'20-Feb',contact:"JAI KISHAN",entity:'BH',amt:625.00},
+    {date:'20-Feb',contact:"Sajan Kumar",entity:'BH',amt:490.00},
+    {date:'20-Feb',contact:"BrightLocal",entity:'BH',amt:71.56},
+    {date:'20-Feb',contact:"LinkedIn Ireland Unlimited Company",entity:'BH',amt:117.03},
+    {date:'21-Feb',contact:"LinkedIn Ireland Unlimited Company",entity:'BH',amt:124.22},
+    {date:'21-Feb',contact:"Ahrefs Pte",entity:'BH',amt:593.03},
+    {date:'21-Feb',contact:"LinkedIn Ireland Unlimited Company",entity:'BH',amt:251.16},
+    {date:'22-Feb',contact:"LinkedIn Ireland Unlimited Company",entity:'BH',amt:191.83},
+    {date:'23-Feb',contact:"LinkedIn Ireland Unlimited Company",entity:'BH',amt:181.39},
+    {date:'23-Feb',contact:"LinkedIn Ireland Unlimited Company",entity:'BH',amt:172.23},
+    {date:'24-Feb',contact:"Nord Account",entity:'BH',amt:16.20},
+    {date:'24-Feb',contact:"Upwork Global",entity:'BH',amt:171.28},
+    {date:'24-Feb',contact:"LinkedIn Ireland Unlimited Company",entity:'BH',amt:113.63},
+    {date:'25-Feb',contact:"Xero",entity:'BH',amt:7.78},
+    {date:'25-Feb',contact:"Dripify",entity:'BH',amt:17.89},
+    {date:'25-Feb',contact:"Typeform",entity:'BH',amt:81.93},
+    {date:'26-Feb',contact:"Asana",entity:'BH',amt:3.89},
+    {date:'26-Feb',contact:"LinkedIn Ireland Unlimited Company",entity:'BH',amt:74.41},
+    {date:'26-Feb',contact:"Figma",entity:'BH',amt:72.60},
+    {date:'27-Feb',contact:"KeywordsPeopleUse.com",entity:'BH',amt:15.56},
+    {date:'28-Feb',contact:"OpenAI",entity:'BH',amt:21.78},
+    {date:'28-Feb',contact:"Claude AI",entity:'BH',amt:20.74},
+    {date:'28-Feb',contact:"Facebook",entity:'BH',amt:308.23},
+    {date:'2-Feb',contact:"Zyla Accountants FZCO",entity:'BH',amt:354.53},
+    {date:'15-Feb',contact:"1Password",entity:'BH',amt:287.28},
+    {date:'21-Feb',contact:"InZone",entity:'BH',amt:550.03},
+    {date:'10-Feb',contact:"Pulkitsingh Parmar",entity:'BH',amt:180.00},
+    {date:'10-Feb',contact:"Anirban Dutta Choudhury",entity:'BH',amt:1144.71},
+    {date:'10-Feb',contact:"Aeman Parwez",entity:'BH',amt:180.00},
+    {date:'10-Feb',contact:"Jagjit Singh",entity:'BH',amt:645.00},
+    {date:'10-Feb',contact:"Jayesh Ashok Jain",entity:'BH',amt:550.00},
+    {date:'10-Feb',contact:"Sagar Rauthan",entity:'BH',amt:324.00},
+    {date:'10-Feb',contact:"Hayley Ward",entity:'BH',amt:850.00},
+    {date:'10-Feb',contact:"Karan Mehta",entity:'BH',amt:1463.00},
+    {date:'10-Feb',contact:"Nirav Nitinbhai Patel",entity:'BH',amt:300.00},
+    {date:'10-Feb',contact:"Sarah Omoruku",entity:'BH',amt:750.00},
+    {date:'10-Feb',contact:"Suchi Shah",entity:'BH',amt:350.00},
+    {date:'10-Feb',contact:"SKUAD PTE",entity:'BH',amt:209.00},
+    {date:'28-Feb',contact:"Duo Strategy LLC",entity:'BH',amt:9.98},
+    {date:'13-Feb',contact:"Upwork Global",entity:'BH',amt:1.10},
+    {date:'13-Feb',contact:"Upwork Global",entity:'BH',amt:22.00},
+    {date:'17-Feb',contact:"Upwork Global",entity:'BH',amt:7.50},
+    {date:'17-Feb',contact:"Upwork Global",entity:'BH',amt:150.00},
+    {date:'25-Feb',contact:"Upwork Global",entity:'BH',amt:1.00},
+    {date:'25-Feb',contact:"Upwork Global",entity:'BH',amt:19.99},
+  ],
+  Mar:[
+    {date:'1-Mar',contact:"Notion Labs",entity:'BH',amt:225.29},
+    {date:'1-Mar',contact:"Digital Ocean",entity:'BH',amt:52.27},
+    {date:'1-Mar',contact:"Emirates Telecommunications Group Company (Etisalat Group)",entity:'BH',amt:43.11},
+    {date:'1-Mar',contact:"Emirates Telecommunications Group Company (Etisalat Group)",entity:'BH',amt:43.98},
+    {date:'1-Mar',contact:"Asana",entity:'BH',amt:215.99},
+    {date:'1-Mar',contact:"Google",entity:'BH',amt:212.85},
+    {date:'2-Mar',contact:"Zapier",entity:'BH',amt:31.10},
+    {date:'2-Mar',contact:"WordPress.com",entity:'BH',amt:44.84},
+    {date:'3-Mar',contact:"Xero",entity:'BH',amt:113.91},
+    {date:'4-Mar',contact:"Miro",entity:'BH',amt:27.28},
+    {date:'5-Mar',contact:"Paddle.com Market",entity:'BH',amt:98.33},
+    {date:'6-Mar',contact:"Atlassian",entity:'BH',amt:32.67},
+    {date:'7-Mar',contact:"OpenAI",entity:'BH',amt:21.78},
+    {date:'7-Mar',contact:"Buffer.com",entity:'BH',amt:24.89},
+    {date:'8-Mar',contact:"LinkedIn Ireland Unlimited Company",entity:'BH',amt:64.32},
+    {date:'11-Mar',contact:"Atlassian",entity:'BH',amt:19.60},
+    {date:'11-Mar',contact:"HubSpot",entity:'BH',amt:144.08},
+    {date:'12-Mar',contact:"Paddle.com Market",entity:'BH',amt:1.09},
+    {date:'13-Mar',contact:"Google",entity:'BH',amt:10.37},
+    {date:'13-Mar',contact:"Google",entity:'BH',amt:51.86},
+    {date:'13-Mar',contact:"X Corp",entity:'BH',amt:11.14},
+    {date:'13-Mar',contact:"Canva",entity:'BH',amt:36.70},
+    {date:'13-Mar',contact:"Google",entity:'BH',amt:103.72},
+    {date:'14-Mar',contact:"Atlassian",entity:'BH',amt:310.70},
+    {date:'15-Mar',contact:"Google",entity:'BH',amt:207.45},
+    {date:'16-Mar',contact:"Instantly",entity:'BH',amt:51.18},
+    {date:'16-Mar',contact:"MANUS AI",entity:'BH',amt:22.78},
+    {date:'16-Mar',contact:"HubSpot",entity:'BH',amt:98.89},
+    {date:'17-Mar',contact:"MANUS AI",entity:'BH',amt:21.84},
+    {date:'19-Mar',contact:"Rajan Kumar",entity:'BH',amt:625.00},
+    {date:'19-Mar',contact:"JAI KISHAN",entity:'BH',amt:485.00},
+    {date:'19-Mar',contact:"Gaurav Kumar",entity:'BH',amt:795.00},
+    {date:'20-Mar',contact:"Dripify",entity:'BH',amt:107.82},
+    {date:'20-Mar',contact:"Slack Technologies",entity:'BH',amt:181.29},
+    {date:'20-Mar',contact:"MANUS AI",entity:'BH',amt:19.98},
+    {date:'20-Mar',contact:"BrightLocal",entity:'BH',amt:71.57},
+    {date:'21-Mar',contact:"MANUS AI",entity:'BH',amt:19.08},
+    {date:'21-Mar',contact:"Ahrefs Pte",entity:'BH',amt:589.99},
+    {date:'22-Mar',contact:"MANUS AI",entity:'BH',amt:19.03},
+    {date:'22-Mar',contact:"MANUS AI",entity:'BH',amt:92.74},
+    {date:'23-Mar',contact:"Xero",entity:'BH',amt:7.78},
+    {date:'23-Mar',contact:"Dripify",entity:'BH',amt:129.21},
+    {date:'24-Mar',contact:"MANUS AI",entity:'BH',amt:87.22},
+    {date:'24-Mar',contact:"Anthropic",entity:'BH',amt:24.48},
+    {date:'24-Mar',contact:"MANUS AI",entity:'BH',amt:84.52},
+    {date:'24-Mar',contact:"Nord VPM",entity:'BH',amt:16.14},
+    {date:'25-Mar',contact:"Typeform",entity:'BH',amt:81.95},
+    {date:'25-Mar',contact:"MANUS AI",entity:'BH',amt:80.90},
+    {date:'25-Mar',contact:"Github",entity:'BH',amt:0.61},
+    {date:'26-Mar',contact:"MANUS AI",entity:'BH',amt:193.38},
+    {date:'26-Mar',contact:"Figma",entity:'BH',amt:15.56},
+    {date:'27-Mar',contact:"SP LEVAIN BAKERY",entity:'BH',amt:107.88},
+    {date:'27-Mar',contact:"Anthropic",entity:'BH',amt:216.50},
+    {date:'27-Mar',contact:"Anthropic",entity:'BH',amt:5.45},
+    {date:'27-Mar',contact:"LinkedIn Ireland Unlimited Company",entity:'BH',amt:176.44},
+    {date:'27-Mar',contact:"LinkedIn Ireland Unlimited Company",entity:'BH',amt:123.88},
+    {date:'27-Mar',contact:"KeywordsPeopleUse.com",entity:'BH',amt:15.56},
+    {date:'30-Mar',contact:"Anthropic",entity:'BH',amt:5.45},
+    {date:'30-Mar',contact:"Perplexity AI",entity:'BH',amt:10.37},
+    {date:'31-Mar',contact:"Facebook",entity:'BH',amt:101.56},
+    {date:'31-Mar',contact:"Notion Labs",entity:'BH',amt:145.41},
+    {date:'31-Mar',contact:"OpenAI",entity:'BH',amt:21.78},
+    {date:'31-Mar',contact:"OpenAI",entity:'BH',amt:10.89},
+    {date:'31-Mar',contact:"BrightLocal",entity:'BH',amt:99.58},
+    {date:'31-Mar',contact:"BrightLocal",entity:'BH',amt:99.58},
+    {date:'9-Mar',contact:"Anjandeep Singh Luthra",entity:'BH',amt:1886.18},
+    {date:'9-Mar',contact:"Anjandeep Singh Luthra",entity:'BH',amt:10401.63},
+    {date:'9-Mar',contact:"Anjandeep Singh Luthra",entity:'BH',amt:178.66},
+    {date:'16-Mar',contact:"Zyla Accountants FZCO",entity:'BH',amt:142.95},
+    {date:'18-Mar',contact:"1Password",entity:'BH',amt:108.92},
+    {date:'9-Mar',contact:"Karan Mehta",entity:'BH',amt:1887.50},
+    {date:'9-Mar',contact:"Anirban Dutta Choudhury",entity:'BH',amt:1745.22},
+    {date:'9-Mar',contact:"Jayesh Ashok Jain",entity:'BH',amt:770.00},
+    {date:'9-Mar',contact:"Pulkitsingh Parmar",entity:'BH',amt:550.00},
+    {date:'9-Mar',contact:"Nirav Nitinbhai Patel",entity:'BH',amt:500.00},
+    {date:'9-Mar',contact:"SKUAD PTE",entity:'BH',amt:247.00},
+    {date:'9-Mar',contact:"Sagar Rauthan",entity:'BH',amt:1170.00},
+    {date:'9-Mar',contact:"Hayley Ward",entity:'BH',amt:660.00},
+    {date:'9-Mar',contact:"Sarah Omoruku",entity:'BH',amt:750.00},
+    {date:'9-Mar',contact:"Suchi Shah",entity:'BH',amt:517.00},
+    {date:'9-Mar',contact:"Avyghaile Vicente Cordova",entity:'BH',amt:250.00},
+    {date:'9-Mar',contact:"Inayat Naqvi",entity:'BH',amt:3223.63},
+    {date:'9-Mar',contact:"Avyghaile Vicente Cordova",entity:'BH',amt:500.00},
+    {date:'9-Mar',contact:"Jagjit Singh",entity:'BH',amt:435.00},
+    {date:'4-Mar',contact:"Upwork Global",entity:'BH',amt:7.50},
+    {date:'4-Mar',contact:"Upwork Global",entity:'BH',amt:150.00},
+    {date:'18-Mar',contact:"Upwork Global",entity:'BH',amt:7.50},
+    {date:'18-Mar',contact:"Upwork Global",entity:'BH',amt:150.00},
+    {date:'25-Mar',contact:"Upwork Global",entity:'BH',amt:1.00},
+    {date:'25-Mar',contact:"Upwork Global",entity:'BH',amt:19.99},
+  ],
+  Apr:[
+    {date:'1-Apr',contact:"DIGITALOCEAN.COM",entity:'BH',amt:52.28},
+    {date:'1-Apr',contact:"GOOGLE*ADS5206453484",entity:'BH',amt:299.53},
+    {date:'1-Apr',contact:"ASANA.COM",entity:'BH',amt:247.49},
+    {date:'1-Apr',contact:"SERPAPI, LLC",entity:'BH',amt:25.93},
+    {date:'1-Apr',contact:"Google",entity:'BH',amt:211.78},
+    {date:'2-Apr',contact:"Zapier",entity:'BH',amt:31.11},
+    {date:'3-Apr',contact:"Xero",entity:'BH',amt:77.79},
+    {date:'3-Apr',contact:"Anthropic",entity:'BH',amt:129.66},
+    {date:'4-Apr',contact:"PINGCAP TIDB CLOUD",entity:'BH',amt:1.04},
+    {date:'4-Apr',contact:"Miro",entity:'BH',amt:35.80},
+    {date:'5-Apr',contact:"Anthropic",entity:'BH',amt:5.45},
+    {date:'5-Apr',contact:"Vercel Inc",entity:'BH',amt:20.74},
+    {date:'5-Apr',contact:"PADDLE.NET* SEOWRITING",entity:'BH',amt:98.33},
+    {date:'6-Apr',contact:"Atlassian",entity:'BH',amt:45.11},
+    {date:'6-Apr',contact:"GoDaddy",entity:'BH',amt:25.26},
+    {date:'7-Apr',contact:"OpenAI",entity:'BH',amt:21.78},
+    {date:'7-Apr',contact:"Buffer.com",entity:'BH',amt:24.90},
+    {date:'8-Apr',contact:"Anthropic",entity:'BH',amt:27.23},
+    {date:'8-Apr',contact:"Emirates Telecommunications Group Company (Etisalat Group)",entity:'BH',amt:86.86},
+    {date:'8-Apr',contact:"GoDaddy",entity:'BH',amt:18.82},
+    {date:'9-Apr',contact:"Get Hooked",entity:'BH',amt:30.08},
+    {date:'10-Apr',contact:"RESEND",entity:'BH',amt:21.62},
+    {date:'11-Apr',contact:"Atlassian",entity:'BH',amt:19.61},
+    {date:'11-Apr',contact:"HubSpot",entity:'BH',amt:262.92},
+    {date:'12-Apr',contact:"Gaurav Kumar",entity:'BH',amt:580.00},
+    {date:'12-Apr',contact:"Jaikishan Raturi",entity:'BH',amt:330.00},
+    {date:'12-Apr',contact:"Heena Bhardwaj",entity:'BH',amt:550.00},
+    {date:'12-Apr',contact:"Sajan Kumar",entity:'BH',amt:810.00},
+    {date:'12-Apr',contact:"Financial Times",entity:'BH',amt:1.41},
+    {date:'13-Apr',contact:"ELEVENLABS.IO",entity:'BH',amt:10.89},
+    {date:'13-Apr',contact:"ELEVENLABS.IO",entity:'BH',amt:11.98},
+    {date:'13-Apr',contact:"X Corp",entity:'BH',amt:11.19},
+    {date:'13-Apr',contact:"Upwork",entity:'BH',amt:358.86},
+    {date:'13-Apr',contact:"GoDaddy",entity:'BH',amt:19.08},
+    {date:'13-Apr',contact:"Canva",entity:'BH',amt:36.70},
+    {date:'14-Apr',contact:"Atlassian",entity:'BH',amt:411.41},
+    {date:'14-Apr',contact:"Anthropic",entity:'BH',amt:10.92},
+    {date:'14-Apr',contact:"HIGGSFIELD INC.",entity:'BH',amt:16.15},
+    {date:'14-Apr',contact:"Apollo.io",entity:'BH',amt:61.21},
+    {date:'14-Apr',contact:"FS *dataforseo",entity:'BH',amt:65.88},
+    {date:'15-Apr',contact:"Facebook",entity:'BH',amt:404.68},
+    {date:'15-Apr',contact:"MSFT",entity:'BH',amt:7.84},
+    {date:'16-Apr',contact:"MANUS AI",entity:'BH',amt:45.49},
+    {date:'17-Apr',contact:"Anthropic",entity:'BH',amt:11.13},
+    {date:'20-Apr',contact:"Slack Technologies",entity:'BH',amt:142.73},
+    {date:'20-Apr',contact:"Dripify",entity:'BH',amt:107.81},
+    {date:'20-Apr',contact:"BrightLocal",entity:'BH',amt:71.57},
+    {date:'21-Apr',contact:"Anthropic",entity:'BH',amt:11.08},
+    {date:'22-Apr',contact:"Perplexity AI",entity:'BH',amt:51.86},
+    {date:'23-Apr',contact:"Ahrefs Pte",entity:'BH',amt:89.87},
+    {date:'23-Apr',contact:"MANUS AI",entity:'BH',amt:17.41},
+    {date:'23-Apr',contact:"Xero",entity:'BH',amt:7.78},
+    {date:'24-Apr',contact:"MANUS AI",entity:'BH',amt:16.98},
+    {date:'24-Apr',contact:"Nord VPM",entity:'BH',amt:16.19},
+    {date:'25-Apr',contact:"Upwork",entity:'BH',amt:22.83},
+    {date:'25-Apr',contact:"Ahrefs Pte",entity:'BH',amt:594.12},
+    {date:'25-Apr',contact:"Github",entity:'BH',amt:0.54},
+    {date:'26-Apr',contact:"Figma",entity:'BH',amt:89.18},
+    {date:'27-Apr',contact:"Anthropic",entity:'BH',amt:10.92},
+    {date:'27-Apr',contact:"MANUS AI",entity:'BH',amt:14.41},
+    {date:'27-Apr',contact:"Anthropic",entity:'BH',amt:217.82},
+    {date:'28-Apr',contact:"MANUS AI",entity:'BH',amt:70.03},
+    {date:'28-Apr',contact:"Anthropic",entity:'BH',amt:10.98},
+    {date:'28-Apr',contact:"SERPAPI, LLC",entity:'BH',amt:25.93},
+    {date:'28-Apr',contact:"Facebook",entity:'BH',amt:404.23},
+    {date:'28-Apr',contact:"GoDaddy",entity:'BH',amt:460.71},
+    {date:'29-Apr',contact:"GoDaddy",entity:'BH',amt:57.48},
+    {date:'30-Apr',contact:"Facebook",entity:'BH',amt:129.99},
+    {date:'30-Apr',contact:"JAI KISHAN",entity:'BH',amt:690.00},
+    {date:'30-Apr',contact:"Ajay Kumar",entity:'BH',amt:490.00},
+    {date:'30-Apr',contact:"Shakib Alam",entity:'BH',amt:470.00},
+    {date:'18-Apr',contact:"SMART SALEM MEDICAL",entity:'BH',amt:204.22},
+    {date:'18-Apr',contact:"SMART SALEM MEDICAL",entity:'BH',amt:204.22},
+    {date:'22-Apr',contact:"MASOUD RAOUFI PHOTOGRAPHY",entity:'BH',amt:231.45},
+    {date:'8-Apr',contact:"Laitmatus Software Pvt Ltd",entity:'BH',amt:920.00},
+    {date:'8-Apr',contact:"Jayesh Ashok Jain",entity:'BH',amt:1330.00},
+    {date:'8-Apr',contact:"Pulkitsingh Parmar",entity:'BH',amt:460.00},
+    {date:'8-Apr',contact:"Nirav Nitinbhai Patel",entity:'BH',amt:350.00},
+    {date:'8-Apr',contact:"Inayat Naqvi",entity:'BH',amt:331.99},
+    {date:'8-Apr',contact:"Sarah Omoruku",entity:'BH',amt:750.00},
+    {date:'8-Apr',contact:"Sakshi Khare",entity:'BH',amt:375.00},
+    {date:'8-Apr',contact:"Anirban Dutta Choudhury",entity:'BH',amt:1120.70},
+    {date:'8-Apr',contact:"Sagar Rauthan",entity:'BH',amt:846.00},
+    {date:'8-Apr',contact:"Neha Rangi",entity:'BH',amt:679.89},
+    {date:'8-Apr',contact:"Suchi Shah",entity:'BH',amt:280.00},
+    {date:'8-Apr',contact:"Raahul Mungekar",entity:'BH',amt:540.10},
+    {date:'8-Apr',contact:"Hayley Ward",entity:'BH',amt:910.00},
+    {date:'8-Apr',contact:"Aeman Parwez",entity:'BH',amt:160.00},
+    {date:'8-Apr',contact:"SKUAD PTE",entity:'BH',amt:304.00},
+    {date:'8-Apr',contact:"Karan Mehta",entity:'BH',amt:2000.00},
+    {date:'12-Apr',contact:"Ria Darne",entity:'BH',amt:1666.81},
+    {date:'25-Apr',contact:"Upwork Global",entity:'BH',amt:1.00},
+    {date:'25-Apr',contact:"Upwork Global",entity:'BH',amt:19.99},
+  ],
+};
+
+const BC_OUT_D = {
+  Jan:[
+    {date:'10-Jan',contact:"Skaud",entity:'BC',amt:76.00},
+    {date:'10-Jan',contact:"Laitmatus Software Pvt Ltd",entity:'BC',amt:19126.00},
+    {date:'10-Jan',contact:"Markestac Consulting Pvt Ltd",entity:'BC',amt:6054.00},
+    {date:'10-Jan',contact:"Maticore Technologies Pvt Ltd",entity:'BC',amt:1887.00},
+    {date:'10-Jan',contact:"OneMetric Marketing Solutions",entity:'BC',amt:1680.00},
+    {date:'4-Jan',contact:"Xero",entity:'BC',amt:9.07},
+    {date:'16-Jan',contact:"Google",entity:'BC',amt:18.97},
+    {date:'20-Jan',contact:"Virginia Boys LLC d/b/a Roedgers",entity:'BC',amt:2000.00},
+  ],
+  Feb:[
+    {date:'10-Feb',contact:"Maticore Technologies Pvt Ltd",entity:'BC',amt:1785.00},
+    {date:'10-Feb',contact:"Laitmatus Software Pvt Ltd",entity:'BC',amt:15604.00},
+    {date:'10-Feb',contact:"Skuad",entity:'BC',amt:57.00},
+    {date:'10-Feb',contact:"Markestac Consulting Pvt Ltd",entity:'BC',amt:4209.00},
+    {date:'2-Feb',contact:"Google",entity:'BC',amt:19.33},
+    {date:'4-Feb',contact:"Xero",entity:'BC',amt:9.07},
+    {date:'20-Feb',contact:"Virginia Boys LLC d/b/a Roedgers",entity:'BC',amt:2000.00},
+  ],
+  Mar:[
+    {date:'9-Mar',contact:"Skuad",entity:'BC',amt:76.00},
+    {date:'9-Mar',contact:"Markestac Consulting Pvt Ltd",entity:'BC',amt:4860.00},
+    {date:'9-Mar',contact:"Laitmatus Software Pvt Ltd",entity:'BC',amt:12260.00},
+    {date:'9-Mar',contact:"Kaitlyn Wojtaszek",entity:'BC',amt:2350.00},
+    {date:'9-Mar',contact:"Maticore Technologies Pvt Ltd",entity:'BC',amt:510.00},
+    {date:'2-Mar',contact:"Google",entity:'BC',amt:19.14},
+    {date:'4-Mar',contact:"Xero",entity:'BC',amt:90.67},
+    {date:'20-Mar',contact:"Virginia Boys LLC d/b/a Roedgers",entity:'BC',amt:2014.98},
+  ],
+  Apr:[
+    {date:'8-Apr',contact:"Laitmatus Software Pvt Ltd",entity:'BC',amt:6378.00},
+    {date:'8-Apr',contact:"Markestac Consulting Pvt Ltd",entity:'BC',amt:5490.00},
+    {date:'8-Apr',contact:"Maticore Technologies Pvt Ltd",entity:'BC',amt:272.00},
+    {date:'8-Apr',contact:"Skuad",entity:'BC',amt:76.00},
+    {date:'8-Apr',contact:"Kaitlyn Wojtaszek",entity:'BC',amt:3950.00},
+    {date:'1-Apr',contact:"Zyla Accountants FZCO",entity:'BC',amt:343.09},
+    {date:'2-Apr',contact:"Google",entity:'BC',amt:18.89},
+    {date:'2-Apr',contact:"Xero",entity:'BC',amt:0.38},
+    {date:'5-Apr',contact:"Xero",entity:'BC',amt:90.67},
+    {date:'5-Apr',contact:"Xero",entity:'BC',amt:1.81},
+  ],
+};
+
+// Platform fee / bank charge contacts — netted from inflow, excluded from outflow display
+const FEE_CONTACTS=new Set(['Payoneer','Stripe','Bank Fee','Bank Fees','Bank Fees ','WIO','Wio','ENBD','Paypal']);
+const isFee=c=>FEE_CONTACTS.has(c)||/^(stripe|payoneer|bank fee|bank fees|wio|enbd|paypal)$/i.test(c);
+
+// Totals — net of platform fees (gross inflow minus fee outflows; operating outflows only)
+const BH_IN  = [31577.11,50750.54,41298.37,35552.71];
+const BH_OUT = [23588.95,16014.33,33472.27,23553.76];
+const BC_IN  = [16309.26,42400.71,94294.04,49079.25];
+const BC_OUT = [30851.04,23683.4,22180.79,16620.84];
+// FX adjustments (AED account revaluations, non-cash)
+const BH_FX  = [0, -2399.39, -1363.98, -1855.98];
+const BC_FX  = [0, -14.97, 0, 0];
+
+// Bank balances from BS (exact)
+const BH_BANKS = {
+  'Alaan':         [6542.61,9108.16,10989.72,953.60],
+  'ENBD-AED':      [31846.22,51682.97,43940.11,70864.58],
+  'Payoneer USD':  [22684.31,33504.15,46974.35,41815.42],
+  'PayPal USD':    [210.02,0,0,0],
+  'Stripe AED':    [0,917.52,917.56,924.59],
+  'Upwork USD':    [0,18.41,18.41,18.41],
+  'WIO-AED':       [12.85,340.42,313.46,286.50]
+};
+const BC_BANKS = {
+  'Payoneer USD':  [31454.71,52200.42,126438.46,159351.71],
+  'WIO-AED':       [7595.01,5483.82,3289.58,2807.78]
+};
+
+function bhClose(i){ return Object.values(BH_BANKS).reduce((s,v)=>s+v[i],0); }
+function bcClose(i){ return Object.values(BC_BANKS).reduce((s,v)=>s+v[i],0); }
+const BH_CLOSE = E.map((_,i)=>bhClose(i)); // [61296.01,95571.63,103153.61,114863.10]
+const BC_CLOSE = E.map((_,i)=>bcClose(i)); // [39049.72,57684.24,129728.04,162159.49]
+const BH_OPEN = 52761.77, BC_OPEN = 53659.32;
+
+// ── P&L (exact from Xero) ──
+const BH_PL = [
+  {g:'Trading Income',type:'h'},
+  {label:'Affiliate',              type:'i',v:[2596,2380,1756,0]},
+  {label:'Sales',                  type:'i',v:[0,220,0,0]},
+  {label:'Sales SEO Backlinks',    type:'i',v:[16500,12500,21500,2500]},
+  {label:'SEO Consultancy',        type:'i',v:[450,0,0,0]},
+  {label:'SEO Retainer',           type:'i',v:[21170,34305,35805,38635]},
+  {label:'Total Trading Income',   type:'t',v:[40716,49405,59061,41135]},
+  {g:'Cost of Sales',type:'h'},
+  {label:'Payment Platform',       type:'i',v:[874.02,1699.26,764.92,2029.71]},
+  {label:'SEO – Backlinks',        type:'i',v:[1130,1115,1905,4785]},
+  {label:'SEO – Others',           type:'i',v:[353.85,0,0,0]},
+  {label:'SEO – Writers',          type:'i',v:[1460,1710,0,0]},
+  {label:'SEO Tools',              type:'i',v:[774.89,778.47,975.70,853.89]},
+  {label:'Team Costs – COS',       type:'i',v:[2588.71,5725.72,9500.42,9939.35]},
+  {label:'Total Cost of Sales',    type:'t',v:[7181.47,11028.45,13145.04,17607.95]},
+  {label:'Gross Profit',           type:'gt',v:[33534.53,38376.55,45915.96,23527.05]},
+  {g:'Operating Expenses',type:'h'},
+  {label:'Accounting & Bookkeeping',type:'i',v:[687.65,517,280,0]},
+  {label:'Advertisement Spends',   type:'i',v:[0,2129.59,715.72,1238.43]},
+  {label:'Bank Fees',              type:'i',v:[208.45,113.83,52.63,52.63]},
+  {label:'Bank Revaluations',      type:'i',v:[288.86,137.82,98.42,143.78]},
+  {label:'Depreciation',           type:'i',v:[108.52,98.03,108.51,105.02]},
+  {label:'General Expenses',       type:'i',v:[0,0,0,409.85]},
+  {label:'Insurance',              type:'i',v:[271.71,245.49,271.80,263.00]},
+  {label:'Legal & Compliance',     type:'i',v:[401.03,1841.56,413.54,510.00]},
+  {label:'Realised Currency Gains',type:'i',v:[0,0,0,186.88]},
+  {label:'Sales & Marketing',      type:'i',v:[0,0,0,231.45]},
+  {label:'Staff Entertainment',    type:'i',v:[90.17,0,107.88,0]},
+  {label:'Subscriptions',          type:'i',v:[1870.39,2788.79,3866.11,3787.79]},
+  {label:'Team Costs – Contractors',type:'i',v:[2890.41,4838.44,2110,1644.97]},
+  {label:'Team Costs – S&M',       type:'i',v:[1126.79,250,1148.19,3668.59]},
+  {label:'Telephone & Internet',   type:'i',v:[82.19,82.99,82,91.72]},
+  {label:'Travel – International', type:'i',v:[0,0,12466.47,0]},
+  {label:'Unrealised FX',          type:'i',v:[0.01,0.01,4.29,13.08]},
+  {label:'Wages & Salaries',       type:'i',v:[19054,19054,19060.58,19060.58]},
+  {label:'Total Operating Expenses',type:'t',v:[27080.18,32123.55,40786.14,31407.77]},
+  {label:'Net Profit',             type:'gt',v:[6454.35,6279,5128.82,-7880.72]},
+];
+
+const BC_PL = [
+  {g:'Income',type:'h'},
+  {label:'Marketing Operations', type:'i',v:[13230,14310,30415,13464]},
+  {label:'Web Development',      type:'i',v:[12425,40862.5,9010,17229]},
+  {label:'Total Income',         type:'t',v:[25655,55172.5,39425,30693]},
+  {g:'Cost of Goods Sold',type:'h'},
+  {label:'Payment Platform',     type:'i',v:[297.74,504.29,1028.46,571.75]},
+  {label:'Team Costs – COS',     type:'i',v:[4209,7210,9440,12106]},
+  {label:'Web Developers',       type:'i',v:[17389,12770,6650,697]},
+  {label:'Total COGS',           type:'t',v:[21895.74,20484.29,17118.46,13374.75]},
+  {label:'Gross Profit',         type:'gt',v:[3759.26,34688.21,22306.54,17318.25]},
+  {g:'Operating Expenses',type:'h'},
+  {label:'Accounting & Bookkeeping',type:'i',v:[0,0,326.75,0]},
+  {label:'Bank Fees',            type:'i',v:[64.59,64.59,68.06,27.76]},
+  {label:'Bank Revaluations',    type:'i',v:[14.98,14.97,0,0]},
+  {label:'Subscriptions',        type:'i',v:[28.04,28.4,109.81,109.56]},
+  {label:'Team Costs – S&M',     type:'i',v:[2000,2000,2014.98,0]},
+  {label:'Total Operating Expenses',type:'t',v:[2107.61,2107.96,2519.6,137.32]},
+  {label:'Net Income',           type:'gt',v:[1651.65,32580.25,19786.94,17180.93]},
+];
+
+// ── Balance Sheets (exact from Xero) ──
+const BH_BS = [
+  {g:'Assets',type:'h'},
+  {g:'Bank',type:'sh'},
+  {label:'Alaan',                    entity:'BH',type:'i',v:[6542.61,9108.16,10989.72,953.60]},
+  {label:'ENBD-AED',                 entity:'BH',type:'i',v:[31846.22,51682.97,43940.11,70864.58]},
+  {label:'Payoneer USD',             entity:'BH',type:'i',v:[22684.31,33504.15,46974.35,41815.42]},
+  {label:'PayPal USD',               entity:'BH',type:'i',v:[210.02,0,0,0]},
+  {label:'Stripe AED',               entity:'BH',type:'i',v:[0,917.52,917.56,924.59]},
+  {label:'Upwork USD',               entity:'BH',type:'i',v:[0,18.41,18.41,18.41]},
+  {label:'WIO-AED',                  entity:'BH',type:'i',v:[12.85,340.42,313.46,286.50]},
+  {label:'Total Bank',               type:'t',v:[61296.01,95571.63,103153.61,114863.10]},
+  {g:'Current Assets',type:'sh'},
+  {label:'Accounts Receivable',      entity:'BH',type:'i',v:[15481,10105,27516,31445]},
+  {label:'Prepayments',              entity:'BH',type:'i',v:[15112.63,13575.61,13026.41,12253.41]},
+  {label:'Total Current Assets',     type:'t',v:[30593.63,23680.61,40542.41,43698.41]},
+  {g:'Fixed Assets',type:'sh'},
+  {label:'Office Equipment',         entity:'BH',type:'i',v:[3848.60,3848.60,3848.60,3848.60]},
+  {label:'Less Accum. Depreciation', entity:'BH',type:'i',v:[-967.53,-1065.56,-1174.07,-1279.09]},
+  {label:'Total Fixed Assets',       type:'t',v:[2881.07,2783.04,2674.53,2569.51]},
+  {label:'Total Assets',             type:'gt',v:[94770.71,122035.28,146370.55,161131.02]},
+  {g:'Liabilities',type:'h'},
+  {label:'Accounts Payable',         entity:'BH',type:'i',v:[7741.24,7232.72,6482.57,11015.29]},
+  {label:'Accruals',                 entity:'BH',type:'i',v:[291.04,5536.59,6446.18,5496.69]},
+  {label:'Directors Loan Account',   entity:'BH',type:'i',v:[20713.26,20713.26,20713.26,20713.26]},
+  {label:'Income in Advance',        entity:'BH',type:'i',v:[3775,975,975,975]},
+  {label:'Salary Payable',           entity:'BH',type:'i',v:[19054,38108,57168.58,76229.16]},
+  {label:'Sales Tax',                entity:'BH',type:'i',v:[-370.53,-375.99,-389.56,-392.19]},
+  {label:'Total Liabilities',        type:'gt',v:[51204.01,72189.58,91396.03,114037.21]},
+  {g:'Equity',type:'h'},
+  {label:'Share Capital',            entity:'BH',type:'i',v:[27229.41,27229.41,27229.41,27229.41]},
+  {label:'Retained Earnings',        entity:'BH',type:'i',v:[327830.81,327830.81,327830.81,327830.81]},
+  {label:'Dividend',                 entity:'BH',type:'i',v:[-317947.87,-317947.87,-317947.87,-317947.87]},
+  {label:'Current Year Earnings',    entity:'BH',type:'i',v:[6454.35,12733.35,17862.17,9981.45]},
+  {label:'Total Equity',             type:'gt',v:[43566.70,49845.70,54974.52,47093.80]},
+];
+
+const BC_BS = [
+  {g:'Assets',type:'h'},
+  {g:'Cash and Cash Equivalents',type:'sh'},
+  {label:'Payoneer USD',          entity:'BC',type:'i',v:[31454.71,52200.42,126438.46,159351.71]},
+  {label:'WIO-AED',               entity:'BC',type:'i',v:[7595.01,5483.82,3289.58,2807.78]},
+  {label:'Total Cash',            type:'t',v:[39049.72,57684.24,129728.04,162159.49]},
+  {label:'Accounts Receivable',   entity:'BC',type:'i',v:[197394,209737.5,153916,135034]},
+  {label:'Total Current Assets',  type:'gt',v:[236443.72,267421.74,283644.04,297193.49]},
+  {g:'Liabilities',type:'h'},
+  {label:'Accounts Payable',      entity:'BC',type:'i',v:[1785,0,343.09,0]},
+  {label:'Accruals',              entity:'BC',type:'i',v:[19870,20056,16166,12879]},
+  {label:'Loan from Director',    entity:'BC',type:'i',v:[2256.18,2256.18,2256.18,2256.18]},
+  {label:'Sales Tax',             entity:'BC',type:'i',v:[-5.82,-9.05,-26.78,-28.17]},
+  {label:'Total Liabilities',     type:'gt',v:[23905.36,22303.13,18738.49,15107.01]},
+  {g:'Equity',type:'h'},
+  {label:'Retained Earnings',     entity:'BC',type:'i',v:[210886.71,210886.71,210886.71,210886.71]},
+  {label:'Current Year Earnings', entity:'BC',type:'i',v:[1651.65,34231.90,54018.84,71199.77]},
+  {label:'Total Equity',          type:'gt',v:[212538.36,245118.61,264905.55,282086.48]},
+];
+
+// ── Consolidated Financial Statements ──
+const CONSO_BS = [
+  {g:'Assets',type:'h'},
+  {g:'Bank / Cash',type:'sh'},
+  {label:'Alaan',                    entity:'BH',type:'i',v:[6542.61,9108.16,10989.72,953.60]},
+  {label:'ENBD-AED',                 entity:'BH',type:'i',v:[31846.22,51682.97,43940.11,70864.58]},
+  {label:'Payoneer USD',             entity:'BH',type:'i',v:[22684.31,33504.15,46974.35,41815.42]},
+  {label:'PayPal USD',               entity:'BH',type:'i',v:[210.02,0,0,0]},
+  {label:'Stripe AED',               entity:'BH',type:'i',v:[0,917.52,917.56,924.59]},
+  {label:'Upwork USD',               entity:'BH',type:'i',v:[0,18.41,18.41,18.41]},
+  {label:'WIO-AED',                  entity:'BH',type:'i',v:[12.85,340.42,313.46,286.50]},
+  {label:'Payoneer USD',             entity:'BC',type:'i',v:[31454.71,52200.42,126438.46,159351.71]},
+  {label:'WIO-AED',                  entity:'BC',type:'i',v:[7595.01,5483.82,3289.58,2807.78]},
+  {label:'Total Bank / Cash',        type:'t',v:[100345.73,153255.87,232881.65,277022.59]},
+  {g:'Current Assets',type:'sh'},
+  {label:'Accounts Receivable',      entity:'BH',type:'i',v:[15481,10105,27516,31445]},
+  {label:'Prepayments',              entity:'BH',type:'i',v:[15112.63,13575.61,13026.41,12253.41]},
+  {label:'Accounts Receivable',      entity:'BC',type:'i',v:[197394,209737.5,153916,135034]},
+  {label:'Total Current Assets',     type:'t',v:[227987.63,233418.11,194458.41,178732.41]},
+  {g:'Fixed Assets',type:'sh'},
+  {label:'Office Equipment',         entity:'BH',type:'i',v:[3848.60,3848.60,3848.60,3848.60]},
+  {label:'Less Accum. Depreciation', entity:'BH',type:'i',v:[-967.53,-1065.56,-1174.07,-1279.09]},
+  {label:'Total Fixed Assets',       type:'t',v:[2881.07,2783.04,2674.53,2569.51]},
+  {label:'Total Assets',             type:'gt',v:[331214.43,389457.02,430014.59,458324.51]},
+  {g:'Liabilities',type:'h'},
+  {label:'Accounts Payable',         entity:'BH',type:'i',v:[7741.24,7232.72,6482.57,11015.29]},
+  {label:'Accruals',                 entity:'BH',type:'i',v:[291.04,5536.59,6446.18,5496.69]},
+  {label:'Directors Loan Account',   entity:'BH',type:'i',v:[20713.26,20713.26,20713.26,20713.26]},
+  {label:'Income in Advance',        entity:'BH',type:'i',v:[3775,975,975,975]},
+  {label:'Salary Payable',           entity:'BH',type:'i',v:[19054,38108,57168.58,76229.16]},
+  {label:'Sales Tax',                entity:'BH',type:'i',v:[-370.53,-375.99,-389.56,-392.19]},
+  {label:'Accounts Payable',         entity:'BC',type:'i',v:[1785,0,343.09,0]},
+  {label:'Accruals',                 entity:'BC',type:'i',v:[19870,20056,16166,12879]},
+  {label:'Loan from Director',       entity:'BC',type:'i',v:[2256.18,2256.18,2256.18,2256.18]},
+  {label:'Sales Tax',                entity:'BC',type:'i',v:[-5.82,-9.05,-26.78,-28.17]},
+  {label:'Total Liabilities',        type:'gt',v:[75109.37,94492.71,110134.52,129144.22]},
+  {g:'Equity',type:'h'},
+  {label:'Share Capital',            entity:'BH',type:'i',v:[27229.41,27229.41,27229.41,27229.41]},
+  {label:'Retained Earnings',        entity:'BH',type:'i',v:[327830.81,327830.81,327830.81,327830.81]},
+  {label:'Dividend',                 entity:'BH',type:'i',v:[-317947.87,-317947.87,-317947.87,-317947.87]},
+  {label:'Current Year Earnings',    entity:'BH',type:'i',v:[6454.35,12733.35,17862.17,9981.45]},
+  {label:'Retained Earnings',        entity:'BC',type:'i',v:[210886.71,210886.71,210886.71,210886.71]},
+  {label:'Current Year Earnings',    entity:'BC',type:'i',v:[1651.65,34231.90,54018.84,71199.77]},
+  {label:'Total Equity',             type:'gt',v:[256105.06,294964.31,319880.07,329180.28]},
+];
+
+const CONSO_PL = [
+  {g:'Income / Revenue',type:'h'},
+  {label:'Affiliate',                entity:'BH',type:'i',v:[2596,2380,1756,0]},
+  {label:'Sales',                    entity:'BH',type:'i',v:[0,220,0,0]},
+  {label:'Sales SEO Backlinks',      entity:'BH',type:'i',v:[16500,12500,21500,2500]},
+  {label:'SEO Consultancy',          entity:'BH',type:'i',v:[450,0,0,0]},
+  {label:'SEO Retainer',             entity:'BH',type:'i',v:[21170,34305,35805,38635]},
+  {label:'Marketing Operations',     entity:'BC',type:'i',v:[13230,14310,30415,13464]},
+  {label:'Web Development',          entity:'BC',type:'i',v:[12425,40862.5,9010,17229]},
+  {label:'Total Income',             type:'t',v:[66371,104577.5,98486,71828]},
+  {g:'Cost of Sales',type:'h'},
+  {label:'Payment Platform',         entity:'BH',type:'i',v:[874.02,1699.26,764.92,2029.71]},
+  {label:'SEO – Backlinks',          entity:'BH',type:'i',v:[1130,1115,1905,4785]},
+  {label:'SEO – Others',             entity:'BH',type:'i',v:[353.85,0,0,0]},
+  {label:'SEO – Writers',            entity:'BH',type:'i',v:[1460,1710,0,0]},
+  {label:'SEO Tools',                entity:'BH',type:'i',v:[774.89,778.47,975.70,853.89]},
+  {label:'Team Costs – COS',         entity:'BH',type:'i',v:[2588.71,5725.72,9500.42,9939.35]},
+  {label:'Payment Platform',         entity:'BC',type:'i',v:[297.74,504.29,1028.46,571.75]},
+  {label:'Team Costs – COS',         entity:'BC',type:'i',v:[4209,7210,9440,12106]},
+  {label:'Web Developers',           entity:'BC',type:'i',v:[17389,12770,6650,697]},
+  {label:'Total Cost of Sales',      type:'t',v:[29077.21,31512.74,30263.50,30982.70]},
+  {label:'Gross Profit',             type:'gt',v:[37293.79,73064.76,68222.50,40845.30]},
+  {g:'Operating Expenses',type:'h'},
+  {label:'Accounting & Bookkeeping', entity:'BH',type:'i',v:[687.65,517,280,0]},
+  {label:'Advertisement Spends',     entity:'BH',type:'i',v:[0,2129.59,715.72,1238.43]},
+  {label:'Bank Fees',                entity:'BH',type:'i',v:[208.45,113.83,52.63,52.63]},
+  {label:'Bank Revaluations',        entity:'BH',type:'i',v:[288.86,137.82,98.42,143.78]},
+  {label:'Depreciation',             entity:'BH',type:'i',v:[108.52,98.03,108.51,105.02]},
+  {label:'General Expenses',         entity:'BH',type:'i',v:[0,0,0,409.85]},
+  {label:'Insurance',                entity:'BH',type:'i',v:[271.71,245.49,271.80,263.00]},
+  {label:'Legal & Compliance',       entity:'BH',type:'i',v:[401.03,1841.56,413.54,510.00]},
+  {label:'Realised Currency Gains',  entity:'BH',type:'i',v:[0,0,0,186.88]},
+  {label:'Sales & Marketing',        entity:'BH',type:'i',v:[0,0,0,231.45]},
+  {label:'Staff Entertainment',      entity:'BH',type:'i',v:[90.17,0,107.88,0]},
+  {label:'Subscriptions',            entity:'BH',type:'i',v:[1870.39,2788.79,3866.11,3787.79]},
+  {label:'Team Costs – Contractors', entity:'BH',type:'i',v:[2890.41,4838.44,2110,1644.97]},
+  {label:'Team Costs – S&M',         entity:'BH',type:'i',v:[1126.79,250,1148.19,3668.59]},
+  {label:'Telephone & Internet',     entity:'BH',type:'i',v:[82.19,82.99,82,91.72]},
+  {label:'Travel – International',   entity:'BH',type:'i',v:[0,0,12466.47,0]},
+  {label:'Unrealised FX',            entity:'BH',type:'i',v:[0.01,0.01,4.29,13.08]},
+  {label:'Wages & Salaries',         entity:'BH',type:'i',v:[19054,19054,19060.58,19060.58]},
+  {label:'Accounting & Bookkeeping', entity:'BC',type:'i',v:[0,0,326.75,0]},
+  {label:'Bank Fees',                entity:'BC',type:'i',v:[64.59,64.59,68.06,27.76]},
+  {label:'Bank Revaluations',        entity:'BC',type:'i',v:[14.98,14.97,0,0]},
+  {label:'Subscriptions',            entity:'BC',type:'i',v:[28.04,28.4,109.81,109.56]},
+  {label:'Team Costs – S&M',         entity:'BC',type:'i',v:[2000,2000,2014.98,0]},
+  {label:'Total Operating Expenses', type:'t',v:[29187.79,34231.51,43305.74,31545.09]},
+  {label:'Net Profit / Income',      type:'gt',v:[8106.00,38859.25,24915.76,9300.21]},
+];
+
+// ── Helpers ──
+const $f=(n,d=0)=>{if(n===null||n===undefined)return'—';const s='$'+Math.abs(n).toLocaleString('en',{minimumFractionDigits:d,maximumFractionDigits:d});return n<0?'('+s+')':s;};
+const eb=(e)=>`<span class="ent-badge">${e}</span>`;
+
+// ── Nav ──
+function go(id,el){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('screen-'+id).classList.add('active');
+  if(el)el.classList.add('active');
+  if(id==='dash')renderDash();
+  if(id==='cf')renderCF();
+  if(id==='fin')renderFin();
+  if(id==='ar')renderAR();
+  if(id==='ap')renderAP();
+  if(id==='contacts')renderContacts();
+  if(id==='import')initImport();
+  if(id==='fcast-ar')renderFcastAR();
+  if(id==='fcast-ap')renderFcastAP();
+}
+function setEnt(e,el){
+  ent=e;
+  document.querySelectorAll('.epill').forEach(p=>p.classList.remove('on'));
+  el.classList.add('on');
+  const lbl={'conso':'· Consolidated (Braveheart & Bravecore)','bh':'· Braveheart FZ LLC','bc':'· Bravecore FZ LLC'};
+  document.getElementById('cf-el').textContent=lbl[e];
+  document.getElementById('fin-el').textContent=lbl[e];
+  renderDash(); renderCF(); renderFin();
+}
+
+// ── CF ──
+function getD(){
+  if(ent==='bh') return {in:BH_IN,out:BH_OUT,close:BH_CLOSE,open:BH_OPEN,fx:BH_FX};
+  if(ent==='bc') return {in:BC_IN,out:BC_OUT,close:BC_CLOSE,open:BC_OPEN,fx:BC_FX};
+  const cin=E.map((_,i)=>BH_IN[i]+BC_IN[i]);
+  const cout=E.map((_,i)=>BH_OUT[i]+BC_OUT[i]);
+  const cc=E.map((_,i)=>BH_CLOSE[i]+BC_CLOSE[i]);
+  const cfx=E.map((_,i)=>BH_FX[i]+BC_FX[i]);
+  return {in:cin,out:cout,close:cc,open:BH_OPEN+BC_OPEN,fx:cfx};
+}
+
+function renderCF(){
+  const d=getD();
+  renderCFTable(d);
+  renderBnk();
+}
+
+let _cfInGroups=[], _cfOutGroups=[];
+
+function buildCFGroups(isIn){
+  const merged=getMergedMap();
+  const groups={};
+  E.forEach(m=>{
+    const txList=isIn
+      ?[...(BH_IN_D[m]||[]),...(BC_IN_D[m]||[])]
+      :[...(BH_OUT_D[m]||[]),...(BC_OUT_D[m]||[])];
+    txList.forEach(tx=>{
+      if(ent!=='conso'&&tx.entity!==ent.toUpperCase())return;
+      if(!isIn&&isFee(tx.contact))return;
+      const mapKey=tx.contact+'||'+tx.entity;
+      const grpName=merged[mapKey]?.group||tx.contact;
+      if(!groups[grpName])groups[grpName]={group:grpName,vals:{},entities:{BH:{vals:{}},BC:{vals:{}}}};
+      groups[grpName].vals[m]=(groups[grpName].vals[m]||0)+tx.amt;
+      const entKey=tx.entity;
+      groups[grpName].entities[entKey].vals[m]=(groups[grpName].entities[entKey].vals[m]||0)+tx.amt;
+    });
+  });
+  return Object.values(groups)
+    .sort((a,b)=>E.reduce((s,m)=>s+(b.vals[m]||0),0)-E.reduce((s,m)=>s+(a.vals[m]||0),0));
+}
+
+function renderCFTable(d){
+  openDrill=null;
+  _cfInGroups=buildCFGroups(true);
+  _cfOutGroups=buildCFGroups(false);
+  const ytdIn=d.in.reduce((s,v)=>s+v,0);
+  const ytdOut=d.out.reduce((s,v)=>s+v,0);
+  const ytdFX=d.fx.reduce((s,v)=>s+v,0);
+  // Forecast data per month
+  const fcastIn=FCST_MONTHS.map(m=>getFcastInflow(m));
+  const fcastOut=FCST_MONTHS.map(m=>getFcastOutflow(m));
+  const cfCols=E.length+FCST_MONTHS.length+2;
+  const fcastCellStyle='background:rgba(251,191,36,0.04)';
+  let h='<thead><tr><th>Line item</th>';
+  E.forEach(m=>h+=`<th><span class="ba">A</span> ${m}</th>`);
+  FCST_MONTHS.forEach(m=>h+=`<th style="opacity:.75"><span class="bf">F</span>${m}</th>`);
+  h+='<th>YTD</th></tr></thead><tbody>';
+  // Opening
+  h+='<tr><td style="padding-left:10px;color:var(--text2)">Opening balance</td>';
+  E.forEach((_,i)=>h+=`<td>${$f(i===0?d.open:d.close[i-1])}</td>`);
+  // Forecast opening = last actual close, then chain
+  let fcastClose=d.close[d.close.length-1]||0;
+  FCST_MONTHS.forEach((_,fi)=>{
+    const openBal=fi===0?fcastClose:(fcastClose);
+    h+=`<td style="${fcastCellStyle};color:var(--text3)">${$f(openBal)}</td>`;
+    fcastClose=openBal+fcastIn[fi]-fcastOut[fi];
+  });
+  h+=`<td>${$f(d.open)}</td></tr>`;
+  // Inflow — single expandable row
+  h+=`<tr class="sr"><td colspan="${cfCols}" style="padding-left:10px">↑ Cash inflow</td></tr>`;
+  h+=`<tr class="indent" style="cursor:pointer" onclick="togCFDrill('inflow',true)">`;
+  h+=`<td style="padding-left:22px">Cash received from clients ▸</td>`;
+  d.in.forEach(v=>h+=`<td class="pos">${$f(v)}</td>`);
+  fcastIn.forEach(v=>h+=`<td class="pos" style="${fcastCellStyle}">${v?$f(v):'—'}</td>`);
+  h+=`<td class="pos">${$f(ytdIn)}</td></tr>`;
+  h+=`<tr class="drill-row" id="dr-inflow"><td colspan="${cfCols}"><div class="di" id="dc-inflow"></div></td></tr>`;
+  h+='<tr class="tr"><td style="padding-left:10px">Total inflow</td>';
+  d.in.forEach(v=>h+=`<td class="pos">${$f(v)}</td>`);
+  fcastIn.forEach(v=>h+=`<td class="pos" style="${fcastCellStyle}">${v?$f(v):'—'}</td>`);
+  h+=`<td class="pos">${$f(ytdIn)}</td></tr>`;
+  // Outflow — single expandable row
+  h+=`<tr class="sr"><td colspan="${cfCols}" style="padding-left:10px">↓ Cash outflow</td></tr>`;
+  h+=`<tr class="indent" style="cursor:pointer" onclick="togCFDrill('outflow',false)">`;
+  h+=`<td style="padding-left:22px">Payments to vendors &amp; expenses ▸</td>`;
+  d.out.forEach(v=>h+=`<td class="neg">($${$f(v).replace('$','')})</td>`);
+  fcastOut.forEach(v=>h+=`<td class="neg" style="${fcastCellStyle}">${v?'($'+$f(v).replace('$',')'):'—'}</td>`);
+  h+=`<td class="neg">(${$f(ytdOut).replace('$','')})</td></tr>`;
+  h+=`<tr class="drill-row" id="dr-outflow"><td colspan="${cfCols}"><div class="di" id="dc-outflow"></div></td></tr>`;
+  h+='<tr class="tr"><td style="padding-left:10px">Total outflow</td>';
+  d.out.forEach(v=>h+=`<td class="neg">($${$f(v).replace('$','')})</td>`);
+  fcastOut.forEach(v=>h+=`<td class="neg" style="${fcastCellStyle}">${v?'($'+$f(v).replace('$',')'):'—'}</td>`);
+  h+=`<td class="neg">(${$f(ytdOut).replace('$','')})</td></tr>`;
+  // Net
+  h+='<tr class="tr"><td style="padding-left:10px">Net movement</td>';
+  E.forEach((_,i)=>{const v=d.in[i]-d.out[i];h+=`<td class="${v>=0?'pos':'neg'}">${v>=0?$f(v):'($'+$f(Math.abs(v)).replace('$','')+')'}</td>`;});
+  FCST_MONTHS.forEach((_,fi)=>{const v=fcastIn[fi]-fcastOut[fi];h+=`<td class="${v>=0?'pos':'neg'}" style="${fcastCellStyle}">${v>=0?$f(v):'($'+$f(Math.abs(v)).replace('$','')+')'}</td>`;});
+  const ytdNet=ytdIn-ytdOut;
+  h+=`<td class="${ytdNet>=0?'pos':'neg'}">${ytdNet>=0?$f(ytdNet):'($'+$f(Math.abs(ytdNet)).replace('$','')+')'}</td></tr>`;
+  // FX (actuals only)
+  const hasFX=d.fx.some(v=>v!==0);
+  if(hasFX){
+    h+='<tr class="fx"><td style="padding-left:10px">FX / revaluation (non-cash)</td>';
+    d.fx.forEach(v=>h+=`<td>${v?$f(v):'—'}</td>`);
+    FCST_MONTHS.forEach(()=>h+=`<td style="${fcastCellStyle}">—</td>`);
+    h+=`<td>${ytdFX?$f(ytdFX):'—'}</td></tr>`;
+  }
+  // Closing — chain forecast from last actual
+  h+='<tr class="br"><td style="padding-left:10px">Closing bank balance</td>';
+  d.close.forEach(v=>h+=`<td>${$f(v)}</td>`);
+  let runClose=d.close[d.close.length-1]||0;
+  FCST_MONTHS.forEach((_,fi)=>{
+    runClose+=fcastIn[fi]-fcastOut[fi];
+    h+=`<td style="${fcastCellStyle};color:var(--amber);font-weight:800">${$f(runClose)}</td>`;
+  });
+  h+=`<td>${$f(d.close[d.close.length-1])}</td></tr></tbody>`;
+  document.getElementById('cft').innerHTML=h;
+}
+
+const ENT_FULL={BH:'Braveheart FZ LLC',BC:'Bravecore FZ LLC'};
+const ENT_SHORT={BH:'Braveheart',BC:'Bravecore'};
+function togCFDrill(drId,isIn){
+  const row=document.getElementById('dr-'+drId);
+  if(!row)return;
+  if(openDrill===drId){row.classList.remove('open');openDrill=null;return;}
+  if(openDrill){const p=document.getElementById('dr-'+openDrill);if(p)p.classList.remove('open');}
+  openDrill=drId; row.classList.add('open');
+  const groups=isIn?_cfInGroups:_cfOutGroups;
+  const cls=isIn?'pos':'neg';
+  const fmt=v=>isIn?$f(v):'($'+$f(v).replace('$','')+')';
+  const label=isIn?'Cash inflow by group':'Cash outflow by group';
+  let h=`<div class="dt-hd"><span>↳ ${label}</span><span class="dc" onclick="clDrill()">✕</span></div>`;
+  h+=`<table class="drt"><thead><tr><th>Display group</th><th>Entity</th>`;
+  E.forEach(m=>h+=`<th>${m}</th>`);
+  h+=`<th>YTD</th></tr></thead><tbody>`;
+  groups.forEach((g,gi)=>{
+    const total=E.reduce((s,m)=>s+(g.vals[m]||0),0);
+    if(!total)return;
+    const hasBH=E.some(m=>g.entities.BH.vals[m]);
+    const hasBC=E.some(m=>g.entities.BC.vals[m]);
+    const isMulti=hasBH&&hasBC;
+    let entBadge;
+    if(ent==='bh') entBadge=eb('BH');
+    else if(ent==='bc') entBadge=eb('BC');
+    else if(isMulti) entBadge=eb('BH')+' '+eb('BC');
+    else if(hasBH) entBadge=eb('BH');
+    else entBadge=eb('BC');
+    const rowId='cfent-'+drId+'-'+gi;
+    h+=`<tr${isMulti&&ent==='conso'?' style="cursor:pointer" onclick="togEntDrill(\''+rowId+'\')"':''}>`;
+    h+=`<td style="font-weight:600">${isMulti&&ent==='conso'?'▸ ':''}${g.group}</td>`;
+    h+=`<td>${entBadge}</td>`;
+    E.forEach(m=>h+=`<td class="${cls}">${g.vals[m]?fmt(g.vals[m]):'—'}</td>`);
+    h+=`<td class="${cls}" style="font-weight:700">${fmt(total)}</td></tr>`;
+    if(isMulti&&ent==='conso'){
+      ['BH','BC'].forEach(ek=>{
+        const ev=g.entities[ek].vals;
+        const etot=E.reduce((s,m)=>s+(ev[m]||0),0);
+        if(!etot)return;
+        h+=`<tr id="${rowId}-${ek}" style="display:none;background:var(--accent-light)">`;
+        h+=`<td style="padding-left:28px;color:var(--text2)">${g.group}</td>`;
+        h+=`<td>${eb(ek)}</td>`;
+        E.forEach(m=>h+=`<td class="${cls}" style="font-size:13px">${ev[m]?fmt(ev[m]):'—'}</td>`);
+        h+=`<td class="${cls}" style="font-size:13px">${fmt(etot)}</td></tr>`;
+      });
+    }
+  });
+  h+='</tbody></table>';
+  document.getElementById('dc-'+drId).innerHTML=h;
+  row.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function togEntDrill(id){
+  ['BH','BC'].forEach(ek=>{
+    const el=document.getElementById(id+'-'+ek);
+    if(el)el.style.display=el.style.display==='none'?'table-row':'none';
+  });
+}
+function clDrill(){if(openDrill){const r=document.getElementById('dr-'+openDrill);if(r)r.classList.remove('open');openDrill=null;}}
+
+function renderBnk(){
+  let h='<thead><tr><th>Account</th>';
+  E.forEach(m=>h+=`<th><span class="ba">A</span> ${m}</th>`);
+  h+='</tr></thead><tbody>';
+  const showBH=ent!=='bc', showBC=ent!=='bh';
+  const totals=E.map(()=>0);
+  if(showBH) Object.entries(BH_BANKS).forEach(([name,vals])=>{
+    h+=`<tr><td style="font-weight:500">${name}${ent==='conso'?` <span class="ent-badge">BH</span>`:''}</td>`;
+    vals.forEach((v,i)=>{h+=`<td>${$f(v)}</td>`;totals[i]+=v;});
+    h+='</tr>';
+  });
+  if(showBC) Object.entries(BC_BANKS).forEach(([name,vals])=>{
+    h+=`<tr><td style="font-weight:500">${name}${ent==='conso'?` <span class="ent-badge">BC</span>`:''}</td>`;
+    vals.forEach((v,i)=>{h+=`<td>${$f(v)}</td>`;totals[i]+=v;});
+    h+='</tr>';
+  });
+  h+='<tr class="tr"><td>Total</td>';
+  totals.forEach(v=>h+=`<td>${$f(v)}</td>`);
+  h+='</tr></tbody>';
+  document.getElementById('bnk-table').innerHTML=h;
+}
+
+// ── Financials ──
+function swFin(tab,el){
+  finTab=tab;
+  document.querySelectorAll('#screen-fin .itab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  ['bs','pl'].forEach(t=>document.getElementById('fin-'+t).classList.toggle('active',t===tab));
+  renderFin();
+}
+
+function renderFin(){
+  if(finTab==='bs'){
+    const src=ent==='bc'?BC_BS:ent==='bh'?BH_BS:CONSO_BS;
+    const title=ent==='bc'?'Bravecore FZ LLC — Balance Sheet':ent==='bh'?'Braveheart FZ LLC — Balance Sheet':'Consolidated Balance Sheet (BH + BC)';
+    document.getElementById('bs-title').textContent=title;
+    renderFinTable('bst',src,ent);
+  } else {
+    const src=ent==='bc'?BC_PL:ent==='bh'?BH_PL:CONSO_PL;
+    const title=ent==='bc'?'Bravecore FZ LLC — Income Statement':ent==='bh'?'Braveheart FZ LLC — Profit & Loss':'Consolidated Income Statement (BH + BC)';
+    document.getElementById('pl-title').textContent=title;
+    renderFinTable('plt',src,ent,true);
+  }
+}
+
+function renderFinTable(id,rows,curEnt,showYTD){
+  const cols=showYTD?E.length+3:E.length+2;
+  let h='<thead><tr><th>Account</th><th>Entity</th>';
+  E.forEach(m=>h+=`<th>${m} 2026</th>`);
+  if(showYTD) h+='<th>YTD</th>';
+  h+='</tr></thead><tbody>';
+  rows.forEach(r=>{
+    if(r.type==='h'){h+=`<tr class="fh"><td colspan="${cols}">${r.g}</td></tr>`;return;}
+    if(r.type==='sh'){h+=`<tr class="fsh"><td colspan="${cols}" style="padding-left:14px">${r.g}</td></tr>`;return;}
+    const cls=r.type==='gt'?'fgt':r.type==='t'?'ft':'fi';
+    const entCell=r.entity?eb(r.entity):'';
+    h+=`<tr class="${cls}"><td>${r.label}</td><td>${entCell}</td>`;
+    r.v.forEach(v=>{const c=v<0?'neg':'';h+=`<td class="${c}">${$f(v,2)}</td>`;});
+    if(showYTD){const ytd=r.v.reduce((s,v)=>s+v,0);const c=ytd<0?'neg':'';h+=`<td class="${c}" style="font-weight:600">${$f(ytd,2)}</td>`;}
+    h+='</tr>';
+  });
+  h+='</tbody>';
+  document.getElementById(id).innerHTML=h;
+}
+
+// ── AR ──
+const AR_ROWS=[
+  {sr:1,client:'OE Partners',trade:'OE Partners',part:'SEO Retainer',seg:'SEO',ent:'BH',inv:'25-Jan',due:'25-Jan',pay:'9-Jan',cur:'USD',amt:1500,fx:1,usd:1500,mode:'Stripe',fee:'5%',net:1425,month:'Jan',st:'paid'},
+  {sr:2,client:'Phunk Creative',trade:'Phunk Creative',part:'SEO',seg:'SEO',ent:'BH',inv:'Jan',due:'Jan',pay:'9-Jan',cur:'USD',amt:368,fx:1,usd:368,mode:'Stripe',fee:'5%',net:350,month:'Jan',st:'paid'},
+  {sr:3,client:'Upvolt Ltd',trade:'Upvolt Ltd',part:'SEO',seg:'SEO',ent:'BH',inv:'31-Jan',due:'31-Jan',pay:'10-Jan',cur:'USD',amt:3300,fx:1,usd:3300,mode:'Stripe',fee:'5%',net:3135,month:'Jan',st:'paid'},
+  {sr:4,client:'Macol Limited',trade:'Inst. of Medical Physics',part:'SEO',seg:'SEO',ent:'BH',inv:'17-Jan',due:'17-Jan',pay:'12-Jan',cur:'USD',amt:3585,fx:1,usd:3585,mode:'Stripe',fee:'5%',net:3406,month:'Jan',st:'paid'},
+  {sr:5,client:'Motto LLC',trade:'Motto LLC',part:'SEO',seg:'SEO',ent:'BH',inv:'18-Jan',due:'3-Feb',pay:'10-Jan',cur:'USD',amt:2800,fx:1,usd:2800,mode:'Bank Transfer',fee:'1%',net:2772,month:'Jan',st:'paid'},
+  {sr:6,client:'Private Equity List',trade:'PEL',part:'SEO',seg:'SEO',ent:'BH',inv:'31-Jan',due:'31-Jan',pay:'10-Jan',cur:'USD',amt:240,fx:1,usd:240,mode:'Stripe',fee:'5%',net:228,month:'Jan',st:'paid'},
+  {sr:7,client:'Duo Strategy LLC',trade:'Duo Digital',part:'Affiliate',seg:'Affiliate',ent:'BH',inv:'24-Jan',due:'24-Jan',pay:'24-Jan',cur:'USD',amt:220,fx:1,usd:220,mode:'PayPal',fee:'4.5%',net:210,month:'Jan',st:'paid'},
+  {sr:8,client:'Anintah',trade:'Anintah',part:'SEO',seg:'SEO',ent:'BH',inv:'15-Jan',due:'15-Jan',pay:'25-Jan',cur:'USD',amt:10000,fx:1,usd:10000,mode:'Bank Transfer',fee:'1%',net:9900,month:'Jan',st:'paid'},
+  {sr:9,client:'RRVS Holdings (RecNation)',trade:'RecNation',part:'SEO',seg:'SEO',ent:'BH',inv:'Jan',due:'Jan',pay:'9-Jan',cur:'USD',amt:8150,fx:1,usd:8150,mode:'Payoneer',fee:'1%',net:8069,month:'Jan',st:'paid'},
+  {sr:10,client:'Cloud Web Solutions',trade:'Cloud Web',part:'Affiliate',seg:'Affiliate',ent:'BH',inv:'Jan',due:'Jan',pay:'9-Jan',cur:'USD',amt:2188,fx:1,usd:2188,mode:'Stripe AED',fee:'5%',net:2079,month:'Jan',st:'paid'},
+  {sr:11,client:'RRVS Holdings (RecNation)',trade:'RecNation',part:'Multiple (pSEO+HubSpot)',seg:'Multiple',ent:'BC',inv:'INV-04-11/2025',due:'7-Feb',pay:'7-Feb',cur:'USD',amt:16474,fx:1,usd:16474,mode:'Payoneer',fee:'1%',net:16310,month:'Jan',st:'paid'},
+  {sr:12,client:'OE Partners',trade:'OE Partners',part:'SEO Retainer',seg:'SEO',ent:'BH',inv:'4-Feb',due:'4-Feb',pay:'4-Feb',cur:'USD',amt:1500,fx:1,usd:1500,mode:'Stripe',fee:'5%',net:1425,month:'Feb',st:'paid'},
+  {sr:13,client:'Veriheal Inc',trade:'Veriheal',part:'SEO',seg:'SEO',ent:'BH',inv:'13-Feb',due:'13-Feb',pay:'13-Feb',cur:'USD',amt:14211,fx:1,usd:14211,mode:'Stripe',fee:'0%',net:14211,month:'Feb',st:'paid'},
+  {sr:14,client:'Upvolt Ltd',trade:'Upvolt Ltd',part:'SEO',seg:'SEO',ent:'BH',inv:'14-Feb',due:'14-Feb',pay:'14-Feb',cur:'USD',amt:6500,fx:1,usd:6500,mode:'Stripe',fee:'5%',net:6175,month:'Feb',st:'paid'},
+  {sr:15,client:'Macol Limited',trade:'Inst. of Medical Physics',part:'SEO',seg:'SEO',ent:'BH',inv:'17-Feb',due:'17-Feb',pay:'17-Feb',cur:'USD',amt:7170,fx:1,usd:7170,mode:'Stripe',fee:'5%',net:6812,month:'Feb',st:'paid'},
+  {sr:16,client:'Private Equity List',trade:'PEL',part:'SEO',seg:'SEO',ent:'BH',inv:'Feb',due:'Feb',pay:'12-Feb',cur:'USD',amt:1950,fx:1,usd:1950,mode:'Stripe',fee:'5%',net:1853,month:'Feb',st:'paid'},
+  {sr:17,client:'Cloud Web Solutions',trade:'Cloud Web',part:'Affiliate',seg:'Affiliate',ent:'BH',inv:'Feb',due:'Feb',pay:'4-Feb',cur:'USD',amt:2376,fx:1,usd:2376,mode:'Stripe AED',fee:'5%',net:2257,month:'Feb',st:'paid'},
+  {sr:18,client:'Anintah',trade:'Anintah',part:'SEO',seg:'SEO',ent:'BH',inv:'15-Feb',due:'15-Feb',pay:'25-Feb',cur:'USD',amt:10000,fx:1,usd:10000,mode:'Bank Transfer',fee:'1%',net:9900,month:'Feb',st:'paid'},
+  {sr:19,client:'RRVS Holdings (RecNation)',trade:'RecNation',part:'SEO/Dev',seg:'Multiple',ent:'BH',inv:'Feb',due:'Feb',pay:'12-Feb',cur:'USD',amt:7945,fx:1,usd:7945,mode:'Payoneer',fee:'1%',net:7866,month:'Feb',st:'paid'},
+  {sr:20,client:'Duo Strategy LLC',trade:'Duo Digital',part:'Affiliate',seg:'Affiliate',ent:'BH',inv:'27-Feb',due:'27-Feb',pay:'27-Feb',cur:'USD',amt:220,fx:1,usd:220,mode:'PayPal',fee:'5%',net:209,month:'Feb',st:'paid'},
+  {sr:21,client:'Ramp Business Corp',trade:'Ramp',part:'SEO',seg:'SEO',ent:'BH',inv:'22-Feb',due:'22-Feb',pay:'22-Feb',cur:'USD',amt:600,fx:1,usd:600,mode:'Bank Transfer',fee:'1%',net:594,month:'Feb',st:'paid'},
+  {sr:22,client:'Gregory Brooks (Upwork)',trade:'Gregory Brooks',part:'SEO',seg:'SEO',ent:'BH',inv:'Feb',due:'Feb',pay:'28-Feb',cur:'USD',amt:220,fx:1,usd:220,mode:'Upwork',fee:'10%',net:198,month:'Feb',st:'paid'},
+  {sr:23,client:'RRVS Holdings (RecNation)',trade:'RecNation',part:'Multiple',seg:'Multiple',ent:'BC',inv:'INV-05-11/2025 etc',due:'Feb',pay:'12-Feb',cur:'USD',amt:42829,fx:1,usd:42829,mode:'Payoneer',fee:'1%',net:42401,month:'Feb',st:'paid'},
+];
+
+function renderAR(){
+  const sc={paid:'st-p',outstanding:'st-o',notdue:'st-n'};
+  const sl={paid:'Paid',outstanding:'Outstanding',notdue:'Not due'};
+  let h=`<thead><tr><th>#</th><th>Client</th><th>Trade name</th><th>Particulars</th><th>Segment</th><th>Entity</th>
+    <th>Inv. date</th><th>Due date</th><th>Pay date</th><th>Curr.</th>
+    <th class="r">Inv. amount</th><th style="text-align:center">FX</th>
+    <th class="r">USD value</th><th>Mode</th><th style="text-align:center">Fee</th>
+    <th class="r">Net cash</th><th>Cash month</th><th>Status</th></tr></thead><tbody>`;
+  AR_ROWS.forEach(r=>{
+    h+=`<tr><td style="color:var(--text3)">${r.sr}</td>
+      <td class="bold">${getGroup(r.client,r.ent)||r.client}${getGroup(r.client,r.ent)&&getGroup(r.client,r.ent)!==r.client?'<br><span style="font-size:13.0px;color:var(--text3);font-weight:400">'+r.client+'</span>':''}</td><td>${r.trade}</td><td>${r.part}</td><td>${r.seg}</td>
+      <td>${eb(r.ent)}</td>
+      <td style="font-size:15.0px">${r.inv}</td><td style="font-size:15.0px">${r.due}</td><td style="font-size:15.0px">${r.pay}</td>
+      <td style="font-size:15.0px">${r.cur}</td>
+      <td class="r" style="font-size:15.0px">$${r.amt.toLocaleString()}</td>
+      <td style="text-align:center;font-size:15.0px">${r.fx}</td>
+      <td class="r" style="font-size:15.0px">$${r.usd.toLocaleString()}</td>
+      <td style="font-size:15.0px">${r.mode}</td>
+      <td style="text-align:center;font-size:15.0px">${r.fee}</td>
+      <td class="r" style="font-size:15.0px;color:var(--green);font-weight:600">$${r.net.toLocaleString()}</td>
+      <td style="font-size:15.0px">${r.month}</td>
+      <td><span class="st ${sc[r.st]}">${sl[r.st]}</span></td></tr>`;
+  });
+  document.getElementById('art').innerHTML=h+'</tbody>';
+}
+
+function addAR(){
+  const tbody=document.getElementById('art').querySelector('tbody');
+  const sel=o=>`<select style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-size:15.0px;border-radius:4px;padding:2px 4px;font-family:var(--sans)">${o.map(x=>`<option>${x}</option>`).join('')}</select>`;
+  const inp=(p,w='110px')=>`<input placeholder="${p}" style="background:transparent;border:none;border-bottom:1px solid var(--border2);color:var(--text);width:${w};font-size:15.0px;font-family:var(--sans)">`;
+  const tr=document.createElement('tr');
+  tr.innerHTML=`<td style="color:var(--text3)">—</td><td>${inp('Client','120px')}</td><td>${inp('Trade')}</td><td>${inp('Particulars')}</td>
+    <td>${sel(['SEO','Web Dev','Affiliate','Mktg Ops'])}</td><td>${sel(['BH','BC'])}</td>
+    <td><input type="date" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-size:15.0px;border-radius:4px;padding:2px 4px"></td>
+    <td><input type="date" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-size:15.0px;border-radius:4px;padding:2px 4px"></td>
+    <td><input type="date" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-size:15.0px;border-radius:4px;padding:2px 4px"></td>
+    <td>${sel(['USD','AED'])}</td>
+    <td><input type="number" placeholder="0" style="background:transparent;border:none;border-bottom:1px solid var(--border2);color:var(--text);width:80px;font-size:15.0px;text-align:right"></td>
+    <td><input type="number" value="1" style="background:transparent;border:none;border-bottom:1px solid var(--border2);color:var(--text);width:36px;font-size:15.0px;text-align:center"></td>
+    <td style="color:var(--text3)">—</td>
+    <td>${sel(['Stripe','Bank Transfer','Payoneer','PayPal','Upwork'])}</td>
+    <td><input type="number" placeholder="5" style="background:transparent;border:none;border-bottom:1px solid var(--border2);color:var(--text);width:36px;font-size:15.0px;text-align:center"></td>
+    <td style="color:var(--green);font-weight:600">—</td>
+    <td>${sel(['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'])}</td>
+    <td><span class="st" style="background:var(--blue-dim);color:var(--blue)">Forecast</span></td>`;
+  tbody.appendChild(tr);
+  tr.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+// ── AP ──
+const AP_ROWS=[
+  {vendor:'InZone (Trade License renewal)',ent:'BH',type:'Fixed',src:'Bank Transfer',pay:'29-Jan',amt:11543.91,month:'Jan',seg:'Compliance'},
+  {vendor:'Jagjit Singh',ent:'BH',type:'Variable',src:'Payoneer',pay:'31-Jan',amt:862.50,month:'Jan',seg:'SEO'},
+  {vendor:'Anirban Dutta Choudhury',ent:'BH',type:'Fixed',src:'Payoneer',pay:'31-Jan',amt:1153.20,month:'Jan',seg:'Content'},
+  {vendor:'Sarah Omoruku',ent:'BH',type:'Fixed',src:'Payoneer',pay:'31-Jan',amt:750.00,month:'Jan',seg:'SEO'},
+  {vendor:'Hayley Ward',ent:'BH',type:'Variable',src:'Skuad',pay:'31-Jan',amt:570.00,month:'Jan',seg:'SEO'},
+  {vendor:'Sagar Rauthan',ent:'BH',type:'Variable',src:'Skuad',pay:'31-Jan',amt:216.00,month:'Jan',seg:'SEO'},
+  {vendor:'Karan Mehta',ent:'BH',type:'Fixed',src:'Skuad',pay:'31-Jan',amt:825.00,month:'Jan',seg:'Finance'},
+  {vendor:'Aeman Parwez',ent:'BH',type:'Variable',src:'Skuad',pay:'31-Jan',amt:675.00,month:'Jan',seg:'SEO'},
+  {vendor:'Suchi Shah',ent:'BH',type:'Fixed',src:'Payoneer',pay:'31-Jan',amt:361.00,month:'Jan',seg:'Finance'},
+  {vendor:'Inayat Naqvi',ent:'BH',type:'Variable',src:'Alaan',pay:'27-Jan',amt:552.41,month:'Jan',seg:'Design'},
+  {vendor:'Anjandeep Singh Luthra',ent:'BH',type:'Variable',src:'Alaan',pay:'10-Jan',amt:618.92,month:'Jan',seg:'Company'},
+  {vendor:'Mine Akar',ent:'BH',type:'Variable',src:'Alaan',pay:'10-Jan',amt:274.35,month:'Jan',seg:'Company'},
+  {vendor:'Livia-Ioana Blaj',ent:'BH',type:'Variable',src:'Alaan',pay:'10-Jan',amt:541.99,month:'Jan',seg:'Company'},
+  {vendor:'SKUAD PTE (platform fee)',ent:'BH',type:'Variable',src:'Payoneer',pay:'31-Jan',amt:209.00,month:'Jan',seg:'Company'},
+  {vendor:'Pulkitsingh Parmar',ent:'BH',type:'Variable',src:'Skuad',pay:'31-Jan',amt:70.00,month:'Jan',seg:'SEO'},
+  {vendor:'Jayesh Ashok Jain',ent:'BH',type:'Variable',src:'Skuad',pay:'31-Jan',amt:120.00,month:'Jan',seg:'SEO'},
+  {vendor:'Nirav Nitinbhai Patel',ent:'BH',type:'Variable',src:'Skuad',pay:'31-Jan',amt:250.00,month:'Jan',seg:'SEO'},
+  {vendor:'Subscriptions & tools',ent:'BH',type:'Variable',src:'Alaan',pay:'Various',amt:2534.48,month:'Jan',seg:'Company'},
+  {vendor:'Bank & payment fees',ent:'BH',type:'Fixed',src:'Bank',pay:'Various',amt:209.02,month:'Jan',seg:'Company'},
+  {vendor:'Laitmatus Software Pvt Ltd',ent:'BC',type:'Variable',src:'Skuad',pay:'1-Jan',amt:19126.00,month:'Jan',seg:'Web Dev'},
+  {vendor:'Markestac Consulting Pvt Ltd',ent:'BC',type:'Variable',src:'Skuad',pay:'1-Jan',amt:6054.00,month:'Jan',seg:'Mktg Ops'},
+  {vendor:'Maticore Technologies Pvt Ltd',ent:'BC',type:'Variable',src:'Skuad',pay:'1-Jan',amt:1887.00,month:'Jan',seg:'Web Dev'},
+  {vendor:'OneMetric Marketing Solutions',ent:'BC',type:'Variable',src:'Skuad',pay:'18-Jan',amt:1680.00,month:'Jan',seg:'Mktg Ops'},
+  {vendor:'Virginia Boys LLC (Roedgers)',ent:'BC',type:'Variable',src:'Payoneer',pay:'18-Jan',amt:2000.00,month:'Jan',seg:'Web Dev'},
+  {vendor:'Bank fees & tools',ent:'BC',type:'Fixed',src:'WIO/Xero',pay:'Various',amt:336.60,month:'Jan',seg:'Company'},
+  // Feb
+  {vendor:'Anirban Dutta Choudhury',ent:'BH',type:'Fixed',src:'Skuad',pay:'12-Feb',amt:1144.71,month:'Feb',seg:'Content'},
+  {vendor:'Karan Mehta',ent:'BH',type:'Fixed',src:'Skuad',pay:'12-Feb',amt:1463.00,month:'Feb',seg:'Finance'},
+  {vendor:'Sarah Omoruku',ent:'BH',type:'Fixed',src:'Skuad',pay:'12-Feb',amt:750.00,month:'Feb',seg:'SEO'},
+  {vendor:'Hayley Ward',ent:'BH',type:'Variable',src:'Skuad',pay:'12-Feb',amt:850.00,month:'Feb',seg:'SEO'},
+  {vendor:'Jagjit Singh',ent:'BH',type:'Variable',src:'Skuad',pay:'12-Feb',amt:645.00,month:'Feb',seg:'SEO'},
+  {vendor:'Jayesh Ashok Jain',ent:'BH',type:'Variable',src:'Skuad',pay:'12-Feb',amt:550.00,month:'Feb',seg:'SEO'},
+  {vendor:'Sagar Rauthan',ent:'BH',type:'Variable',src:'Skuad',pay:'12-Feb',amt:324.00,month:'Feb',seg:'SEO'},
+  {vendor:'Nirav Nitinbhai Patel',ent:'BH',type:'Variable',src:'Skuad',pay:'12-Feb',amt:300.00,month:'Feb',seg:'SEO'},
+  {vendor:'Pulkitsingh Parmar',ent:'BH',type:'Variable',src:'Skuad',pay:'12-Feb',amt:180.00,month:'Feb',seg:'SEO'},
+  {vendor:'Suchi Shah',ent:'BH',type:'Fixed',src:'Skuad',pay:'12-Feb',amt:350.00,month:'Feb',seg:'Finance'},
+  {vendor:'Aeman Parwez',ent:'BH',type:'Variable',src:'Skuad',pay:'12-Feb',amt:180.00,month:'Feb',seg:'SEO'},
+  {vendor:'SKUAD PTE',ent:'BH',type:'Variable',src:'Payoneer',pay:'12-Feb',amt:209.00,month:'Feb',seg:'Company'},
+  {vendor:'Inayat Naqvi',ent:'BH',type:'Variable',src:'Skuad',pay:'12-Feb',amt:582.81,month:'Feb',seg:'Design'},
+  {vendor:'Zyla Accountants',ent:'BH',type:'Fixed',src:'Alaan',pay:'4-Feb',amt:354.53,month:'Feb',seg:'Accounting'},
+  {vendor:'Atul Sharma',ent:'BH',type:'Variable',src:'Skuad',pay:'17-Feb',amt:470.00,month:'Feb',seg:'SEO'},
+  {vendor:'Vibha Sharma',ent:'BH',type:'Variable',src:'Skuad',pay:'17-Feb',amt:180.00,month:'Feb',seg:'SEO'},
+  {vendor:'JAI KISHAN',ent:'BH',type:'Variable',src:'Skuad',pay:'22-Feb',amt:625.00,month:'Feb',seg:'SEO'},
+  {vendor:'Sajan Kumar',ent:'BH',type:'Variable',src:'Skuad',pay:'22-Feb',amt:490.00,month:'Feb',seg:'SEO'},
+  {vendor:'1Password',ent:'BH',type:'Variable',src:'Alaan',pay:'17-Feb',amt:287.28,month:'Feb',seg:'Company'},
+  {vendor:'Subscriptions & tools',ent:'BH',type:'Variable',src:'Alaan',pay:'Various',amt:3038.20,month:'Feb',seg:'Company'},
+  {vendor:'Bank & payment fees',ent:'BH',type:'Fixed',src:'Bank',pay:'Various',amt:209.00,month:'Feb',seg:'Company'},
+  {vendor:'Laitmatus Software Pvt Ltd',ent:'BC',type:'Variable',src:'Skuad',pay:'12-Feb',amt:15604.00,month:'Feb',seg:'Web Dev'},
+  {vendor:'Markestac Consulting Pvt Ltd',ent:'BC',type:'Variable',src:'Skuad',pay:'12-Feb',amt:4209.00,month:'Feb',seg:'Mktg Ops'},
+  {vendor:'Maticore Technologies Pvt Ltd',ent:'BC',type:'Variable',src:'Skuad',pay:'12-Feb',amt:1785.00,month:'Feb',seg:'Web Dev'},
+  {vendor:'Virginia Boys LLC (Roedgers)',ent:'BC',type:'Variable',src:'Payoneer',pay:'22-Feb',amt:2000.00,month:'Feb',seg:'Web Dev'},
+  {vendor:'Bank fees & tools',ent:'BC',type:'Fixed',src:'WIO/Xero',pay:'Various',amt:581.51,month:'Feb',seg:'Company'},
+];
+
+function renderAP(){
+  let h=`<thead><tr><th>Vendor</th><th>Entity</th><th>Type</th><th>Source</th>
+    <th>Payment date</th><th class="r">Amount (USD)</th><th>Cash month</th><th>Segment</th></tr></thead><tbody>`;
+  AP_ROWS.forEach(r=>{
+    const tc=r.type==='Fixed'?'var(--amber)':'var(--text2)';
+    h+=`<tr><td class="bold">${getGroup(r.vendor,r.ent)||r.vendor}${getGroup(r.vendor,r.ent)&&getGroup(r.vendor,r.ent)!==r.vendor?'<br><span style="font-size:13.0px;color:var(--text3);font-weight:400">'+r.vendor+'</span>':''}</td><td>${eb(r.ent)}</td>
+      <td><span style="font-size:14.5px;font-weight:500;color:${tc}">${r.type}</span></td>
+      <td style="font-size:15.0px">${r.src}</td><td style="font-size:15.0px">${r.pay}</td>
+      <td class="r" style="font-size:15.0px;color:var(--red);font-weight:500">($${r.amt.toLocaleString()})</td>
+      <td style="font-size:15.0px">${r.month}</td><td style="font-size:15.0px">${r.seg}</td></tr>`;
+  });
+  document.getElementById('apt').innerHTML=h+'</tbody>';
+}
+
+function addAP(){
+  const tbody=document.getElementById('apt').querySelector('tbody');
+  const sel=o=>`<select style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-size:15.0px;border-radius:4px;padding:2px 4px;font-family:var(--sans)">${o.map(x=>`<option>${x}</option>`).join('')}</select>`;
+  const inp=(p,w='130px')=>`<input placeholder="${p}" style="background:transparent;border:none;border-bottom:1px solid var(--border2);color:var(--text);width:${w};font-size:15.0px;font-family:var(--sans)">`;
+  const tr=document.createElement('tr');
+  tr.innerHTML=`<td class="bold">${inp('Vendor name','150px')}</td><td>${sel(['BH','BC'])}</td>
+    <td>${sel(['Fixed','Variable'])}</td><td>${sel(['Skuad','Payoneer','Alaan','Bank Transfer','WIO'])}</td>
+    <td><input type="date" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-size:15.0px;border-radius:4px;padding:2px 4px"></td>
+    <td class="r"><input type="number" placeholder="0" style="background:transparent;border:none;border-bottom:1px solid var(--border2);color:var(--red);width:80px;font-size:15.0px;text-align:right"></td>
+    <td>${sel(['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'])}</td>
+    <td>${inp('Segment','90px')}</td>`;
+  tbody.appendChild(tr);
+  tr.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+// ── Contact mapping store ──
+// Maps "raw contact || entity" -> { group, type }
+// Persisted in localStorage key 'ct_map'
+let CT_MAP = {};
+try { CT_MAP = JSON.parse(localStorage.getItem('ct_map')||'{}'); } catch(e){}
+
+// No pre-seeded groups — you define everything in the mapping tab
+// getMergedMap returns only what the user has explicitly set
+function getMergedMap(){
+  return CT_MAP;
+}
+
+function getGroup(contact, entity){
+  const k=contact+'||'+entity;
+  const m=getMergedMap();
+  return m[k]?.group||contact; // fallback to raw name
+}
+
+// ── Build raw contacts list ──
+function buildContacts(){
+  const raw={};
+  const months=E.slice();
+  months.forEach(m=>{
+    [...(BH_IN_D[m]||[]),...(BC_IN_D[m]||[])].forEach(tx=>{
+      const k=tx.contact+'||'+tx.entity;
+      if(!raw[k])raw[k]={contact:tx.contact,entity:tx.entity,type:'client',inflow:0,outflow:0};
+      raw[k].inflow+=tx.amt;
+    });
+    [...(BH_OUT_D[m]||[]),...(BC_OUT_D[m]||[])].forEach(tx=>{
+      const k=tx.contact+'||'+tx.entity;
+      if(!raw[k])raw[k]={contact:tx.contact,entity:tx.entity,type:'vendor',inflow:0,outflow:0};
+      raw[k].outflow+=tx.amt;
+    });
+  });
+  return Object.values(raw);
+}
+
+// ── Build grouped contacts (apply mapping) ──
+function buildGrouped(){
+  const raw=buildContacts();
+  const groups={};
+  const merged=getMergedMap();
+  raw.forEach(c=>{
+    const k=c.contact+'||'+c.entity;
+    const grpName=merged[k]?.group||c.contact;
+    const grpKey=grpName+'||'+c.entity;
+    if(!groups[grpKey])groups[grpKey]={group:grpName,entity:c.entity,type:c.type,inflow:0,outflow:0,members:[]};
+    groups[grpKey].inflow+=c.inflow;
+    groups[grpKey].outflow+=c.outflow;
+    groups[grpKey].members.push(c);
+  });
+  return Object.values(groups);
+}
+
+function renderContacts(){
+  const grouped=buildGrouped();
+  renderGrpTable('ctAll',grouped);
+  renderGrpTable('ctCli',grouped.filter(c=>c.type==='client'));
+  renderGrpTable('ctVen',grouped.filter(c=>c.type==='vendor'));
+  renderMappingTable();
+}
+
+function renderGrpTable(id,data){
+  const sorted=[...data].sort((a,b)=>Math.abs(b.inflow-b.outflow)-Math.abs(a.inflow-a.outflow));
+  let h=`<thead><tr><th>Group / Contact</th><th>Entity</th><th>Type</th>
+    <th class="r">Inflow</th><th class="r">Outflow</th><th class="r">Net</th></tr></thead><tbody>`;
+  sorted.forEach((g,i)=>{
+    const net=g.inflow-g.outflow;
+    const tc=g.type==='client'?'var(--green)':'var(--amber)';
+    const isGroup=g.members.length>1||(g.group!==g.members[0]?.contact);
+    const rid=`cr-${id}-${i}`;
+    const label=g.group;
+    h+=`<tr style="cursor:pointer" onclick="document.getElementById('${rid}').style.display=document.getElementById('${rid}').style.display==='none'?'table-row':'none'">
+      <td class="bold">${isGroup?'📁 ':''}${label}${isGroup?' <span style=\'font-size:13.0px;color:var(--text3);font-weight:400\'>('+g.members.length+' contacts)</span>':''} ▸</td>
+      <td>${eb(g.entity)}</td>
+      <td><span style="font-size:14.5px;font-weight:500;color:${tc}">${g.type}</span></td>
+      <td class="r pos">${g.inflow?$f(g.inflow):'—'}</td>
+      <td class="r neg">${g.outflow?'($'+$f(g.outflow).replace('$','')+')':'—'}</td>
+      <td class="r ${net>=0?'pos':'neg'}" style="font-weight:600">${$f(net)}</td>
+    </tr><tr id="${rid}" style="display:none"><td colspan="6" style="padding:0;background:var(--accent-light)">
+      <div style="padding:10px 18px 10px 24px">
+        ${isGroup?`<div style="font-size:13.0px;font-weight:600;color:var(--accent);text-transform:uppercase;margin-bottom:8px">Members of "${label}"</div>
+        <table style="width:100%;border-collapse:collapse;font-size:15.0px">
+          <tr>${['Contact','Jan','Feb','Mar','Apr','Total'].map(h=>`<th style="text-align:${h==='Contact'?'left':'right'};padding:4px 8px;color:var(--text3);border-bottom:1px solid var(--border);font-size:14.0px">${h}</th>`).join('')}</tr>
+          ${g.members.map(m=>{
+            const mvals=['Jan','Feb','Mar','Apr'].map(mo=>{
+              const inv=([...(BH_IN_D[mo]||[]),...(BC_IN_D[mo]||[])]).filter(t=>t.contact===m.contact&&t.entity===m.entity).reduce((s,t)=>s+t.amt,0);
+              const out=([...(BH_OUT_D[mo]||[]),...(BC_OUT_D[mo]||[])]).filter(t=>t.contact===m.contact&&t.entity===m.entity).reduce((s,t)=>s+t.amt,0);
+              return inv||out;
+            });
+            const tot=mvals.reduce((s,v)=>s+v,0);
+            if(!tot)return '';
+            const cls=g.type==='client'?'pos':'neg';
+            return '<tr><td style="padding:4px 8px;color:var(--text2)">' + m.contact + '</td>' +
+              mvals.map(v=>'<td class="r '+cls+'" style="padding:4px 8px">' + (v?$f(v):'—') + '</td>').join('') +
+              '<td class="r '+cls+'" style="padding:4px 8px;font-weight:600">' + $f(tot) + '</td></tr>';
+          }).join('')}
+        </table>`:`<div style="font-size:13.0px;font-weight:600;color:var(--accent);text-transform:uppercase;margin-bottom:6px">${label} · monthly</div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap">
+          ${['Jan','Feb','Mar','Apr'].map(mo=>{
+            const inv=([...(BH_IN_D[mo]||[]),...(BC_IN_D[mo]||[])]).filter(t=>t.contact===g.members[0]?.contact&&t.entity===g.entity).reduce((s,t)=>s+t.amt,0);
+            const out=([...(BH_OUT_D[mo]||[]),...(BC_OUT_D[mo]||[])]).filter(t=>t.contact===g.members[0]?.contact&&t.entity===g.entity).reduce((s,t)=>s+t.amt,0);
+            const v=inv||out;
+            if(!v)return '';
+            const col=g.type==='client'?'var(--green)':'var(--red)';
+            return '<div><div style="font-size:13.0px;color:var(--text3);font-weight:600;text-transform:uppercase">' + mo + ' 2026</div><div style="font-size:17.0px;font-weight:600;color:' + col + '">' + $f(v) + '</div></div>';
+          }).join('')}
+        </div>`}
+      </div>
+    </td></tr>`;
+  });
+  document.getElementById(id).innerHTML=h+'</tbody>';
+}
+
+function renderMappingTable(){
+  const raw=buildContacts();
+  const merged=getMergedMap();
+  // Sort by total flow descending so biggest contacts are at top
+  const sorted=[...raw].sort((a,b)=>(b.inflow+b.outflow)-(a.inflow+a.outflow));
+  let h=`<thead><tr>
+    <th>Contact (from Xero)</th><th>Entity</th><th>Type</th>
+    <th class="r">Total flow</th>
+    <th>Display group <span style="font-weight:400;font-style:italic;color:var(--text3)">(editable)</span></th>
+  </tr></thead><tbody>`;
+  sorted.forEach((c,i)=>{
+    const k=c.contact+'||'+c.entity;
+    const currentGroup=merged[k]?.group||'';
+    const isCustom=!!merged[k]?.group;
+    const total=c.inflow||c.outflow;
+    const tc=c.type==='client'?'var(--green)':'var(--amber)';
+    h+=`<tr>
+      <td class="bold">${c.contact}</td>
+      <td>${eb(c.entity)}</td>
+      <td><span style="font-size:14.5px;font-weight:500;color:${tc}">${c.type}</span></td>
+      <td class="r" style="font-size:15.0px;color:${c.type==='client'?'var(--green)':'var(--red)'}">${$f(total)}</td>
+      <td>
+        <input
+          id="grp-${i}"
+          data-key="${k}"
+          value="${currentGroup}"
+          placeholder="${c.contact}"
+          list="grp-suggestions"
+          style="width:100%;background:${isCustom?'var(--accent-light)':'var(--surface2)'};border:1px solid ${isCustom?'var(--accent-mid)':'var(--border2)'};border-radius:5px;padding:5px 8px;font-size:15.0px;font-family:var(--sans);color:var(--text)"
+          oninput="this.style.background='var(--amber-dim)';this.style.borderColor='var(--amber)'"
+        >
+      </td>
+    </tr>`;
+  });
+  h+=`</tbody>`;
+
+  // Datalist for autocomplete from existing groups
+  const existingGroups=[...new Set(Object.values(merged).map(v=>v.group))].sort();
+  h+=`<datalist id="grp-suggestions">${existingGroups.map(g=>`<option value="${g}">`).join('')}</datalist>`;
+  document.getElementById('ctMap').innerHTML=h;
+}
+
+function saveMappings(){
+  const inputs=document.querySelectorAll('#ctMap input[data-key]');
+  inputs.forEach(inp=>{
+    const k=inp.dataset.key;
+    const val=inp.value.trim();
+    const [contact,entity]=k.split('||');
+    // determine type
+    const allContacts=buildContacts();
+    const found=allContacts.find(c=>c.contact===contact&&c.entity===entity);
+    const type=found?found.type:'vendor';
+    if(val){
+      CT_MAP[k]={group:val,type};
+    } else {
+      delete CT_MAP[k];
+    }
+  });
+  try { localStorage.setItem('ct_map',JSON.stringify(CT_MAP)); } catch(e){}
+  renderContacts();
+  renderCF();
+  // Flash confirm
+  const btn=document.querySelector('#screen-contacts button');
+  const orig=btn.textContent;
+  btn.textContent='✓ Saved!';
+  btn.style.background='var(--green)';
+  setTimeout(()=>{ btn.textContent=orig; btn.style.background='var(--accent)'; },1500);
+}
+
+function swCtMain(tab,el){
+  document.querySelectorAll('#screen-contacts > .content > div[style*="display:flex"]~div, #screen-contacts > .content > div').forEach(d=>{
+    if(d.id==='ct-summary') d.style.display=tab==='summary'?'block':'none';
+    if(d.id==='ct-mapping') d.style.display=tab==='mapping'?'block':'none';
+  });
+  document.querySelectorAll('#screen-contacts > .content > div:first-child .itab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function swCtSub(tab,el){
+  document.querySelectorAll('#ct-summary .itab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  ['all','clients','vendors'].forEach(t=>document.getElementById('ctg-'+t).classList.toggle('active',t===tab));
+}
+
+// ── Dashboard ──
+function getPL(){
+  const src=ent==='bh'?BH_PL:ent==='bc'?BC_PL:CONSO_PL;
+  const get=label=>(src.find(r=>r.label===label)||{v:[0,0,0,0]}).v;
+  const sum=v=>v.reduce((s,x)=>s+x,0);
+  const revLbl=ent==='bh'?'Total Trading Income':'Total Income';
+  const netLbl=ent==='bh'?'Net Profit':ent==='bc'?'Net Income':'Net Profit / Income';
+  const ytdRev=sum(get(revLbl));
+  const ytdGP=sum(get('Gross Profit'));
+  const ytdNet=sum(get(netLbl));
+  const ytdWages=ent==='bc'?0:sum((BH_PL.find(r=>r.label==='Wages & Salaries')||{v:[0,0,0,0]}).v);
+  const adjNet=ytdNet+ytdWages;
+  return{ytdRev,ytdGP,ytdNet,adjNet,
+    gpPct:ytdRev?ytdGP/ytdRev:0,
+    adjNetPct:ytdRev?adjNet/ytdRev:0};
+}
+
+function getBSMetrics(){
+  const i=E.length-1;
+  const bhGet=label=>(BH_BS.find(r=>r.label===label)||{v:[0,0,0,0]}).v[i];
+  const bcGet=label=>(BC_BS.find(r=>r.label===label)||{v:[0,0,0,0]}).v[i];
+  if(ent==='bh') return{
+    ar:bhGet('Accounts Receivable'),
+    ap:bhGet('Accounts Payable'),
+    accruals:bhGet('Accruals'),
+    dirLoan:bhGet('Directors Loan Account'),
+    loanDir:0
+  };
+  if(ent==='bc') return{
+    ar:bcGet('Accounts Receivable'),
+    ap:bcGet('Accounts Payable'),
+    accruals:bcGet('Accruals'),
+    dirLoan:0,
+    loanDir:bcGet('Loan from Director')
+  };
+  return{
+    ar:bhGet('Accounts Receivable')+bcGet('Accounts Receivable'),
+    ap:bhGet('Accounts Payable')+bcGet('Accounts Payable'),
+    accruals:bhGet('Accruals')+bcGet('Accruals'),
+    dirLoan:bhGet('Directors Loan Account'),
+    loanDir:bcGet('Loan from Director')
+  };
+}
+
+function renderDash(){
+  const d=getD();
+  const ytdIn=d.in.reduce((s,v)=>s+v,0);
+  const ytdOut=d.out.reduce((s,v)=>s+v,0);
+  const net=ytdIn-ytdOut;
+  const pl=getPL();
+  const bs=getBSMetrics();
+  const pct=n=>(n*100).toFixed(1)+'%';
+  const lbl={'conso':'· Consolidated (Braveheart & Bravecore)','bh':'· Braveheart','bc':'· Bravecore'};
+  const el=document.getElementById('dash-el');
+  if(el) el.textContent=lbl[ent];
+
+  // Cash KPIs (5-col: add AR)
+  const lastM=E[E.length-1],firstM=E[0],closeLbl=`${lastM} 2026`,ytdLbl=`${firstM}–${lastM} 2026`;
+  document.getElementById('dash-kpis').innerHTML=`
+    <div class="mc"><div class="mc-label">Closing cash balance</div><div class="mc-value neu">${$f(d.close[E.length-1])}</div><div class="mc-sub">${closeLbl}</div></div>
+    <div class="mc"><div class="mc-label">Accounts receivable</div><div class="mc-value neu">${$f(bs.ar)}</div><div class="mc-sub">${closeLbl}</div></div>
+    <div class="mc"><div class="mc-label">YTD inflow</div><div class="mc-value pos">${$f(ytdIn)}</div><div class="mc-sub">${ytdLbl}</div></div>
+    <div class="mc"><div class="mc-label">YTD outflow</div><div class="mc-value neg">($${$f(ytdOut).replace('$','')})</div><div class="mc-sub">${ytdLbl}</div></div>
+    <div class="mc"><div class="mc-label">Net cash movement</div><div class="mc-value ${net>=0?'pos':'neg'}">${net>=0?$f(net):'($'+$f(Math.abs(net)).replace('$','')+')'}</div><div class="mc-sub">${ytdLbl}</div></div>`;
+
+  // P&L KPIs (5-column row)
+  const adjCls=pl.adjNet>=0?'pos':'neg';
+  document.getElementById('dash-pl').innerHTML=`
+    <div class="mc"><div class="mc-label">YTD revenue</div><div class="mc-value neu">${$f(pl.ytdRev)}</div><div class="mc-sub">${ytdLbl}</div></div>
+    <div class="mc"><div class="mc-label">YTD gross profit</div><div class="mc-value pos">${$f(pl.ytdGP)}</div><div class="mc-sub">${ytdLbl}</div></div>
+    <div class="mc"><div class="mc-label">Gross profit %</div><div class="mc-value pos">${pct(pl.gpPct)}</div><div class="mc-sub">GP / Revenue</div></div>
+    <div class="mc"><div class="mc-label">Adj. net profit</div><div class="mc-value ${adjCls}">${pl.adjNet>=0?$f(pl.adjNet):'($'+$f(Math.abs(pl.adjNet)).replace('$','')+')'}</div><div class="mc-sub">Net + wages &amp; salaries</div></div>
+    <div class="mc"><div class="mc-label">Adj. net profit %</div><div class="mc-value ${adjCls}">${pct(pl.adjNetPct)}</div><div class="mc-sub">Adj. net / Revenue</div></div>`;
+
+  // Chart
+  const chartH=150, maxBar=chartH-32, maxV=Math.max(...d.close);
+  let chart=`<div style="position:relative;height:${chartH}px;display:flex;align-items:flex-end;gap:14px;padding:0 24px">`;
+  [33,66].forEach(p=>chart+=`<div style="position:absolute;left:24px;right:24px;bottom:${p}%;height:1px;background:var(--border);pointer-events:none"></div>`);
+  d.close.forEach((v,i)=>{
+    const bh=Math.max(Math.round(v/maxV*maxBar),4);
+    chart+=`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;justify-content:flex-end;height:100%;z-index:1">
+      <div style="font-size:13px;font-weight:500;color:var(--text2);white-space:nowrap">${$f(v)}</div>
+      <div style="width:52%;height:${bh}px;background:var(--accent);border-radius:5px 5px 0 0"></div>
+    </div>`;
+  });
+  chart+=`</div><div style="display:flex;gap:14px;padding:7px 24px 16px;border-top:1px solid var(--border)">`;
+  E.forEach(m=>chart+=`<div style="flex:1;text-align:center;font-size:14px;font-weight:600;color:var(--text3)">${m}</div>`);
+  chart+='</div>';
+  document.getElementById('dash-chart-area').innerHTML=chart;
+
+  // Liabilities
+  const periodLbl=`${lastM} 2026`;
+  document.getElementById('dash-liab-sub').textContent=periodLbl;
+  const liabItems=[
+    ['Accounts payable',     bs.ap],
+    ['Accruals',             bs.accruals],
+    ['Directors loan acct',  bs.dirLoan],
+    ['Loan from director',   bs.loanDir],
+  ];
+  document.getElementById('dash-liab').innerHTML=liabItems.map(([label,val])=>
+    `<div class="mc"><div class="mc-label">${label}</div><div class="mc-value ${val>0?'neg':'neu'}">${val>0?'($'+$f(val).replace('$','')+')':(val===0?'—':$f(val))}</div><div class="mc-sub">${periodLbl}</div></div>`
+  ).join('');
+}
+
+// ── Import ──
+const MO=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+let importState={};
+
+function loadSheetJS(cb){
+  if(window.XLSX){cb();return;}
+  const s=document.createElement('script');
+  s.src='https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
+  s.onload=cb;
+  s.onerror=()=>alert('Could not load Excel parser. Check internet connection.');
+  document.head.appendChild(s);
+}
+
+function detectFileType(name){
+  const n=name.toLowerCase();
+  if(n.includes('account_transaction')||n.includes('account transaction'))return'gl';
+  if(n.includes('balance_sheet')||n.includes('balance sheet'))return'bs';
+  if(n.includes('profit')||n.includes('income_statement')||n.includes('income statement'))return'pl';
+  return'gl';
+}
+function normKey(s){return String(s||'').toLowerCase().replace(/\s+/g,' ').trim();}
+
+function initImport(){
+  ['bh','bc'].forEach(e=>{
+    const dz=document.getElementById('dz-'+e);
+    const fi=document.getElementById('fi-'+e);
+    if(!dz||!fi||dz.dataset.init)return;
+    dz.dataset.init='1';
+    dz.addEventListener('click',()=>fi.click());
+    dz.addEventListener('dragover',ev=>{ev.preventDefault();dz.classList.add('drag-over');});
+    dz.addEventListener('dragleave',()=>dz.classList.remove('drag-over'));
+    dz.addEventListener('drop',ev=>{ev.preventDefault();dz.classList.remove('drag-over');const f=ev.dataTransfer.files[0];if(f)processImport(f,e);});
+    fi.addEventListener('change',ev=>{if(ev.target.files[0])processImport(ev.target.files[0],e);fi.value='';});
+  });
+}
+
+function processImport(file,entity){
+  const ftype=detectFileType(file.name);
+  const stEl=document.getElementById(`ist-${entity}-${ftype}`);
+  if(stEl)stEl.textContent='Parsing…';
+  loadSheetJS(()=>{
+    file.arrayBuffer().then(buf=>{
+      try{
+        const wb=window.XLSX.read(buf,{type:'array',cellDates:false,raw:false});
+        const ws=wb.Sheets[wb.SheetNames[0]];
+        const rows=window.XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});
+        let parsed;
+        if(ftype==='gl')parsed=parseXeroAccountTx(rows,entity.toUpperCase());
+        else if(ftype==='bs')parsed=parseXeroBS(rows,entity.toUpperCase());
+        else parsed=parseXeroPL(rows,entity.toUpperCase());
+        parsed.ftype=ftype;
+        importState[entity+'-'+ftype]=parsed;
+        renderImportPreview(entity,parsed,ftype);
+        if(stEl){
+          const ml=parsed.months.join(', ')||'none';
+          stEl.innerHTML=parsed.months.length?`<span style="color:var(--green)">✓ ${ml}</span>`:`<span style="color:var(--amber)">⚠ No data found</span>`;
+        }
+      }catch(err){
+        if(stEl)stEl.innerHTML=`<span style="color:var(--red)">Error</span>`;
+        console.error(err);
+      }
+    });
+  });
+}
+
+function parseXeroAccountTx(rows,entity){
+  const BANKS=['payoneer','wio','enbd','alaan','stripe','paypal','upwork'];
+  let curAcct=null,isBank=false;
+  let cDate=-1,cDesc=-1,cDebit=-1,cCredit=-1,cBal=-1;
+  const result={entity,months:new Set(),inflow:{},outflow:{},bankClose:{}};
+
+  function parseDt(v){
+    if(!v||v==='')return null;
+    const s=String(v).trim();
+    const m1=s.match(/^(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})$/);
+    if(m1){const d=new Date(`${m1[2]} ${m1[1]}, ${m1[3]}`);if(!isNaN(d))return d;}
+    const m2=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if(m2){const d=new Date(`${m2[3]}-${m2[2].padStart(2,'0')}-${m2[1].padStart(2,'0')}`);if(!isNaN(d))return d;}
+    const m3=s.match(/^\d{4}-\d{2}-\d{2}/);
+    if(m3){const d=new Date(s);if(!isNaN(d))return d;}
+    const m4=s.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/);
+    if(m4){const d=new Date(`${m4[2]} ${m4[1]}, ${m4[3]}`);if(!isNaN(d))return d;}
+    return null;
+  }
+  function parseFl(v){return parseFloat(String(v||'').replace(/[,$\s]/g,''))||0;}
+
+  for(let i=0;i<rows.length;i++){
+    const row=rows[i];
+    const rs=row.map(c=>String(c||'').trim());
+    const ne=rs.filter(c=>c!=='');
+
+    // Detect column header row
+    if(rs.some(c=>/^date$/i.test(c))&&(rs.some(c=>/^debit$/i.test(c))||rs.some(c=>/^credit$/i.test(c)))){
+      cDate=rs.findIndex(c=>/^date$/i.test(c));
+      cDesc=rs.findIndex(c=>/description|contact/i.test(c));
+      if(cDesc<0)cDesc=rs.findIndex(c=>/source|name/i.test(c));
+      cDebit=rs.findIndex(c=>/^debit$/i.test(c));
+      cCredit=rs.findIndex(c=>/^credit$/i.test(c));
+      cBal=rs.findIndex(c=>/^balance$/i.test(c));
+      continue;
+    }
+
+    // Detect account section header
+    if(ne.length>=1&&ne.length<=3){
+      const first=ne[0];
+      if(!/^total|^grand|^\d+(\.\d+)?$/.test(first)&&!parseDt(first)&&first.length>2){
+        curAcct=first;
+        isBank=BANKS.some(p=>first.toLowerCase().includes(p));
+        continue;
+      }
+    }
+
+    if(!isBank||cDate<0)continue;
+    const dateVal=rs[cDate];if(!dateVal)continue;
+    const dt=parseDt(dateVal);if(!dt)continue;
+    const month=MO[dt.getMonth()];
+    result.months.add(month);
+    const dayLbl=`${dt.getDate()}-${month}`;
+    const contact=cDesc>=0?rs[cDesc]:'';
+    const debit=parseFl(row[cDebit]);
+    const credit=parseFl(row[cCredit]);
+    const bal=cBal>=0?parseFl(row[cBal]):null;
+
+    // In bank accounts: Debit = money in (inflow), Credit = money out (outflow)
+    if(debit>0){
+      if(!result.inflow[month])result.inflow[month]=[];
+      result.inflow[month].push({date:dayLbl,contact,entity,amt:debit,fee:0,account:curAcct});
+    }
+    if(credit>0){
+      if(!result.outflow[month])result.outflow[month]=[];
+      result.outflow[month].push({date:dayLbl,contact,entity,amt:credit,type:'Variable',account:curAcct});
+    }
+    if(bal!==null){
+      if(!result.bankClose[curAcct])result.bankClose[curAcct]={};
+      result.bankClose[curAcct][month]=bal;
+    }
+  }
+
+  result.months=Array.from(result.months).sort((a,b)=>MO.indexOf(a)-MO.indexOf(b));
+  return result;
+}
+
+function parseXeroBS(rows,entity){
+  // Supports "As at DD Month YYYY" single-period or comparative with month column headers
+  const result={entity,ftype:'bs',months:[],rows:[]};
+  const parseFl=v=>parseFloat(String(v||'').replace(/[,$\s]/g,''))||0;
+
+  // Find month columns — look for a header row containing 2+ month names
+  let colMonths=[], headerRow=-1;
+  for(let i=0;i<Math.min(rows.length,15);i++){
+    const rs=rows[i].map(c=>String(c||'').trim());
+    const hits=rs.map((c,ci)=>{
+      // "As at DD Month YYYY" or "Jan 2026" or "January 2026"
+      const m=c.match(/(?:as at\s+\d+\s+)?([A-Za-z]{3,9})\s+\d{4}/i);
+      return m?{ci,month:m[1].substring(0,3)}:null;
+    }).filter(Boolean);
+    if(hits.length>=1){colMonths=hits;headerRow=i;break;}
+  }
+
+  if(colMonths.length===0){
+    // Single "As at" period in page title rows
+    for(let i=0;i<Math.min(rows.length,8);i++){
+      const cell=String(rows[i][0]||'').trim();
+      const m=cell.match(/as at\s+\d+\s+([A-Za-z]{3,9})\s+\d{4}/i);
+      if(m){colMonths=[{ci:rows[i].length-1,month:m[1].substring(0,3)}];headerRow=i;break;}
+    }
+  }
+
+  if(colMonths.length===0)return result;
+  colMonths.forEach(({month})=>{if(!result.months.includes(month))result.months.push(month);});
+
+  // Parse account rows after header
+  for(let i=headerRow+1;i<rows.length;i++){
+    const rs=rows[i].map(c=>String(c||'').trim());
+    const label=rs[0];
+    if(!label||/^total|^grand/i.test(label))continue;
+    const vals={};
+    colMonths.forEach(({ci,month})=>{vals[month]=parseFl(rs[ci]);});
+    result.rows.push({label,vals});
+  }
+  return result;
+}
+
+function parseXeroPL(rows,entity){
+  // P&L: column header row has month names; account rows follow
+  const result={entity,ftype:'pl',months:[],rows:[]};
+  const parseFl=v=>parseFloat(String(v||'').replace(/[,$\s]/g,''))||0;
+
+  let colMonths=[], headerRow=-1;
+  for(let i=0;i<Math.min(rows.length,20);i++){
+    const rs=rows[i].map(c=>String(c||'').trim());
+    const hits=rs.map((c,ci)=>{
+      const m=c.match(/^([A-Za-z]{3,9})(?:\s+\d{4})?$/);
+      if(!m)return null;
+      const idx=MO.findIndex(mo=>mo.toLowerCase()===m[1].toLowerCase().substring(0,3));
+      return idx>=0?{ci,month:MO[idx]}:null;
+    }).filter(Boolean);
+    if(hits.length>=2){colMonths=hits;headerRow=i;break;}
+  }
+
+  if(colMonths.length===0)return result;
+  colMonths.forEach(({month})=>{if(!result.months.includes(month))result.months.push(month);});
+
+  for(let i=headerRow+1;i<rows.length;i++){
+    const rs=rows[i].map(c=>String(c||'').trim());
+    const label=rs[0];
+    if(!label||/^total|^grand/i.test(label))continue;
+    const vals={};
+    colMonths.forEach(({ci,month})=>{vals[month]=parseFl(rs[ci]);});
+    result.rows.push({label,vals});
+  }
+  return result;
+}
+
+function renderImportPreview(entity,parsed,ftype){
+  const el=document.getElementById('import-preview-'+entity);
+  if(!el)return;
+  if(!parsed.months||!parsed.months.length){
+    el.innerHTML=`<div class="es" style="color:var(--amber);margin-top:10px">No data detected in this file.</div>`;
+    return;
+  }
+  const months=parsed.months;
+  let rowsHtml='';
+
+  if(ftype==='gl'){
+    const inT=months.map(m=>(parsed.inflow[m]||[]).reduce((s,r)=>s+r.amt,0));
+    const outT=months.map(m=>(parsed.outflow[m]||[]).reduce((s,r)=>s+r.amt,0));
+    const ytdIn=inT.reduce((s,v)=>s+v,0),ytdOut=outT.reduce((s,v)=>s+v,0);
+    rowsHtml=`
+      <tr><td style="padding:5px 8px;color:var(--text2)">Inflow</td>
+        ${inT.map(v=>`<td style="text-align:right;padding:5px 8px;color:var(--green)">${$f(v)}</td>`).join('')}
+        <td style="text-align:right;padding:5px 8px;color:var(--green);font-weight:600">${$f(ytdIn)}</td></tr>
+      <tr><td style="padding:5px 8px;color:var(--text2)">Outflow</td>
+        ${outT.map(v=>`<td style="text-align:right;padding:5px 8px;color:var(--red)">($${$f(v).replace('$','')})</td>`).join('')}
+        <td style="text-align:right;padding:5px 8px;color:var(--red);font-weight:600">($${$f(ytdOut).replace('$','')})</td></tr>`;
+  } else {
+    // BS or PL — show first 6 non-zero rows as preview
+    const preview=(parsed.rows||[]).filter(r=>months.some(m=>r.vals[m]!==0)).slice(0,6);
+    const ytdCol=ftype==='pl';
+    rowsHtml=preview.map(r=>{
+      const cells=months.map(m=>`<td style="text-align:right;padding:5px 8px">${$f(r.vals[m]||0)}</td>`).join('');
+      const ytd=ytdCol?`<td style="text-align:right;padding:5px 8px;font-weight:600">${$f(months.reduce((s,m)=>s+(r.vals[m]||0),0))}</td>`:'<td></td>';
+      return `<tr><td style="padding:5px 8px;color:var(--text2)">${r.label}</td>${cells}${ytd}</tr>`;
+    }).join('');
+    if(!rowsHtml)rowsHtml=`<tr><td colspan="${months.length+2}" style="padding:8px;color:var(--text3);text-align:center">No rows detected</td></tr>`;
+  }
+
+  const ftLabel={gl:'Account Transactions',bs:'Balance Sheet',pl:'Profit & Loss'}[ftype]||ftype.toUpperCase();
+  el.innerHTML=`<div style="margin-top:12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px">
+    <div style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">${ftLabel} Preview — ${months.join(', ')}</div>
+    <table style="width:100%;border-collapse:collapse;font-size:14.5px">
+      <thead><tr>
+        <th style="text-align:left;padding:4px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)"></th>
+        ${months.map(m=>`<th style="text-align:right;padding:4px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">${m}</th>`).join('')}
+        <th style="text-align:right;padding:4px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">${ftype==='bs'?'':'YTD'}</th>
+      </tr></thead><tbody>${rowsHtml}</tbody></table>
+    <div style="text-align:right;margin-top:12px">
+      <button onclick="applyImport('${entity}','${ftype}')" style="padding:6px 16px;border-radius:6px;font-size:15px;font-weight:600;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">Apply import →</button>
+    </div>
+  </div>`;
+}
+
+function applyImport(entity,ftype){
+  ftype=ftype||(importState[entity+'-gl']?'gl':importState[entity+'-bs']?'bs':'pl');
+  const parsed=importState[entity+'-'+ftype];
+  if(!parsed)return;
+
+  // Extend E + all parallel arrays for any new months
+  parsed.months.forEach(m=>{
+    if(E.includes(m))return;
+    let insertAt=E.findIndex(em=>MO.indexOf(em)>MO.indexOf(m));
+    if(insertAt<0)insertAt=E.length;
+    E.splice(insertAt,0,m);
+    [BH_IN,BH_OUT,BC_IN,BC_OUT,BH_FX,BC_FX,BH_CLOSE,BC_CLOSE].forEach(a=>a.splice(insertAt,0,0));
+    Object.values(BH_BANKS).forEach(a=>a.splice(insertAt,0,0));
+    Object.values(BC_BANKS).forEach(a=>a.splice(insertAt,0,0));
+    [...BH_PL,...BC_PL,...CONSO_PL,...BH_BS,...BC_BS,...CONSO_BS].forEach(r=>{if(r.v)r.v.splice(insertAt,0,0);});
+  });
+
+  const isB=entity==='bh';
+
+  if(ftype==='gl'){
+    const IN_D=isB?BH_IN_D:BC_IN_D, OUT_D=isB?BH_OUT_D:BC_OUT_D;
+    const IN=isB?BH_IN:BC_IN, OUT=isB?BH_OUT:BC_OUT;
+    const BANKS=isB?BH_BANKS:BC_BANKS, CLOSE=isB?BH_CLOSE:BC_CLOSE;
+    parsed.months.forEach(m=>{
+      IN_D[m]=parsed.inflow[m]||[];
+      OUT_D[m]=parsed.outflow[m]||[];
+      const idx=E.indexOf(m);
+      if(idx>=0){
+        IN[idx]=IN_D[m].reduce((s,r)=>s+r.amt,0);
+        OUT[idx]=OUT_D[m].reduce((s,r)=>s+r.amt,0);
+      }
+    });
+    const closeFn=isB?bhClose:bcClose;
+    Object.entries(parsed.bankClose).forEach(([acct,mMap])=>{
+      const clean=n=>n.replace(/^\d+\s*[-–]\s*/,'').toLowerCase().replace(/[-\s]+/g,' ').trim();
+      const key=Object.keys(BANKS).find(k=>clean(acct).includes(clean(k))||clean(k).includes(clean(acct)));
+      if(key){Object.entries(mMap).forEach(([m,v])=>{const i=E.indexOf(m);if(i>=0)BANKS[key][i]=v;});}
+    });
+    E.forEach((_,i)=>{CLOSE[i]=closeFn(i);});
+  }
+
+  if(ftype==='bs'){
+    const target=isB?BH_BS:BC_BS;
+    parsed.rows.forEach(r=>{
+      const key=normKey(r.label);
+      const row=target.find(t=>normKey(t.label)===key||normKey(t.label).includes(key)||key.includes(normKey(t.label)));
+      if(row&&row.v){
+        parsed.months.forEach(m=>{const i=E.indexOf(m);if(i>=0)row.v[i]=r.vals[m]||0;});
+      }
+    });
+    // Rebuild conso BS
+    CONSO_BS.forEach(cr=>{
+      const bhr=BH_BS.find(r=>normKey(r.label)===normKey(cr.label));
+      const bcr=BC_BS.find(r=>normKey(r.label)===normKey(cr.label));
+      if(cr.v&&(bhr||bcr)){cr.v=E.map((_,i)=>((bhr&&bhr.v?bhr.v[i]:0)|0)+((bcr&&bcr.v?bcr.v[i]:0)|0));}
+    });
+  }
+
+  if(ftype==='pl'){
+    const target=isB?BH_PL:BC_PL;
+    parsed.rows.forEach(r=>{
+      const key=normKey(r.label);
+      const row=target.find(t=>normKey(t.label)===key||normKey(t.label).includes(key)||key.includes(normKey(t.label)));
+      if(row&&row.v){
+        parsed.months.forEach(m=>{const i=E.indexOf(m);if(i>=0)row.v[i]=r.vals[m]||0;});
+      }
+    });
+    // Rebuild conso PL
+    CONSO_PL.forEach(cr=>{
+      const bhr=BH_PL.find(r=>normKey(r.label)===normKey(cr.label));
+      const bcr=BC_PL.find(r=>normKey(r.label)===normKey(cr.label));
+      if(cr.v&&(bhr||bcr)){cr.v=E.map((_,i)=>((bhr&&bhr.v?bhr.v[i]:0)|0)+((bcr&&bcr.v?bcr.v[i]:0)|0));}
+    });
+  }
+
+  // Update sidebar actuals label
+  const sa=document.getElementById('sidebar-actuals');
+  if(sa)sa.textContent=`${E[E.length-1]} 2026`;
+
+  const prev=document.getElementById('import-preview-'+entity);
+  const ftLabel={gl:'Account Transactions',bs:'Balance Sheet',pl:'P&L'}[ftype]||ftype;
+  if(prev)prev.innerHTML=`<div class="es" style="border-color:var(--accent-border);background:var(--accent-light);margin-top:10px"><span style="color:var(--green)">✓</span> &nbsp;${ftLabel}: ${parsed.months.length} month(s) applied — ${parsed.months.join(', ')}</div>`;
+
+  renderDash();renderCF();renderFin();
+  delete importState[entity+'-'+ftype];
+}
+
+// ── Forecast data persistence ──
+const FCST_MONTHS = ['May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+let AR_FCST = [];
+let AP_FCST = [];
+try { AR_FCST = JSON.parse(localStorage.getItem('ar_fcst')||'[]'); } catch(e){}
+try { AP_FCST = JSON.parse(localStorage.getItem('ap_fcst')||'[]'); } catch(e){}
+
+function saveFcastAR(){ try{localStorage.setItem('ar_fcst',JSON.stringify(AR_FCST));}catch(e){} }
+function saveFcastAP(){ try{localStorage.setItem('ap_fcst',JSON.stringify(AP_FCST));}catch(e){} }
+
+function getFcastInflow(month){
+  return AR_FCST.filter(r=>r.cashMonth===month&&r.status!=='Paid').reduce((s,r)=>s+(r.cash||0),0);
+}
+function getFcastOutflow(month){
+  return AP_FCST.filter(r=>r.cashMonth===month).reduce((s,r)=>s+(r.amount||0),0);
+}
+
+// ── Forecast AR render ──
+function renderFcastAR(){
+  // Summary bar
+  const sumEl=document.getElementById('fcar-summary');
+  if(sumEl){
+    sumEl.innerHTML=FCST_MONTHS.map(m=>{
+      const v=getFcastInflow(m);
+      return `<div class="fsum-card"><div class="fsc-m">${m}</div><div class="fsc-v">${v?$f(v):'—'}</div></div>`;
+    }).join('');
+  }
+  // Table
+  const tEl=document.getElementById('fcar-table');
+  if(!tEl)return;
+  const stClass={Draft:'st-draft',Invoiced:'st-invoiced',Partial:'st-partial',Paid:'st-paid',Overdue:'st-overdue'};
+  let h=`<thead><tr>
+    <th>Client</th><th>Invoice #</th><th>Inv. Date</th><th>Month</th><th>Due Date</th><th>Payment Date</th>
+    <th>Currency</th><th style="text-align:right">Amount</th><th style="text-align:right">FX</th>
+    <th style="text-align:right">USD Value</th><th>Mode</th><th style="text-align:right">Fee</th>
+    <th style="text-align:right">Interbank</th><th style="text-align:right">Cash</th>
+    <th>Cash Month</th><th>Status</th><th>Actions</th>
+  </tr></thead><tbody>`;
+  if(AR_FCST.length===0){
+    h+=`<tr><td colspan="17" style="text-align:center;color:var(--text3);padding:28px">No forecast invoices yet — click ＋ Add invoice to get started</td></tr>`;
+  } else {
+    AR_FCST.forEach(r=>{
+      const sc=stClass[r.status]||'st-draft';
+      h+=`<tr>
+        <td style="font-weight:600">${r.client||'—'}</td>
+        <td style="color:var(--text2)">${r.invoiceNo||'—'}</td>
+        <td style="font-size:14px">${r.invoiceDate||'—'}</td>
+        <td style="font-size:14px">${r.invoiceMonth||'—'}</td>
+        <td style="font-size:14px">${r.dueDate||'—'}</td>
+        <td style="font-size:14px">${r.paymentDate||'—'}</td>
+        <td>${r.currency||'USD'}</td>
+        <td style="text-align:right">${r.amount?$f(r.amount):'—'}</td>
+        <td style="text-align:right">${r.fx||1}</td>
+        <td style="text-align:right">${r.usdValue?$f(r.usdValue):'—'}</td>
+        <td style="font-size:14px">${r.mode||'—'}</td>
+        <td style="text-align:right">${r.fee?$f(r.fee):'—'}</td>
+        <td style="text-align:right">${r.interbank?$f(r.interbank):'—'}</td>
+        <td style="text-align:right;color:var(--green);font-weight:600">${r.cash?$f(r.cash):'—'}</td>
+        <td>${r.cashMonth||'—'}</td>
+        <td><span class="st-badge ${sc}">${r.status||'Draft'}</span></td>
+        <td style="white-space:nowrap">
+          <button onclick="openARModal('${r.id}')" style="background:none;border:none;cursor:pointer;color:var(--text3);padding:3px 6px;font-size:15px" title="Edit">✎</button>
+          <button onclick="deleteFcastRow('ar','${r.id}')" style="background:none;border:none;cursor:pointer;color:var(--red);padding:3px 6px;font-size:15px" title="Delete">🗑</button>
+        </td>
+      </tr>`;
+    });
+  }
+  h+='</tbody>';
+  tEl.innerHTML=h;
+}
+
+// ── Forecast AP render ──
+function renderFcastAP(){
+  // Summary bar
+  const sumEl=document.getElementById('fcap-summary');
+  if(sumEl){
+    sumEl.innerHTML=FCST_MONTHS.map(m=>{
+      const v=getFcastOutflow(m);
+      return `<div class="fsum-card out"><div class="fsc-m">${m}</div><div class="fsc-v">${v?'($'+$f(v).replace('$',')'):'—'}</div></div>`;
+    }).join('');
+  }
+  // Table
+  const tEl=document.getElementById('fcap-table');
+  if(!tEl)return;
+  let h=`<thead><tr>
+    <th>Vendor</th><th>Entity</th><th>Category</th><th>Payment Date</th>
+    <th style="text-align:right">Amount (USD)</th><th>Cash Month</th><th>Actions</th>
+  </tr></thead><tbody>`;
+  if(AP_FCST.length===0){
+    h+=`<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:28px">No forecast payments yet — click ＋ Add payment to get started</td></tr>`;
+  } else {
+    AP_FCST.forEach(r=>{
+      h+=`<tr>
+        <td style="font-weight:600">${r.vendor||'—'}</td>
+        <td>${r.entity?eb(r.entity):'—'}</td>
+        <td style="font-size:14px">${r.category||'—'}</td>
+        <td style="font-size:14px">${r.paymentDate||'—'}</td>
+        <td style="text-align:right;color:var(--red);font-weight:500">${r.amount?'($'+$f(r.amount).replace('$',')'):'—'}</td>
+        <td>${r.cashMonth||'—'}</td>
+        <td style="white-space:nowrap">
+          <button onclick="openAPModal('${r.id}')" style="background:none;border:none;cursor:pointer;color:var(--text3);padding:3px 6px;font-size:15px" title="Edit">✎</button>
+          <button onclick="deleteFcastRow('ap','${r.id}')" style="background:none;border:none;cursor:pointer;color:var(--red);padding:3px 6px;font-size:15px" title="Delete">🗑</button>
+        </td>
+      </tr>`;
+    });
+  }
+  h+='</tbody>';
+  tEl.innerHTML=h;
+}
+
+// ── Forecast modal helpers ──
+function closeFcstModal(){
+  document.getElementById('fcst-modal').style.display='none';
+}
+
+function calcARAutoFields(){
+  const amt=parseFloat(document.getElementById('far-amount')?.value)||0;
+  const fx=parseFloat(document.getElementById('far-fx')?.value)||1;
+  const fee=parseFloat(document.getElementById('far-fee')?.value)||0;
+  const ib=parseFloat(document.getElementById('far-interbank')?.value)||0;
+  const usd=amt*fx;
+  const cash=usd-fee-ib;
+  const usdEl=document.getElementById('far-usdvalue');
+  const cashEl=document.getElementById('far-cash');
+  if(usdEl)usdEl.value=usd?usd.toFixed(2):'';
+  if(cashEl)cashEl.value=cash?cash.toFixed(2):'';
+}
+
+function autoFillMonth(){
+  const v=document.getElementById('far-invoicedate')?.value;
+  const mEl=document.getElementById('far-invoicemonth');
+  if(!v||!mEl)return;
+  const mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][new Date(v).getMonth()];
+  mEl.value=mo||'';
+}
+
+function autoFillFX(){
+  const cur=document.getElementById('far-currency')?.value;
+  const fxEl=document.getElementById('far-fx');
+  if(fxEl&&cur==='USD')fxEl.value='1';
+  calcARAutoFields();
+}
+
+// ── Build contact autocomplete list from existing data ──
+function getClientNames(){
+  const names=new Set();
+  Object.values(BH_IN_D).flat().forEach(t=>names.add(t.contact));
+  Object.values(BC_IN_D).flat().forEach(t=>names.add(t.contact));
+  return [...names].sort();
+}
+
+function getVendorNames(){
+  const names=new Set();
+  Object.values(BH_OUT_D).flat().forEach(t=>names.add(t.contact));
+  Object.values(BC_OUT_D).flat().forEach(t=>names.add(t.contact));
+  return [...names].sort();
+}
+
+function getCategories(){
+  const cats=new Set();
+  const merged=getMergedMap();
+  Object.values(merged).forEach(v=>{if(v.group)cats.add(v.group);});
+  // Also add standard AP segs
+  ['SEO','Web Dev','Mktg Ops','Finance','Content','Design','Company','Compliance','Accounting'].forEach(c=>cats.add(c));
+  return [...cats].sort();
+}
+
+// ── AR Modal ──
+function openARModal(id){
+  const row=id?AR_FCST.find(r=>r.id===id):null;
+  const v=k=>row?row[k]:'';
+  const monthOpts=FCST_MONTHS.map(m=>`<option${(v('cashMonth')===m)?` selected`:``}>${m}</option>`).join('');
+  const currencies=['USD','AED','GBP','EUR','INR'];
+  const modes=['Payoneer','Stripe','Wire/SWIFT','Upwork','Other'];
+  const statuses=['Draft','Invoiced','Partial','Paid','Overdue'];
+  const clientNames=getClientNames();
+  const clientList=clientNames.map(n=>`<option value="${n.replace(/"/g,'&quot;')}">`).join('');
+
+  const h=`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <div style="font-size:19px;font-weight:700">${id?'Edit Invoice':'New AR Forecast Invoice'}</div>
+      <button onclick="closeFcstModal()" style="background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;line-height:1">✕</button>
+    </div>
+    <datalist id="far-clients-list">${clientList}</datalist>
+    <div class="fcst-form">
+      <div>
+        <label>Client name</label>
+        <input id="far-client" list="far-clients-list" value="${v('client')}" placeholder="Client name">
+      </div>
+      <div>
+        <label>Invoice #</label>
+        <input id="far-invoiceno" value="${v('invoiceNo')}" placeholder="INV-001">
+      </div>
+      <div>
+        <label>Invoice Date</label>
+        <input id="far-invoicedate" type="date" value="${v('invoiceDate')}" oninput="autoFillMonth()">
+      </div>
+      <div>
+        <label>Month of Invoice</label>
+        <input id="far-invoicemonth" value="${v('invoiceMonth')}" readonly placeholder="Auto">
+      </div>
+      <div>
+        <label>Due Date</label>
+        <input id="far-duedate" type="date" value="${v('dueDate')}">
+      </div>
+      <div>
+        <label>Payment Date</label>
+        <input id="far-paymentdate" type="date" value="${v('paymentDate')}">
+      </div>
+      <div>
+        <label>Currency</label>
+        <select id="far-currency" onchange="autoFillFX()">
+          ${currencies.map(c=>`<option${v('currency')===c?' selected':''}>${c}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label>Amount</label>
+        <input id="far-amount" type="number" value="${v('amount')}" placeholder="0" oninput="calcARAutoFields()">
+      </div>
+      <div>
+        <label>FX Rate</label>
+        <input id="far-fx" type="number" value="${v('fx')||1}" placeholder="1.0" step="0.0001" oninput="calcARAutoFields()">
+      </div>
+      <div>
+        <label>USD Value</label>
+        <input id="far-usdvalue" type="number" value="${v('usdValue')}" readonly placeholder="Auto">
+      </div>
+      <div>
+        <label>Mode</label>
+        <select id="far-mode">
+          ${modes.map(m=>`<option${v('mode')===m?' selected':''}>${m}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label>Fee (USD)</label>
+        <input id="far-fee" type="number" value="${v('fee')||0}" placeholder="0" step="0.01" oninput="calcARAutoFields()">
+      </div>
+      <div>
+        <label>Interbank (USD)</label>
+        <input id="far-interbank" type="number" value="${v('interbank')||0}" placeholder="0" step="0.01" oninput="calcARAutoFields()">
+      </div>
+      <div>
+        <label>Cash (auto)</label>
+        <input id="far-cash" type="number" value="${v('cash')}" readonly placeholder="Auto">
+      </div>
+      <div>
+        <label>Cash Month</label>
+        <select id="far-cashmonth">${monthOpts}</select>
+      </div>
+      <div>
+        <label>Status</label>
+        <select id="far-status">
+          ${statuses.map(s=>`<option${v('status')===s?' selected':''}>${s}</option>`).join('')}
+        </select>
+      </div>
+      <div class="full" style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px">
+        <button onclick="closeFcstModal()" style="padding:8px 20px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:15px;cursor:pointer;font-family:var(--sans)">Cancel</button>
+        <button onclick="saveARModal('${id||''}')" style="padding:8px 20px;border-radius:6px;border:none;background:var(--accent);color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:var(--sans)">Save</button>
+      </div>
+    </div>`;
+  document.getElementById('fcst-modal-body').innerHTML=h;
+  document.getElementById('fcst-modal').style.display='flex';
+  // Init auto-calc
+  calcARAutoFields();
+}
+
+function saveARModal(id){
+  const get=k=>document.getElementById(k)?.value?.trim()||'';
+  const getN=k=>parseFloat(document.getElementById(k)?.value)||0;
+  const row={
+    id:id||Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+    client:get('far-client'),
+    invoiceNo:get('far-invoiceno'),
+    invoiceDate:get('far-invoicedate'),
+    invoiceMonth:get('far-invoicemonth'),
+    dueDate:get('far-duedate'),
+    paymentDate:get('far-paymentdate'),
+    currency:get('far-currency'),
+    amount:getN('far-amount'),
+    fx:getN('far-fx')||1,
+    usdValue:getN('far-usdvalue'),
+    mode:get('far-mode'),
+    fee:getN('far-fee'),
+    interbank:getN('far-interbank'),
+    cash:getN('far-cash'),
+    cashMonth:get('far-cashmonth'),
+    status:get('far-status')
+  };
+  if(id){const i=AR_FCST.findIndex(r=>r.id===id);if(i>=0)AR_FCST[i]=row;else AR_FCST.push(row);}
+  else AR_FCST.push(row);
+  saveFcastAR();
+  closeFcstModal();
+  renderFcastAR();
+}
+
+// ── AP Modal ──
+function openAPModal(id){
+  const row=id?AP_FCST.find(r=>r.id===id):null;
+  const v=k=>row?row[k]:'';
+  const monthOpts=FCST_MONTHS.map(m=>`<option${v('cashMonth')===m?' selected':''}>${m}</option>`).join('');
+  const categories=getCategories();
+  const vendorNames=getVendorNames();
+  const vendorList=vendorNames.map(n=>`<option value="${n.replace(/"/g,'&quot;')}">`).join('');
+
+  const h=`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <div style="font-size:19px;font-weight:700">${id?'Edit Payment':'New AP Forecast Payment'}</div>
+      <button onclick="closeFcstModal()" style="background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;line-height:1">✕</button>
+    </div>
+    <datalist id="fap-vendors-list">${vendorList}</datalist>
+    <div class="fcst-form" style="grid-template-columns:1fr">
+      <div>
+        <label>Vendor name</label>
+        <input id="fap-vendor" list="fap-vendors-list" value="${v('vendor')}" placeholder="Vendor name">
+      </div>
+      <div>
+        <label>Entity</label>
+        <select id="fap-entity">
+          <option${v('entity')==='BH'?' selected':''}>BH</option>
+          <option${v('entity')==='BC'?' selected':''}>BC</option>
+        </select>
+      </div>
+      <div>
+        <label>Category</label>
+        <select id="fap-category">
+          ${categories.map(c=>`<option${v('category')===c?' selected':''}>${c}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label>Payment Date</label>
+        <input id="fap-paymentdate" type="date" value="${v('paymentDate')}">
+      </div>
+      <div>
+        <label>Amount USD</label>
+        <input id="fap-amount" type="number" value="${v('amount')}" placeholder="0" step="0.01">
+      </div>
+      <div>
+        <label>Cash Month</label>
+        <select id="fap-cashmonth">${monthOpts}</select>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px">
+        <button onclick="closeFcstModal()" style="padding:8px 20px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:15px;cursor:pointer;font-family:var(--sans)">Cancel</button>
+        <button onclick="saveAPModal('${id||''}')" style="padding:8px 20px;border-radius:6px;border:none;background:var(--accent);color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:var(--sans)">Save</button>
+      </div>
+    </div>`;
+  document.getElementById('fcst-modal-body').innerHTML=h;
+  document.getElementById('fcst-modal').style.display='flex';
+}
+
+function saveAPModal(id){
+  const get=k=>document.getElementById(k)?.value?.trim()||'';
+  const getN=k=>parseFloat(document.getElementById(k)?.value)||0;
+  const row={
+    id:id||Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+    vendor:get('fap-vendor'),
+    entity:get('fap-entity'),
+    category:get('fap-category'),
+    paymentDate:get('fap-paymentdate'),
+    amount:getN('fap-amount'),
+    cashMonth:get('fap-cashmonth')
+  };
+  if(id){const i=AP_FCST.findIndex(r=>r.id===id);if(i>=0)AP_FCST[i]=row;else AP_FCST.push(row);}
+  else AP_FCST.push(row);
+  saveFcastAP();
+  closeFcstModal();
+  renderFcastAP();
+}
+
+function deleteFcastRow(type,id){
+  if(!confirm('Delete this row?'))return;
+  if(type==='ar'){AR_FCST=AR_FCST.filter(r=>r.id!==id);saveFcastAR();renderFcastAR();}
+  else{AP_FCST=AP_FCST.filter(r=>r.id!==id);saveFcastAP();renderFcastAP();}
+}
+
+// ── Export CSV helpers ──
+function dlCSV(filename,rows){
+  const csv=rows.map(r=>r.map(v=>{
+    const s=String(v==null?'':v);
+    return s.includes(',')||s.includes('"')||s.includes('\n')?'"'+s.replace(/"/g,'""')+'"':s;
+  }).join(',')).join('\r\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=filename;
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+
+function exportARCSV(){
+  const headers=['Client','Invoice #','Invoice Date','Due Date','Payment Date','Currency','Amount','FX Rate','USD Value','Mode','Fee','Interbank','Cash','Cash Month','Status'];
+  const rows=[headers,...AR_FCST.map(r=>[
+    r.client||'',r.invoiceNo||'',r.invoiceDate||'',r.dueDate||'',r.paymentDate||'',
+    r.currency||'',r.amount||'',r.fx||'',r.usdValue||'',r.mode||'',
+    r.fee||'',r.interbank||'',r.cash||'',r.cashMonth||'',r.status||''
+  ])];
+  dlCSV('ar_pipeline_'+new Date().toISOString().slice(0,10)+'.csv',rows);
+}
+
+function exportAPCSV(){
+  const headers=['Vendor','Entity','Category','Payment Date','Amount (USD)','Cash Month'];
+  const rows=[headers,...AP_FCST.map(r=>[
+    r.vendor||'',r.entity||'',r.category||'',r.paymentDate||'',r.amount||'',r.cashMonth||''
+  ])];
+  dlCSV('ap_schedule_'+new Date().toISOString().slice(0,10)+'.csv',rows);
+}
+
+// ── Import helpers ──
+const AR_COL_MAP={
+  'client':'client','invoice #':'invoiceNo','invoice no':'invoiceNo','invoice number':'invoiceNo',
+  'invoice date':'invoiceDate','due date':'dueDate','payment date':'paymentDate',
+  'currency':'currency','amount':'amount','fx rate':'fx','fx':'fx',
+  'usd value':'usdValue','mode':'mode','fee':'fee','interbank':'interbank',
+  'cash':'cash','cash month':'cashMonth','status':'status'
+};
+const AP_COL_MAP={
+  'vendor':'vendor','entity':'entity','category':'category',
+  'payment date':'paymentDate','amount (usd)':'amount','amount':'amount',
+  'cash month':'cashMonth'
+};
+
+function parseSheetRows(wb,sheetIdx){
+  const XLSX=window.XLSX;
+  const sheet=wb.Sheets[wb.SheetNames[sheetIdx||0]];
+  return XLSX.utils.sheet_to_json(sheet,{defval:''});
+}
+
+function mapRow(raw,colMap){
+  const out={};
+  Object.keys(raw).forEach(k=>{
+    const mapped=colMap[k.trim().toLowerCase()];
+    if(mapped)out[mapped]=raw[k];
+  });
+  return out;
+}
+
+function importARFile(file){
+  if(!file)return;
+  loadSheetJS(()=>{
+    const reader=new FileReader();
+    reader.onload=e=>{
+      try{
+        const data=new Uint8Array(e.target.result);
+        const wb=window.XLSX.read(data,{type:'array',cellDates:true});
+        const jsonRows=parseSheetRows(wb,0);
+        if(!jsonRows.length){alert('No data rows found.');return;}
+        let added=0,updated=0;
+        jsonRows.forEach(raw=>{
+          const r=mapRow(raw,AR_COL_MAP);
+          if(!r.client&&!r.invoiceNo)return; // skip blank rows
+          // numeric coercion
+          ['amount','fx','usdValue','fee','interbank','cash'].forEach(k=>{
+            if(r[k]!==undefined)r[k]=parseFloat(String(r[k]).replace(/[^0-9.\-]/g,''))||0;
+          });
+          // recompute usdValue and cash if fx present
+          if(r.amount&&r.fx){r.usdValue=parseFloat((r.amount*r.fx).toFixed(2));}
+          if(r.usdValue&&r.fee!==undefined){r.cash=parseFloat((r.usdValue-r.fee-(r.interbank||0)).toFixed(2));}
+          // find existing by invoiceNo or append
+          const existing=r.invoiceNo?AR_FCST.findIndex(x=>x.invoiceNo&&x.invoiceNo===r.invoiceNo):-1;
+          if(existing>=0){AR_FCST[existing]={...AR_FCST[existing],...r};updated++;}
+          else{AR_FCST.push({id:Date.now()+Math.random(),...r});added++;}
+        });
+        saveFcastAR();renderFcastAR();
+        alert(`Import complete: ${added} added, ${updated} updated.`);
+      }catch(err){alert('Import failed: '+err.message);}
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function importAPFile(file){
+  if(!file)return;
+  loadSheetJS(()=>{
+    const reader=new FileReader();
+    reader.onload=e=>{
+      try{
+        const data=new Uint8Array(e.target.result);
+        const wb=window.XLSX.read(data,{type:'array',cellDates:true});
+        const jsonRows=parseSheetRows(wb,0);
+        if(!jsonRows.length){alert('No data rows found.');return;}
+        let added=0;
+        jsonRows.forEach(raw=>{
+          const r=mapRow(raw,AP_COL_MAP);
+          if(!r.vendor&&!r.category)return;
+          if(r.amount!==undefined)r.amount=parseFloat(String(r.amount).replace(/[^0-9.\-]/g,''))||0;
+          AP_FCST.push({id:Date.now()+Math.random(),...r});
+          added++;
+        });
+        saveFcastAP();renderFcastAP();
+        alert(`Import complete: ${added} rows added.`);
+      }catch(err){alert('Import failed: '+err.message);}
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+// ── Password gate ──
+const APP_PWD='fpaindexedfpa';
+function checkAuth(){
+  if(sessionStorage.getItem('fpa_auth')==='1')return;
+  const overlay=document.getElementById('auth-overlay');
+  if(overlay)overlay.style.display='flex';
+  document.querySelector('.shell').style.display='none';
+}
+function submitPwd(){
+  const inp=document.getElementById('pwd-input');
+  if(!inp)return;
+  if(inp.value===APP_PWD){
+    sessionStorage.setItem('fpa_auth','1');
+    document.getElementById('auth-overlay').style.display='none';
+    document.querySelector('.shell').style.display='flex';
+  } else {
+    const err=document.getElementById('pwd-err');
+    if(err){err.textContent='Incorrect password';err.style.display='block';}
+    inp.value='';inp.focus();
+  }
+}
+
+// ── Init ──
+renderDash();
+renderCF();
+renderAR();
+renderAP();
+checkAuth();
+</script>
+</body>
+</html>
