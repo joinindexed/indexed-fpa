@@ -2266,10 +2266,10 @@ function renderFcastAR(){
         <td style="font-weight:600">${r.client||'—'}</td>
         <td>${r.entity?`<span class="ent-badge">${r.entity}</span>`:'—'}</td>
         <td style="color:var(--text2)">${r.invoiceNo||'—'}</td>
-        <td style="font-size:14px">${r.invoiceDate||'—'}</td>
+        <td style="font-size:14px">${fmtDate(r.invoiceDate)}</td>
         <td style="font-size:14px">${r.invoiceMonth||'—'}</td>
-        <td style="font-size:14px">${r.dueDate||'—'}</td>
-        <td style="font-size:14px">${r.paymentDate||'—'}</td>
+        <td style="font-size:14px">${fmtDate(r.dueDate)}</td>
+        <td style="font-size:14px">${fmtDate(r.paymentDate)}</td>
         <td>${r.currency||'USD'}</td>
         <td style="text-align:right">${r.amount?$f(r.amount):'—'}</td>
         <td style="text-align:right">${r.fx||1}</td>
@@ -2278,7 +2278,7 @@ function renderFcastAR(){
         <td style="text-align:right">${r.fee?$f(r.fee):'—'}</td>
         <td style="text-align:right">${r.interbank?$f(r.interbank):'—'}</td>
         <td style="text-align:right;color:var(--green);font-weight:600">${r.cash?$f(r.cash):'—'}</td>
-        <td>${r.cashMonth||'—'}</td>
+        <td>${normalizeCashMonth(r.cashMonth)||'—'}</td>
         <td><span class="st-badge ${sc}">${r.status||'Draft'}</span></td>
         <td style="white-space:nowrap">
           <button onclick="openARModal('${r.id}')" style="background:none;border:none;cursor:pointer;color:var(--text3);padding:3px 6px;font-size:15px" title="Edit">✎</button>
@@ -2337,6 +2337,24 @@ function renderFcastAP(){
   tEl.innerHTML=h;
 }
 
+// ── Date display normalizer ──
+function fmtDate(v){
+  if(!v||v==='—')return'—';
+  // Try ISO: 2026-04-28
+  const iso=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(v));
+  if(iso){
+    const mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(iso[2])-1];
+    return `${parseInt(iso[3])} ${mo} ${iso[1]}`;
+  }
+  // Already human-readable (e.g. "28 April 2026", "28 May 2026") — shorten month name
+  const hr=/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/.exec(String(v));
+  if(hr){
+    const mo=hr[2].slice(0,3);
+    return `${parseInt(hr[1])} ${mo} ${hr[3]}`;
+  }
+  return String(v);
+}
+
 // ── Forecast modal helpers ──
 function closeFcstModal(){
   document.getElementById('fcst-modal').style.display='none';
@@ -2346,13 +2364,16 @@ function calcARAutoFields(){
   const amt=parseFloat(document.getElementById('far-amount')?.value)||0;
   const fx=parseFloat(document.getElementById('far-fx')?.value)||1;
   const fee=parseFloat(document.getElementById('far-fee')?.value)||0;
-  const ib=parseFloat(document.getElementById('far-interbank')?.value)||0;
-  const usd=amt*fx;
-  const cash=usd-fee-ib;
+  const ibPct=parseFloat(document.getElementById('far-ibpct')?.value)||0;
+  const usd=parseFloat((amt*fx).toFixed(2));
+  const ib=parseFloat((usd*ibPct/100).toFixed(2));
+  const cash=parseFloat((usd-fee-ib).toFixed(2));
   const usdEl=document.getElementById('far-usdvalue');
+  const ibEl=document.getElementById('far-interbank');
   const cashEl=document.getElementById('far-cash');
-  if(usdEl)usdEl.value=usd?usd.toFixed(2):'';
-  if(cashEl)cashEl.value=cash?cash.toFixed(2):'';
+  if(usdEl)usdEl.value=usd||'';
+  if(ibEl)ibEl.value=ib||'';
+  if(cashEl)cashEl.value=cash||'';
 }
 
 function autoFillMonth(){
@@ -2472,8 +2493,12 @@ function openARModal(id){
         <input id="far-fee" type="number" value="${v('fee')||0}" placeholder="0" step="0.01" oninput="calcARAutoFields()">
       </div>
       <div>
-        <label>Interbank (USD)</label>
-        <input id="far-interbank" type="number" value="${v('interbank')||0}" placeholder="0" step="0.01" oninput="calcARAutoFields()">
+        <label>Interbank %</label>
+        <input id="far-ibpct" type="number" value="${v('ibPct')!==undefined&&v('ibPct')!==''?v('ibPct'):1}" placeholder="1" step="0.01" min="0" oninput="calcARAutoFields()">
+      </div>
+      <div>
+        <label>Interbank (auto)</label>
+        <input id="far-interbank" type="number" value="${v('interbank')||0}" readonly placeholder="Auto" style="opacity:.7">
       </div>
       <div>
         <label>Cash (auto)</label>
@@ -2518,6 +2543,7 @@ function saveARModal(id){
     usdValue:getN('far-usdvalue'),
     mode:get('far-mode'),
     fee:getN('far-fee'),
+    ibPct:getN('far-ibpct'),
     interbank:getN('far-interbank'),
     cash:getN('far-cash'),
     cashMonth:get('far-cashmonth'),
@@ -2689,12 +2715,21 @@ function importARFile(file){
           r.entity=normalizeEntity(r.entity);
           if(r.cashMonth)r.cashMonth=normalizeCashMonth(r.cashMonth);
           // numeric coercion
-          ['amount','fx','usdValue','fee','interbank','cash'].forEach(k=>{
+          ['amount','fx','usdValue','fee','interbank','ibPct','cash'].forEach(k=>{
             if(r[k]!==undefined)r[k]=parseFloat(String(r[k]).replace(/[^0-9.\-]/g,''))||0;
           });
-          // recompute usdValue and cash if fx present
-          if(r.amount&&r.fx){r.usdValue=parseFloat((r.amount*r.fx).toFixed(2));}
-          if(r.usdValue&&r.fee!==undefined){r.cash=parseFloat((r.usdValue-r.fee-(r.interbank||0)).toFixed(2));}
+          if(!r.fx)r.fx=1;
+          // recompute usdValue, interbank, cash
+          if(r.amount){r.usdValue=parseFloat((r.amount*r.fx).toFixed(2));}
+          const ibPct=r.ibPct!==undefined?r.ibPct:1;
+          r.ibPct=ibPct;
+          r.interbank=parseFloat((r.usdValue*ibPct/100).toFixed(2));
+          r.cash=parseFloat((r.usdValue-(r.fee||0)-r.interbank).toFixed(2));
+          // auto-fill invoiceMonth from invoiceDate if missing
+          if(!r.invoiceMonth&&r.invoiceDate){
+            const d=new Date(r.invoiceDate);
+            if(!isNaN(d))r.invoiceMonth=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
+          }
           // find existing by invoiceNo or append
           const existing=r.invoiceNo?AR_FCST.findIndex(x=>x.invoiceNo&&x.invoiceNo===r.invoiceNo):-1;
           if(existing>=0){AR_FCST[existing]={...AR_FCST[existing],...r};updated++;}
