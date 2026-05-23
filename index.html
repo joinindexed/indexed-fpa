@@ -2238,6 +2238,16 @@ function deleteSelectedAR(){
   AR_SELECTED.clear();
   saveFcastAR();renderFcastAR();renderCF();
 }
+function duplicateARRow(id){
+  const src=AR_FCST.find(r=>String(r.id)===String(id));
+  if(!src)return;
+  const copy={...src,id:Date.now().toString(36)+Math.random().toString(36).slice(2,6)};
+  const idx=AR_FCST.findIndex(r=>String(r.id)===String(id));
+  AR_FCST.splice(idx+1,0,copy);
+  saveFcastAR();renderFcastAR();
+  // Open the copy immediately so the user can adjust it
+  openARModal(copy.id);
+}
 
 function toggleAPSel(id){
   if(AP_SELECTED.has(id))AP_SELECTED.delete(id);else AP_SELECTED.add(id);
@@ -2347,14 +2357,6 @@ function clearARFilters(){
 
 // ── Forecast AR render ──
 function renderFcastAR(){
-  // Summary bar (always uses full unfiltered data)
-  const sumEl=document.getElementById('fcar-summary');
-  if(sumEl){
-    sumEl.innerHTML=FCST_MONTHS.map(m=>{
-      const v=getFcastInflow(m);
-      return `<div class="fsum-card"><div class="fsc-m">${m}</div><div class="fsc-v">${v?$f(v):'—'}</div></div>`;
-    }).join('');
-  }
   // Populate client filter options (unique sorted clients)
   const fClientEl=document.getElementById('ar-f-client');
   const fEntityEl=document.getElementById('ar-f-entity');
@@ -2385,6 +2387,14 @@ function renderFcastAR(){
   });
   const countEl=document.getElementById('ar-f-count');
   if(countEl)countEl.textContent=hasFilter?`${filtered.length} of ${AR_FCST.length} rows`:'';
+  // Summary bar — reflects active filters
+  const sumEl=document.getElementById('fcar-summary');
+  if(sumEl){
+    sumEl.innerHTML=FCST_MONTHS.map(m=>{
+      const v=filtered.filter(r=>normalizeCashMonth(r.cashMonth)===m&&r.status!=='Paid').reduce((s,r)=>s+(r.cash||0),0);
+      return `<div class="fsum-card"><div class="fsc-m">${m}</div><div class="fsc-v">${v?$f(v):'—'}</div></div>`;
+    }).join('');
+  }
   // Table
   const tEl=document.getElementById('fcar-table');
   if(!tEl)return;
@@ -2444,6 +2454,7 @@ function renderFcastAR(){
           <td style="max-width:180px;white-space:normal;font-size:13px;color:var(--text2)">${esc(r.notes)||''}</td>
           <td style="white-space:nowrap">
             <button onclick="openARModal('${rid}')" style="background:none;border:none;cursor:pointer;color:var(--text3);padding:3px 6px;font-size:15px" title="Edit">✎</button>
+            <button onclick="duplicateARRow('${rid}')" style="background:none;border:none;cursor:pointer;color:var(--text3);padding:3px 6px;font-size:15px" title="Duplicate">⧉</button>
             <button onclick="deleteFcastRow('ar','${rid}')" style="background:none;border:none;cursor:pointer;color:var(--red);padding:3px 6px;font-size:15px" title="Delete">🗑</button>
           </td>
         </tr>`;
