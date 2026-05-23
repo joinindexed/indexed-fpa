@@ -2155,6 +2155,7 @@ function applyImport(entity,ftype){
 
 // ── Forecast data persistence ──
 const FCST_MONTHS = ['May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const FCST_YEAR = '2026';
 const ALL_MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function getMonthIdx(m){const i=ALL_MONTHS.indexOf(m);return i>=0?i:99;}
 let AR_FCST = [];
@@ -2198,11 +2199,22 @@ function recalcARRow(r){
     if(r.invoiceDate)r.invoiceDate=normalizeToISO(r.invoiceDate);
     if(r.dueDate)r.dueDate=normalizeToISO(r.dueDate);
     if(r.paymentDate)r.paymentDate=normalizeToISO(r.paymentDate);
-    if(!r.invoiceMonth&&r.invoiceDate){
+    // invoiceMonth: derive from invoiceDate with year
+    if(r.invoiceDate){
       const d=new Date(r.invoiceDate);
-      if(!isNaN(d))r.invoiceMonth=_MO_NAMES[d.getMonth()];
+      if(!isNaN(d))r.invoiceMonth=`${_MO_NAMES[d.getMonth()]} ${d.getFullYear()}`;
     }
-    if(r.cashMonth)r.cashMonth=normalizeCashMonth(r.cashMonth);
+    // cashMonth: upgrade legacy "Jun" → "Jun 2026" using payment/invoice date year
+    if(r.cashMonth){
+      const cm=r.cashMonth;
+      if(!/\d{4}/.test(String(cm))){
+        const refDate=r.paymentDate||r.invoiceDate;
+        const yr=refDate&&!isNaN(new Date(refDate))?new Date(refDate).getFullYear():FCST_YEAR;
+        r.cashMonth=normalizeCashMonth(cm,yr);
+      } else {
+        r.cashMonth=normalizeCashMonth(cm);
+      }
+    }
   }catch(e){}
   return r;
 }
@@ -2289,29 +2301,38 @@ function deleteSelectedAP(){
   saveFcastAP();renderFcastAP();renderCF();
 }
 
-function normalizeCashMonth(val){
+function normalizeCashMonth(val,fallbackYear){
   if(!val)return'';
-  const v=String(val).toLowerCase().trim();
-  // full names
-  const fullMap={january:'Jan',february:'Feb',march:'Mar',april:'Apr',may:'May',june:'Jun',
-    july:'Jul',august:'Aug',september:'Sep',october:'Oct',november:'Nov',december:'Dec'};
-  for(const[k,mv] of Object.entries(fullMap)){if(v.startsWith(k))return mv;}
-  // 3-letter abbreviations (case-insensitive)
-  const abbr=v.slice(0,3);
+  const raw=String(val).trim();
+  const lv=raw.toLowerCase();
   const abbrMap={jan:'Jan',feb:'Feb',mar:'Mar',apr:'Apr',may:'May',jun:'Jun',
     jul:'Jul',aug:'Aug',sep:'Sep',oct:'Oct',nov:'Nov',dec:'Dec'};
-  if(abbrMap[abbr])return abbrMap[abbr];
-  // numeric month 1-12
-  const n=parseInt(v);
-  if(n>=1&&n<=12)return ALL_MONTHS[n-1];
-  return String(val).trim();
+  const fullMap={january:'Jan',february:'Feb',march:'Mar',april:'Apr',may:'May',june:'Jun',
+    july:'Jul',august:'Aug',september:'Sep',october:'Oct',november:'Nov',december:'Dec'};
+  // "Jun 2026" or "June 2026"
+  const withYr=/^([a-z]+)\s+(\d{4})$/i.exec(raw);
+  if(withYr){
+    const m=abbrMap[withYr[1].toLowerCase().slice(0,3)];
+    if(m)return`${m} ${withYr[2]}`;
+    for(const[k,mv] of Object.entries(fullMap)){if(withYr[1].toLowerCase()===k)return`${mv} ${withYr[2]}`;}
+  }
+  // Legacy: "Jun" or "June" — append fallback year
+  const fy=fallbackYear||FCST_YEAR;
+  for(const[k,mv] of Object.entries(fullMap)){if(lv.startsWith(k)){const a=abbrMap[lv.slice(0,3)];return`${a||mv} ${fy}`;}}
+  const abbr=lv.slice(0,3);
+  if(abbrMap[abbr])return`${abbrMap[abbr]} ${fy}`;
+  const n=parseInt(lv);
+  if(n>=1&&n<=12)return`${ALL_MONTHS[n-1]} ${fy}`;
+  return raw;
 }
 
-function getFcastInflow(month){
-  return AR_FCST.filter(r=>normalizeCashMonth(r.cashMonth)===month&&r.status!=='Paid').reduce((s,r)=>s+(r.cash||0),0);
+function getFcastInflow(month){ // month = 'Jun' etc from FCST_MONTHS
+  const full=`${month} ${FCST_YEAR}`;
+  return AR_FCST.filter(r=>{const cm=normalizeCashMonth(r.cashMonth);return(cm===full||cm===month)&&r.status!=='Paid';}).reduce((s,r)=>s+(r.cash||0),0);
 }
 function getFcastOutflow(month){
-  return AP_FCST.filter(r=>normalizeCashMonth(r.cashMonth)===month).reduce((s,r)=>s+(r.amount||0),0);
+  const full=`${month} ${FCST_YEAR}`;
+  return AP_FCST.filter(r=>{const cm=normalizeCashMonth(r.cashMonth);return cm===full||cm===month;}).reduce((s,r)=>s+(r.amount||0),0);
 }
 
 // ── Sort state ──
@@ -2378,8 +2399,11 @@ function renderFcastAR(){
   }
   if(fMonthEl){
     const curMonth=fMonthEl.value;
-    const months=FCST_MONTHS.filter(m=>AR_FCST.some(r=>normalizeCashMonth(r.cashMonth)===m));
-    fMonthEl.innerHTML=`<option value="">All</option>`+months.map(m=>`<option${m===curMonth?' selected':''}>${m}</option>`).join('');
+    const allCMs=[...new Set(AR_FCST.map(r=>normalizeCashMonth(r.cashMonth)).filter(Boolean))].sort((a,b)=>{
+      const parse=s=>{const p=s.split(' ');return(parseInt(p[1]||FCST_YEAR))*100+ALL_MONTHS.indexOf(p[0]);};
+      return parse(a)-parse(b);
+    });
+    fMonthEl.innerHTML=`<option value="">All</option>`+allCMs.map(m=>`<option${m===curMonth?' selected':''}>${m}</option>`).join('');
   }
   // Read active filters
   const fClient=fClientEl?fClientEl.value:'';
@@ -2403,7 +2427,8 @@ function renderFcastAR(){
   const sumEl=document.getElementById('fcar-summary');
   if(sumEl){
     sumEl.innerHTML=FCST_MONTHS.map(m=>{
-      const v=filtered.filter(r=>normalizeCashMonth(r.cashMonth)===m&&r.status!=='Paid').reduce((s,r)=>s+(r.cash||0),0);
+      const _fm=`${m} ${FCST_YEAR}`;
+      const v=filtered.filter(r=>{const cm=normalizeCashMonth(r.cashMonth);return(cm===_fm||cm===m)&&r.status!=='Paid';}).reduce((s,r)=>s+(r.cash||0),0);
       return `<div class="fsum-card"><div class="fsc-m">${m}</div><div class="fsc-v">${v?$f(v):'—'}</div></div>`;
     }).join('');
   }
@@ -2586,8 +2611,21 @@ function autoFillMonth(){
   const v=document.getElementById('far-invoicedate')?.value;
   const mEl=document.getElementById('far-invoicemonth');
   if(!v||!mEl)return;
-  const mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][new Date(v).getMonth()];
-  mEl.value=mo||'';
+  const d=new Date(v);
+  if(isNaN(d))return;
+  mEl.value=`${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]} ${d.getFullYear()}`;
+}
+function autoFillCashMonth(){
+  const pdEl=document.getElementById('far-paymentdate');
+  const cmEl=document.getElementById('far-cashmonth');
+  if(!pdEl||!cmEl||!pdEl.value)return;
+  const d=new Date(pdEl.value);
+  if(isNaN(d))return;
+  const val=`${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]} ${d.getFullYear()}`;
+  for(let i=0;i<cmEl.options.length;i++){if(cmEl.options[i].value===val||cmEl.options[i].text===val){cmEl.selectedIndex=i;return;}}
+  // Option not in list — add it and select it
+  const opt=document.createElement('option');opt.value=val;opt.text=val;opt.selected=true;
+  cmEl.insertBefore(opt,cmEl.firstChild);
 }
 
 function autoFillFX(){
@@ -2625,7 +2663,9 @@ function getCategories(){
 function openARModal(id){
   const row=id?AR_FCST.find(r=>String(r.id)===String(id)):null;
   const v=k=>row?row[k]:'';
-  const monthOpts=FCST_MONTHS.map(m=>`<option${normalizeCashMonth(v('cashMonth'))===m?` selected`:``}>${m}</option>`).join('');
+  const _curCM=normalizeCashMonth(v('cashMonth'));
+  let monthOpts='';
+  for(let y=2025;y<=2028;y++)ALL_MONTHS.forEach(m=>{const val=`${m} ${y}`;monthOpts+=`<option${_curCM===val?' selected':''}>${val}</option>`;});
   const currencies=['USD','AED','GBP','EUR','INR'];
   const modes=['Payoneer','Stripe','Wire/SWIFT','Upwork','Other'];
   const statuses=['Draft','Invoiced','Partial','Paid','Overdue'];
@@ -2668,7 +2708,7 @@ function openARModal(id){
       </div>
       <div>
         <label>Payment Date</label>
-        <input id="far-paymentdate" type="date" value="${toDateInput(v('paymentDate'))}">
+        <input id="far-paymentdate" type="date" value="${toDateInput(v('paymentDate'))}" onchange="autoFillCashMonth()">
       </div>
       <div>
         <label>Currency</label>
@@ -2779,7 +2819,9 @@ function saveARModal(id){
 function openAPModal(id){
   const row=id?AP_FCST.find(r=>String(r.id)===String(id)):null;
   const v=k=>row?row[k]:'';
-  const monthOpts=FCST_MONTHS.map(m=>`<option${normalizeCashMonth(v('cashMonth'))===m?' selected':''}>${m}</option>`).join('');
+  const _curCM2=normalizeCashMonth(v('cashMonth'));
+  let monthOpts='';
+  for(let y=2025;y<=2028;y++)ALL_MONTHS.forEach(m=>{const val=`${m} ${y}`;monthOpts+=`<option${_curCM2===val?' selected':''}>${val}</option>`;});
   const categories=getCategories();
   const vendorNames=getVendorNames();
   const vendorList=vendorNames.map(n=>`<option value="${n.replace(/"/g,'&quot;')}">`).join('');
