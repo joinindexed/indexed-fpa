@@ -2339,9 +2339,9 @@ function getCategories(){
 
 // ── AR Modal ──
 function openARModal(id){
-  const row=id?AR_FCST.find(r=>r.id===id):null;
+  const row=id?AR_FCST.find(r=>String(r.id)===String(id)):null;
   const v=k=>row?row[k]:'';
-  const monthOpts=FCST_MONTHS.map(m=>`<option${(v('cashMonth')===m)?` selected`:``}>${m}</option>`).join('');
+  const monthOpts=FCST_MONTHS.map(m=>`<option${normalizeCashMonth(v('cashMonth'))===m?` selected`:``}>${m}</option>`).join('');
   const currencies=['USD','AED','GBP','EUR','INR'];
   const modes=['Payoneer','Stripe','Wire/SWIFT','Upwork','Other'];
   const statuses=['Draft','Invoiced','Partial','Paid','Overdue'];
@@ -2466,7 +2466,7 @@ function saveARModal(id){
     cashMonth:get('far-cashmonth'),
     status:get('far-status')
   };
-  if(id){const i=AR_FCST.findIndex(r=>r.id===id);if(i>=0)AR_FCST[i]=row;else AR_FCST.push(row);}
+  if(id){const i=AR_FCST.findIndex(r=>String(r.id)===String(id));if(i>=0)AR_FCST[i]=row;else AR_FCST.push(row);}
   else AR_FCST.push(row);
   saveFcastAR();
   closeFcstModal();
@@ -2475,9 +2475,9 @@ function saveARModal(id){
 
 // ── AP Modal ──
 function openAPModal(id){
-  const row=id?AP_FCST.find(r=>r.id===id):null;
+  const row=id?AP_FCST.find(r=>String(r.id)===String(id)):null;
   const v=k=>row?row[k]:'';
-  const monthOpts=FCST_MONTHS.map(m=>`<option${v('cashMonth')===m?' selected':''}>${m}</option>`).join('');
+  const monthOpts=FCST_MONTHS.map(m=>`<option${normalizeCashMonth(v('cashMonth'))===m?' selected':''}>${m}</option>`).join('');
   const categories=getCategories();
   const vendorNames=getVendorNames();
   const vendorList=vendorNames.map(n=>`<option value="${n.replace(/"/g,'&quot;')}">`).join('');
@@ -2539,7 +2539,7 @@ function saveAPModal(id){
     amount:getN('fap-amount'),
     cashMonth:get('fap-cashmonth')
   };
-  if(id){const i=AP_FCST.findIndex(r=>r.id===id);if(i>=0)AP_FCST[i]=row;else AP_FCST.push(row);}
+  if(id){const i=AP_FCST.findIndex(r=>String(r.id)===String(id));if(i>=0)AP_FCST[i]=row;else AP_FCST.push(row);}
   else AP_FCST.push(row);
   saveFcastAP();
   closeFcstModal();
@@ -2548,8 +2548,8 @@ function saveAPModal(id){
 
 function deleteFcastRow(type,id){
   if(!confirm('Delete this row?'))return;
-  if(type==='ar'){AR_FCST=AR_FCST.filter(r=>r.id!==id);saveFcastAR();renderFcastAR();}
-  else{AP_FCST=AP_FCST.filter(r=>r.id!==id);saveFcastAP();renderFcastAP();}
+  if(type==='ar'){AR_FCST=AR_FCST.filter(r=>String(r.id)!==String(id));saveFcastAR();renderFcastAR();renderCF();}
+  else{AP_FCST=AP_FCST.filter(r=>String(r.id)!==String(id));saveFcastAP();renderFcastAP();renderCF();}
 }
 
 // ── Export CSV helpers ──
