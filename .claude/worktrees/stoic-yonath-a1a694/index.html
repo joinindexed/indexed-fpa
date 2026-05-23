@@ -189,11 +189,6 @@ input,select{font-family:var(--sans)}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>Cash flow</div>
     <div class="nav-item" onclick="go('fin',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 17v-2m3 2v-4m3 4v-6M9 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V9l-5-6z"/></svg>Financials</div>
-    <div class="nav-section">Inputs</div>
-    <div class="nav-item" onclick="go('ar',this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>AR</div>
-    <div class="nav-item" onclick="go('ap',this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>AP</div>
     <div class="nav-section">Forecast</div>
     <div class="nav-item" onclick="go('fcast-ar',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>AR Pipeline</div>
@@ -281,32 +276,6 @@ input,select{font-family:var(--sans)}
   </div>
 </div>
 
-<!-- AR -->
-<div id="screen-ar" class="screen">
-  <div class="page-header"><div><div class="page-title">AR</div><div class="page-sub">Customer invoices · actuals from Xero</div></div>
-    <div><button onclick="addAR()" style="padding:7px 14px;border-radius:6px;font-size:16.0px;font-weight:500;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">+ Add invoice</button></div>
-  </div>
-  <div class="content">
-    <div class="card"><div class="card-head"><span class="card-title">Invoice register</span></div>
-      <div style="overflow-x:auto"><table class="dt" id="art"></table></div>
-      <div class="add-row" onclick="addAR()">＋ Add forecast invoice</div>
-    </div>
-  </div>
-</div>
-
-<!-- AP -->
-<div id="screen-ap" class="screen">
-  <div class="page-header"><div><div class="page-title">AP</div><div class="page-sub">Vendor payments · actuals from Xero</div></div>
-    <div><button onclick="addAP()" style="padding:7px 14px;border-radius:6px;font-size:16.0px;font-weight:500;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">+ Add expense</button></div>
-  </div>
-  <div class="content">
-    <div class="card"><div class="card-head"><span class="card-title">Expense register</span></div>
-      <div style="overflow-x:auto"><table class="dt" id="apt"></table></div>
-      <div class="add-row" onclick="addAP()">＋ Add forecast expense</div>
-    </div>
-  </div>
-</div>
-
 <!-- FCAST AR -->
 <div id="screen-fcast-ar" class="screen">
   <div class="page-header">
@@ -321,6 +290,28 @@ input,select{font-family:var(--sans)}
   </div>
   <div class="content">
     <div class="fsum" id="fcar-summary"></div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:13px;color:var(--text2);white-space:nowrap">Client</span>
+        <select id="ar-f-client" onchange="renderFcastAR()" style="font-size:13px;padding:5px 8px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-family:var(--sans);min-width:140px"><option value="">All</option></select>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:13px;color:var(--text2);white-space:nowrap">Entity</span>
+        <select id="ar-f-entity" onchange="renderFcastAR()" style="font-size:13px;padding:5px 8px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-family:var(--sans)">
+          <option value="">All</option>
+          <option value="BH">BH</option>
+          <option value="BC">BC</option>
+        </select>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:13px;color:var(--text2);white-space:nowrap">Cash Month</span>
+        <select id="ar-f-month" onchange="renderFcastAR()" style="font-size:13px;padding:5px 8px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-family:var(--sans)">
+          <option value="">All</option>
+        </select>
+      </div>
+      <button onclick="clearARFilters()" id="ar-f-clear" style="display:none;font-size:12px;padding:5px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text2);cursor:pointer;font-family:var(--sans)">✕ Clear filters</button>
+      <span id="ar-f-count" style="font-size:12px;color:var(--text3);margin-left:4px"></span>
+    </div>
     <div class="fcst-scroll">
       <table class="fcst-table" id="fcar-table"></table>
     </div>
@@ -389,6 +380,21 @@ input,select{font-family:var(--sans)}
 <div id="screen-import" class="screen">
   <div class="page-header"><div><div class="page-title">Import data</div><div class="page-sub">Drop any Xero export — file type auto-detected · All screens refresh automatically</div></div></div>
   <div class="content">
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px 24px;margin-bottom:20px">
+      <div style="font-size:16px;font-weight:700;margin-bottom:4px">GitHub Sync</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:16px">Sync forecast + contacts across devices · stored in <code style="font-size:12px;background:var(--surface2);padding:1px 5px;border-radius:3px">forecast-data.json</code></div>
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+        <div style="flex:1;min-width:260px">
+          <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:5px">Personal Access Token (repo write scope) — stored only on this device</label>
+          <input id="gh-token-input" type="password" placeholder="ghp_xxxxxxxxxxxx"
+            style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:14px;font-family:var(--sans);box-sizing:border-box">
+        </div>
+        <button onclick="saveGHToken()" style="padding:8px 16px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;cursor:pointer;font-family:var(--sans);white-space:nowrap">Save token</button>
+        <button onclick="ghPush()" style="padding:8px 16px;border-radius:6px;border:none;background:var(--accent);color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans);white-space:nowrap">↑ Push to GitHub</button>
+        <button onclick="ghPull()" style="padding:8px 16px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;cursor:pointer;font-family:var(--sans);white-space:nowrap">↓ Pull from GitHub</button>
+      </div>
+      <div id="gh-status" style="margin-top:10px;font-size:13px;color:var(--text3)"></div>
+    </div>
     <div class="ig">
       <div class="ie">
         <div style="font-size:18px;font-weight:600;margin-bottom:14px">Braveheart FZ LLC</div>
@@ -1145,6 +1151,30 @@ const CONSO_PL = [
 // ── Helpers ──
 const $f=(n,d=0)=>{if(n===null||n===undefined)return'—';const s='$'+Math.abs(n).toLocaleString('en',{minimumFractionDigits:d,maximumFractionDigits:d});return n<0?'('+s+')':s;};
 const eb=(e)=>`<span class="ent-badge">${e}</span>`;
+// HTML-escape user strings before inserting into innerHTML
+const esc=(s)=>s==null?'—':String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+// Format a date value to YYYY-MM-DD for <input type="date">
+const toDateInput=(v)=>{
+  if(!v||v==='—')return'';
+  const s=String(v);
+  // ISO: 2026-04-28 or 2026-04-28T...
+  const iso=s.match(/^(\d{4}-\d{2}-\d{2})/);
+  if(iso)return iso[1];
+  // Human: "28 Apr 2026" or "28 April 2026"
+  const hr=s.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/);
+  if(hr){
+    const MOS=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+    const mi=MOS.indexOf(hr[2].toLowerCase().slice(0,3));
+    if(mi>=0)return`${hr[3]}-${String(mi+1).padStart(2,'0')}-${String(hr[1]).padStart(2,'0')}`;
+  }
+  // Excel serial
+  const n=Number(s);
+  if(!isNaN(n)&&n>40000&&n<60000){
+    const d=new Date(Math.round((n-25569)*86400000));
+    return`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+  }
+  return'';
+};
 
 // ── Nav ──
 function go(id,el){
@@ -1155,8 +1185,6 @@ function go(id,el){
   if(id==='dash')renderDash();
   if(id==='cf')renderCF();
   if(id==='fin')renderFin();
-  if(id==='ar')renderAR();
-  if(id==='ap')renderAP();
   if(id==='contacts')renderContacts();
   if(id==='import')initImport();
   if(id==='fcast-ar')renderFcastAR();
@@ -1189,7 +1217,7 @@ function renderCF(){
   renderBnk();
 }
 
-let _cfInGroups=[], _cfOutGroups=[];
+let _cfInGroups=[], _cfOutGroups=[], _cfInFcstGroups=[], _cfOutFcstGroups=[];
 
 function buildCFGroups(isIn){
   const merged=getMergedMap();
@@ -1213,10 +1241,35 @@ function buildCFGroups(isIn){
     .sort((a,b)=>E.reduce((s,m)=>s+(b.vals[m]||0),0)-E.reduce((s,m)=>s+(a.vals[m]||0),0));
 }
 
+function buildFcastCFGroups(isIn){
+  const merged=getMergedMap();
+  const groups={};
+  const rows=isIn?AR_FCST.filter(r=>r.status!=='Paid'):AP_FCST;
+  rows.forEach(r=>{
+    const entity=(r.entity||'BH').toUpperCase();
+    if(ent!=='conso'&&entity!==ent.toUpperCase())return;
+    const contact=isIn?(r.client||'Unknown'):(r.vendor||'Unknown');
+    const m=normalizeCashMonth(r.cashMonth);
+    if(!FCST_MONTHS.includes(m))return;
+    const amt=isIn?(r.cash||0):(r.amount||0);
+    if(!amt)return;
+    const mapKey=contact+'||'+entity;
+    const grpName=merged[mapKey]?.group||contact;
+    if(!groups[grpName])groups[grpName]={group:grpName,vals:{},entities:{BH:{vals:{}},BC:{vals:{}}}};
+    groups[grpName].vals[m]=(groups[grpName].vals[m]||0)+amt;
+    if(!groups[grpName].entities[entity])groups[grpName].entities[entity]={vals:{}};
+    groups[grpName].entities[entity].vals[m]=(groups[grpName].entities[entity].vals[m]||0)+amt;
+  });
+  return Object.values(groups)
+    .sort((a,b)=>FCST_MONTHS.reduce((s,m)=>s+(b.vals[m]||0),0)-FCST_MONTHS.reduce((s,m)=>s+(a.vals[m]||0),0));
+}
+
 function renderCFTable(d){
   openDrill=null;
   _cfInGroups=buildCFGroups(true);
   _cfOutGroups=buildCFGroups(false);
+  _cfInFcstGroups=buildFcastCFGroups(true);
+  _cfOutFcstGroups=buildFcastCFGroups(false);
   const ytdIn=d.in.reduce((s,v)=>s+v,0);
   const ytdOut=d.out.reduce((s,v)=>s+v,0);
   const ytdFX=d.fx.reduce((s,v)=>s+v,0);
@@ -1298,19 +1351,38 @@ function togCFDrill(drId,isIn){
   if(openDrill===drId){row.classList.remove('open');openDrill=null;return;}
   if(openDrill){const p=document.getElementById('dr-'+openDrill);if(p)p.classList.remove('open');}
   openDrill=drId; row.classList.add('open');
-  const groups=isIn?_cfInGroups:_cfOutGroups;
+  const actGroups=isIn?_cfInGroups:_cfOutGroups;
+  const fcstGroups=isIn?_cfInFcstGroups:_cfOutFcstGroups;
   const cls=isIn?'pos':'neg';
   const fmt=v=>isIn?$f(v):'($'+$f(v).replace('$','')+')';
+  const fcs='background:rgba(251,191,36,0.04)';
+  // Merge actual + forecast groups by display group name
+  const mgMap={};
+  actGroups.forEach(g=>{
+    mgMap[g.group]={group:g.group,actVals:g.vals,actEnt:g.entities,fcstVals:{},fcstEnt:{BH:{vals:{}},BC:{vals:{}}}};
+  });
+  fcstGroups.forEach(g=>{
+    if(mgMap[g.group]){mgMap[g.group].fcstVals=g.vals;mgMap[g.group].fcstEnt=g.entities;}
+    else mgMap[g.group]={group:g.group,actVals:{},actEnt:{BH:{vals:{}},BC:{vals:{}}},fcstVals:g.vals,fcstEnt:g.entities};
+  });
+  const allGroups=Object.values(mgMap).sort((a,b)=>{
+    const at=E.reduce((s,m)=>s+(a.actVals[m]||0),0)+FCST_MONTHS.reduce((s,m)=>s+(a.fcstVals[m]||0),0);
+    const bt=E.reduce((s,m)=>s+(b.actVals[m]||0),0)+FCST_MONTHS.reduce((s,m)=>s+(b.fcstVals[m]||0),0);
+    return bt-at;
+  });
   const label=isIn?'Cash inflow by group':'Cash outflow by group';
   let h=`<div class="dt-hd"><span>↳ ${label}</span><span class="dc" onclick="clDrill()">✕</span></div>`;
   h+=`<table class="drt"><thead><tr><th>Display group</th><th>Entity</th>`;
-  E.forEach(m=>h+=`<th>${m}</th>`);
-  h+=`<th>YTD</th></tr></thead><tbody>`;
-  groups.forEach((g,gi)=>{
-    const total=E.reduce((s,m)=>s+(g.vals[m]||0),0);
+  E.forEach(m=>h+=`<th><span class="ba" style="font-size:9px">A</span> ${m}</th>`);
+  FCST_MONTHS.forEach(m=>h+=`<th style="opacity:.85"><span class="bf" style="font-size:9px">F</span> ${m}</th>`);
+  h+=`<th>Total</th></tr></thead><tbody>`;
+  allGroups.forEach((mg,gi)=>{
+    const actTotal=E.reduce((s,m)=>s+(mg.actVals[m]||0),0);
+    const fcstTotal=FCST_MONTHS.reduce((s,m)=>s+(mg.fcstVals[m]||0),0);
+    const total=actTotal+fcstTotal;
     if(!total)return;
-    const hasBH=E.some(m=>g.entities.BH.vals[m]);
-    const hasBC=E.some(m=>g.entities.BC.vals[m]);
+    const hasBH=E.some(m=>mg.actEnt.BH?.vals[m])||FCST_MONTHS.some(m=>mg.fcstEnt.BH?.vals[m]);
+    const hasBC=E.some(m=>mg.actEnt.BC?.vals[m])||FCST_MONTHS.some(m=>mg.fcstEnt.BC?.vals[m]);
     const isMulti=hasBH&&hasBC;
     let entBadge;
     if(ent==='bh') entBadge=eb('BH');
@@ -1320,19 +1392,24 @@ function togCFDrill(drId,isIn){
     else entBadge=eb('BC');
     const rowId='cfent-'+drId+'-'+gi;
     h+=`<tr${isMulti&&ent==='conso'?' style="cursor:pointer" onclick="togEntDrill(\''+rowId+'\')"':''}>`;
-    h+=`<td style="font-weight:600">${isMulti&&ent==='conso'?'▸ ':''}${g.group}</td>`;
+    h+=`<td style="font-weight:600">${isMulti&&ent==='conso'?'▸ ':''}${mg.group}</td>`;
     h+=`<td>${entBadge}</td>`;
-    E.forEach(m=>h+=`<td class="${cls}">${g.vals[m]?fmt(g.vals[m]):'—'}</td>`);
+    E.forEach(m=>h+=`<td class="${cls}">${mg.actVals[m]?fmt(mg.actVals[m]):'—'}</td>`);
+    FCST_MONTHS.forEach(m=>h+=`<td class="${cls}" style="${fcs}">${mg.fcstVals[m]?fmt(mg.fcstVals[m]):'—'}</td>`);
     h+=`<td class="${cls}" style="font-weight:700">${fmt(total)}</td></tr>`;
     if(isMulti&&ent==='conso'){
       ['BH','BC'].forEach(ek=>{
-        const ev=g.entities[ek].vals;
-        const etot=E.reduce((s,m)=>s+(ev[m]||0),0);
+        const actEv=mg.actEnt[ek]?.vals||{};
+        const fcstEv=mg.fcstEnt[ek]?.vals||{};
+        const etotAct=E.reduce((s,m)=>s+(actEv[m]||0),0);
+        const etotFcst=FCST_MONTHS.reduce((s,m)=>s+(fcstEv[m]||0),0);
+        const etot=etotAct+etotFcst;
         if(!etot)return;
         h+=`<tr id="${rowId}-${ek}" style="display:none;background:var(--accent-light)">`;
-        h+=`<td style="padding-left:28px;color:var(--text2)">${g.group}</td>`;
+        h+=`<td style="padding-left:28px;color:var(--text2)">${mg.group}</td>`;
         h+=`<td>${eb(ek)}</td>`;
-        E.forEach(m=>h+=`<td class="${cls}" style="font-size:13px">${ev[m]?fmt(ev[m]):'—'}</td>`);
+        E.forEach(m=>h+=`<td class="${cls}" style="font-size:13px">${actEv[m]?fmt(actEv[m]):'—'}</td>`);
+        FCST_MONTHS.forEach(m=>h+=`<td class="${cls}" style="${fcs};font-size:13px">${fcstEv[m]?fmt(fcstEv[m]):'—'}</td>`);
         h+=`<td class="${cls}" style="font-size:13px">${fmt(etot)}</td></tr>`;
       });
     }
@@ -1412,167 +1489,6 @@ function renderFinTable(id,rows,curEnt,showYTD){
   });
   h+='</tbody>';
   document.getElementById(id).innerHTML=h;
-}
-
-// ── AR ──
-const AR_ROWS=[
-  {sr:1,client:'OE Partners',trade:'OE Partners',part:'SEO Retainer',seg:'SEO',ent:'BH',inv:'25-Jan',due:'25-Jan',pay:'9-Jan',cur:'USD',amt:1500,fx:1,usd:1500,mode:'Stripe',fee:'5%',net:1425,month:'Jan',st:'paid'},
-  {sr:2,client:'Phunk Creative',trade:'Phunk Creative',part:'SEO',seg:'SEO',ent:'BH',inv:'Jan',due:'Jan',pay:'9-Jan',cur:'USD',amt:368,fx:1,usd:368,mode:'Stripe',fee:'5%',net:350,month:'Jan',st:'paid'},
-  {sr:3,client:'Upvolt Ltd',trade:'Upvolt Ltd',part:'SEO',seg:'SEO',ent:'BH',inv:'31-Jan',due:'31-Jan',pay:'10-Jan',cur:'USD',amt:3300,fx:1,usd:3300,mode:'Stripe',fee:'5%',net:3135,month:'Jan',st:'paid'},
-  {sr:4,client:'Macol Limited',trade:'Inst. of Medical Physics',part:'SEO',seg:'SEO',ent:'BH',inv:'17-Jan',due:'17-Jan',pay:'12-Jan',cur:'USD',amt:3585,fx:1,usd:3585,mode:'Stripe',fee:'5%',net:3406,month:'Jan',st:'paid'},
-  {sr:5,client:'Motto LLC',trade:'Motto LLC',part:'SEO',seg:'SEO',ent:'BH',inv:'18-Jan',due:'3-Feb',pay:'10-Jan',cur:'USD',amt:2800,fx:1,usd:2800,mode:'Bank Transfer',fee:'1%',net:2772,month:'Jan',st:'paid'},
-  {sr:6,client:'Private Equity List',trade:'PEL',part:'SEO',seg:'SEO',ent:'BH',inv:'31-Jan',due:'31-Jan',pay:'10-Jan',cur:'USD',amt:240,fx:1,usd:240,mode:'Stripe',fee:'5%',net:228,month:'Jan',st:'paid'},
-  {sr:7,client:'Duo Strategy LLC',trade:'Duo Digital',part:'Affiliate',seg:'Affiliate',ent:'BH',inv:'24-Jan',due:'24-Jan',pay:'24-Jan',cur:'USD',amt:220,fx:1,usd:220,mode:'PayPal',fee:'4.5%',net:210,month:'Jan',st:'paid'},
-  {sr:8,client:'Anintah',trade:'Anintah',part:'SEO',seg:'SEO',ent:'BH',inv:'15-Jan',due:'15-Jan',pay:'25-Jan',cur:'USD',amt:10000,fx:1,usd:10000,mode:'Bank Transfer',fee:'1%',net:9900,month:'Jan',st:'paid'},
-  {sr:9,client:'RRVS Holdings (RecNation)',trade:'RecNation',part:'SEO',seg:'SEO',ent:'BH',inv:'Jan',due:'Jan',pay:'9-Jan',cur:'USD',amt:8150,fx:1,usd:8150,mode:'Payoneer',fee:'1%',net:8069,month:'Jan',st:'paid'},
-  {sr:10,client:'Cloud Web Solutions',trade:'Cloud Web',part:'Affiliate',seg:'Affiliate',ent:'BH',inv:'Jan',due:'Jan',pay:'9-Jan',cur:'USD',amt:2188,fx:1,usd:2188,mode:'Stripe AED',fee:'5%',net:2079,month:'Jan',st:'paid'},
-  {sr:11,client:'RRVS Holdings (RecNation)',trade:'RecNation',part:'Multiple (pSEO+HubSpot)',seg:'Multiple',ent:'BC',inv:'INV-04-11/2025',due:'7-Feb',pay:'7-Feb',cur:'USD',amt:16474,fx:1,usd:16474,mode:'Payoneer',fee:'1%',net:16310,month:'Jan',st:'paid'},
-  {sr:12,client:'OE Partners',trade:'OE Partners',part:'SEO Retainer',seg:'SEO',ent:'BH',inv:'4-Feb',due:'4-Feb',pay:'4-Feb',cur:'USD',amt:1500,fx:1,usd:1500,mode:'Stripe',fee:'5%',net:1425,month:'Feb',st:'paid'},
-  {sr:13,client:'Veriheal Inc',trade:'Veriheal',part:'SEO',seg:'SEO',ent:'BH',inv:'13-Feb',due:'13-Feb',pay:'13-Feb',cur:'USD',amt:14211,fx:1,usd:14211,mode:'Stripe',fee:'0%',net:14211,month:'Feb',st:'paid'},
-  {sr:14,client:'Upvolt Ltd',trade:'Upvolt Ltd',part:'SEO',seg:'SEO',ent:'BH',inv:'14-Feb',due:'14-Feb',pay:'14-Feb',cur:'USD',amt:6500,fx:1,usd:6500,mode:'Stripe',fee:'5%',net:6175,month:'Feb',st:'paid'},
-  {sr:15,client:'Macol Limited',trade:'Inst. of Medical Physics',part:'SEO',seg:'SEO',ent:'BH',inv:'17-Feb',due:'17-Feb',pay:'17-Feb',cur:'USD',amt:7170,fx:1,usd:7170,mode:'Stripe',fee:'5%',net:6812,month:'Feb',st:'paid'},
-  {sr:16,client:'Private Equity List',trade:'PEL',part:'SEO',seg:'SEO',ent:'BH',inv:'Feb',due:'Feb',pay:'12-Feb',cur:'USD',amt:1950,fx:1,usd:1950,mode:'Stripe',fee:'5%',net:1853,month:'Feb',st:'paid'},
-  {sr:17,client:'Cloud Web Solutions',trade:'Cloud Web',part:'Affiliate',seg:'Affiliate',ent:'BH',inv:'Feb',due:'Feb',pay:'4-Feb',cur:'USD',amt:2376,fx:1,usd:2376,mode:'Stripe AED',fee:'5%',net:2257,month:'Feb',st:'paid'},
-  {sr:18,client:'Anintah',trade:'Anintah',part:'SEO',seg:'SEO',ent:'BH',inv:'15-Feb',due:'15-Feb',pay:'25-Feb',cur:'USD',amt:10000,fx:1,usd:10000,mode:'Bank Transfer',fee:'1%',net:9900,month:'Feb',st:'paid'},
-  {sr:19,client:'RRVS Holdings (RecNation)',trade:'RecNation',part:'SEO/Dev',seg:'Multiple',ent:'BH',inv:'Feb',due:'Feb',pay:'12-Feb',cur:'USD',amt:7945,fx:1,usd:7945,mode:'Payoneer',fee:'1%',net:7866,month:'Feb',st:'paid'},
-  {sr:20,client:'Duo Strategy LLC',trade:'Duo Digital',part:'Affiliate',seg:'Affiliate',ent:'BH',inv:'27-Feb',due:'27-Feb',pay:'27-Feb',cur:'USD',amt:220,fx:1,usd:220,mode:'PayPal',fee:'5%',net:209,month:'Feb',st:'paid'},
-  {sr:21,client:'Ramp Business Corp',trade:'Ramp',part:'SEO',seg:'SEO',ent:'BH',inv:'22-Feb',due:'22-Feb',pay:'22-Feb',cur:'USD',amt:600,fx:1,usd:600,mode:'Bank Transfer',fee:'1%',net:594,month:'Feb',st:'paid'},
-  {sr:22,client:'Gregory Brooks (Upwork)',trade:'Gregory Brooks',part:'SEO',seg:'SEO',ent:'BH',inv:'Feb',due:'Feb',pay:'28-Feb',cur:'USD',amt:220,fx:1,usd:220,mode:'Upwork',fee:'10%',net:198,month:'Feb',st:'paid'},
-  {sr:23,client:'RRVS Holdings (RecNation)',trade:'RecNation',part:'Multiple',seg:'Multiple',ent:'BC',inv:'INV-05-11/2025 etc',due:'Feb',pay:'12-Feb',cur:'USD',amt:42829,fx:1,usd:42829,mode:'Payoneer',fee:'1%',net:42401,month:'Feb',st:'paid'},
-];
-
-function renderAR(){
-  const sc={paid:'st-p',outstanding:'st-o',notdue:'st-n'};
-  const sl={paid:'Paid',outstanding:'Outstanding',notdue:'Not due'};
-  let h=`<thead><tr><th>#</th><th>Client</th><th>Trade name</th><th>Particulars</th><th>Segment</th><th>Entity</th>
-    <th>Inv. date</th><th>Due date</th><th>Pay date</th><th>Curr.</th>
-    <th class="r">Inv. amount</th><th style="text-align:center">FX</th>
-    <th class="r">USD value</th><th>Mode</th><th style="text-align:center">Fee</th>
-    <th class="r">Net cash</th><th>Cash month</th><th>Status</th></tr></thead><tbody>`;
-  AR_ROWS.forEach(r=>{
-    h+=`<tr><td style="color:var(--text3)">${r.sr}</td>
-      <td class="bold">${getGroup(r.client,r.ent)||r.client}${getGroup(r.client,r.ent)&&getGroup(r.client,r.ent)!==r.client?'<br><span style="font-size:13.0px;color:var(--text3);font-weight:400">'+r.client+'</span>':''}</td><td>${r.trade}</td><td>${r.part}</td><td>${r.seg}</td>
-      <td>${eb(r.ent)}</td>
-      <td style="font-size:15.0px">${r.inv}</td><td style="font-size:15.0px">${r.due}</td><td style="font-size:15.0px">${r.pay}</td>
-      <td style="font-size:15.0px">${r.cur}</td>
-      <td class="r" style="font-size:15.0px">$${r.amt.toLocaleString()}</td>
-      <td style="text-align:center;font-size:15.0px">${r.fx}</td>
-      <td class="r" style="font-size:15.0px">$${r.usd.toLocaleString()}</td>
-      <td style="font-size:15.0px">${r.mode}</td>
-      <td style="text-align:center;font-size:15.0px">${r.fee}</td>
-      <td class="r" style="font-size:15.0px;color:var(--green);font-weight:600">$${r.net.toLocaleString()}</td>
-      <td style="font-size:15.0px">${r.month}</td>
-      <td><span class="st ${sc[r.st]}">${sl[r.st]}</span></td></tr>`;
-  });
-  document.getElementById('art').innerHTML=h+'</tbody>';
-}
-
-function addAR(){
-  const tbody=document.getElementById('art').querySelector('tbody');
-  const sel=o=>`<select style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-size:15.0px;border-radius:4px;padding:2px 4px;font-family:var(--sans)">${o.map(x=>`<option>${x}</option>`).join('')}</select>`;
-  const inp=(p,w='110px')=>`<input placeholder="${p}" style="background:transparent;border:none;border-bottom:1px solid var(--border2);color:var(--text);width:${w};font-size:15.0px;font-family:var(--sans)">`;
-  const tr=document.createElement('tr');
-  tr.innerHTML=`<td style="color:var(--text3)">—</td><td>${inp('Client','120px')}</td><td>${inp('Trade')}</td><td>${inp('Particulars')}</td>
-    <td>${sel(['SEO','Web Dev','Affiliate','Mktg Ops'])}</td><td>${sel(['BH','BC'])}</td>
-    <td><input type="date" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-size:15.0px;border-radius:4px;padding:2px 4px"></td>
-    <td><input type="date" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-size:15.0px;border-radius:4px;padding:2px 4px"></td>
-    <td><input type="date" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-size:15.0px;border-radius:4px;padding:2px 4px"></td>
-    <td>${sel(['USD','AED'])}</td>
-    <td><input type="number" placeholder="0" style="background:transparent;border:none;border-bottom:1px solid var(--border2);color:var(--text);width:80px;font-size:15.0px;text-align:right"></td>
-    <td><input type="number" value="1" style="background:transparent;border:none;border-bottom:1px solid var(--border2);color:var(--text);width:36px;font-size:15.0px;text-align:center"></td>
-    <td style="color:var(--text3)">—</td>
-    <td>${sel(['Stripe','Bank Transfer','Payoneer','PayPal','Upwork'])}</td>
-    <td><input type="number" placeholder="5" style="background:transparent;border:none;border-bottom:1px solid var(--border2);color:var(--text);width:36px;font-size:15.0px;text-align:center"></td>
-    <td style="color:var(--green);font-weight:600">—</td>
-    <td>${sel(['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'])}</td>
-    <td><span class="st" style="background:var(--blue-dim);color:var(--blue)">Forecast</span></td>`;
-  tbody.appendChild(tr);
-  tr.scrollIntoView({behavior:'smooth',block:'nearest'});
-}
-
-// ── AP ──
-const AP_ROWS=[
-  {vendor:'InZone (Trade License renewal)',ent:'BH',type:'Fixed',src:'Bank Transfer',pay:'29-Jan',amt:11543.91,month:'Jan',seg:'Compliance'},
-  {vendor:'Jagjit Singh',ent:'BH',type:'Variable',src:'Payoneer',pay:'31-Jan',amt:862.50,month:'Jan',seg:'SEO'},
-  {vendor:'Anirban Dutta Choudhury',ent:'BH',type:'Fixed',src:'Payoneer',pay:'31-Jan',amt:1153.20,month:'Jan',seg:'Content'},
-  {vendor:'Sarah Omoruku',ent:'BH',type:'Fixed',src:'Payoneer',pay:'31-Jan',amt:750.00,month:'Jan',seg:'SEO'},
-  {vendor:'Hayley Ward',ent:'BH',type:'Variable',src:'Skuad',pay:'31-Jan',amt:570.00,month:'Jan',seg:'SEO'},
-  {vendor:'Sagar Rauthan',ent:'BH',type:'Variable',src:'Skuad',pay:'31-Jan',amt:216.00,month:'Jan',seg:'SEO'},
-  {vendor:'Karan Mehta',ent:'BH',type:'Fixed',src:'Skuad',pay:'31-Jan',amt:825.00,month:'Jan',seg:'Finance'},
-  {vendor:'Aeman Parwez',ent:'BH',type:'Variable',src:'Skuad',pay:'31-Jan',amt:675.00,month:'Jan',seg:'SEO'},
-  {vendor:'Suchi Shah',ent:'BH',type:'Fixed',src:'Payoneer',pay:'31-Jan',amt:361.00,month:'Jan',seg:'Finance'},
-  {vendor:'Inayat Naqvi',ent:'BH',type:'Variable',src:'Alaan',pay:'27-Jan',amt:552.41,month:'Jan',seg:'Design'},
-  {vendor:'Anjandeep Singh Luthra',ent:'BH',type:'Variable',src:'Alaan',pay:'10-Jan',amt:618.92,month:'Jan',seg:'Company'},
-  {vendor:'Mine Akar',ent:'BH',type:'Variable',src:'Alaan',pay:'10-Jan',amt:274.35,month:'Jan',seg:'Company'},
-  {vendor:'Livia-Ioana Blaj',ent:'BH',type:'Variable',src:'Alaan',pay:'10-Jan',amt:541.99,month:'Jan',seg:'Company'},
-  {vendor:'SKUAD PTE (platform fee)',ent:'BH',type:'Variable',src:'Payoneer',pay:'31-Jan',amt:209.00,month:'Jan',seg:'Company'},
-  {vendor:'Pulkitsingh Parmar',ent:'BH',type:'Variable',src:'Skuad',pay:'31-Jan',amt:70.00,month:'Jan',seg:'SEO'},
-  {vendor:'Jayesh Ashok Jain',ent:'BH',type:'Variable',src:'Skuad',pay:'31-Jan',amt:120.00,month:'Jan',seg:'SEO'},
-  {vendor:'Nirav Nitinbhai Patel',ent:'BH',type:'Variable',src:'Skuad',pay:'31-Jan',amt:250.00,month:'Jan',seg:'SEO'},
-  {vendor:'Subscriptions & tools',ent:'BH',type:'Variable',src:'Alaan',pay:'Various',amt:2534.48,month:'Jan',seg:'Company'},
-  {vendor:'Bank & payment fees',ent:'BH',type:'Fixed',src:'Bank',pay:'Various',amt:209.02,month:'Jan',seg:'Company'},
-  {vendor:'Laitmatus Software Pvt Ltd',ent:'BC',type:'Variable',src:'Skuad',pay:'1-Jan',amt:19126.00,month:'Jan',seg:'Web Dev'},
-  {vendor:'Markestac Consulting Pvt Ltd',ent:'BC',type:'Variable',src:'Skuad',pay:'1-Jan',amt:6054.00,month:'Jan',seg:'Mktg Ops'},
-  {vendor:'Maticore Technologies Pvt Ltd',ent:'BC',type:'Variable',src:'Skuad',pay:'1-Jan',amt:1887.00,month:'Jan',seg:'Web Dev'},
-  {vendor:'OneMetric Marketing Solutions',ent:'BC',type:'Variable',src:'Skuad',pay:'18-Jan',amt:1680.00,month:'Jan',seg:'Mktg Ops'},
-  {vendor:'Virginia Boys LLC (Roedgers)',ent:'BC',type:'Variable',src:'Payoneer',pay:'18-Jan',amt:2000.00,month:'Jan',seg:'Web Dev'},
-  {vendor:'Bank fees & tools',ent:'BC',type:'Fixed',src:'WIO/Xero',pay:'Various',amt:336.60,month:'Jan',seg:'Company'},
-  // Feb
-  {vendor:'Anirban Dutta Choudhury',ent:'BH',type:'Fixed',src:'Skuad',pay:'12-Feb',amt:1144.71,month:'Feb',seg:'Content'},
-  {vendor:'Karan Mehta',ent:'BH',type:'Fixed',src:'Skuad',pay:'12-Feb',amt:1463.00,month:'Feb',seg:'Finance'},
-  {vendor:'Sarah Omoruku',ent:'BH',type:'Fixed',src:'Skuad',pay:'12-Feb',amt:750.00,month:'Feb',seg:'SEO'},
-  {vendor:'Hayley Ward',ent:'BH',type:'Variable',src:'Skuad',pay:'12-Feb',amt:850.00,month:'Feb',seg:'SEO'},
-  {vendor:'Jagjit Singh',ent:'BH',type:'Variable',src:'Skuad',pay:'12-Feb',amt:645.00,month:'Feb',seg:'SEO'},
-  {vendor:'Jayesh Ashok Jain',ent:'BH',type:'Variable',src:'Skuad',pay:'12-Feb',amt:550.00,month:'Feb',seg:'SEO'},
-  {vendor:'Sagar Rauthan',ent:'BH',type:'Variable',src:'Skuad',pay:'12-Feb',amt:324.00,month:'Feb',seg:'SEO'},
-  {vendor:'Nirav Nitinbhai Patel',ent:'BH',type:'Variable',src:'Skuad',pay:'12-Feb',amt:300.00,month:'Feb',seg:'SEO'},
-  {vendor:'Pulkitsingh Parmar',ent:'BH',type:'Variable',src:'Skuad',pay:'12-Feb',amt:180.00,month:'Feb',seg:'SEO'},
-  {vendor:'Suchi Shah',ent:'BH',type:'Fixed',src:'Skuad',pay:'12-Feb',amt:350.00,month:'Feb',seg:'Finance'},
-  {vendor:'Aeman Parwez',ent:'BH',type:'Variable',src:'Skuad',pay:'12-Feb',amt:180.00,month:'Feb',seg:'SEO'},
-  {vendor:'SKUAD PTE',ent:'BH',type:'Variable',src:'Payoneer',pay:'12-Feb',amt:209.00,month:'Feb',seg:'Company'},
-  {vendor:'Inayat Naqvi',ent:'BH',type:'Variable',src:'Skuad',pay:'12-Feb',amt:582.81,month:'Feb',seg:'Design'},
-  {vendor:'Zyla Accountants',ent:'BH',type:'Fixed',src:'Alaan',pay:'4-Feb',amt:354.53,month:'Feb',seg:'Accounting'},
-  {vendor:'Atul Sharma',ent:'BH',type:'Variable',src:'Skuad',pay:'17-Feb',amt:470.00,month:'Feb',seg:'SEO'},
-  {vendor:'Vibha Sharma',ent:'BH',type:'Variable',src:'Skuad',pay:'17-Feb',amt:180.00,month:'Feb',seg:'SEO'},
-  {vendor:'JAI KISHAN',ent:'BH',type:'Variable',src:'Skuad',pay:'22-Feb',amt:625.00,month:'Feb',seg:'SEO'},
-  {vendor:'Sajan Kumar',ent:'BH',type:'Variable',src:'Skuad',pay:'22-Feb',amt:490.00,month:'Feb',seg:'SEO'},
-  {vendor:'1Password',ent:'BH',type:'Variable',src:'Alaan',pay:'17-Feb',amt:287.28,month:'Feb',seg:'Company'},
-  {vendor:'Subscriptions & tools',ent:'BH',type:'Variable',src:'Alaan',pay:'Various',amt:3038.20,month:'Feb',seg:'Company'},
-  {vendor:'Bank & payment fees',ent:'BH',type:'Fixed',src:'Bank',pay:'Various',amt:209.00,month:'Feb',seg:'Company'},
-  {vendor:'Laitmatus Software Pvt Ltd',ent:'BC',type:'Variable',src:'Skuad',pay:'12-Feb',amt:15604.00,month:'Feb',seg:'Web Dev'},
-  {vendor:'Markestac Consulting Pvt Ltd',ent:'BC',type:'Variable',src:'Skuad',pay:'12-Feb',amt:4209.00,month:'Feb',seg:'Mktg Ops'},
-  {vendor:'Maticore Technologies Pvt Ltd',ent:'BC',type:'Variable',src:'Skuad',pay:'12-Feb',amt:1785.00,month:'Feb',seg:'Web Dev'},
-  {vendor:'Virginia Boys LLC (Roedgers)',ent:'BC',type:'Variable',src:'Payoneer',pay:'22-Feb',amt:2000.00,month:'Feb',seg:'Web Dev'},
-  {vendor:'Bank fees & tools',ent:'BC',type:'Fixed',src:'WIO/Xero',pay:'Various',amt:581.51,month:'Feb',seg:'Company'},
-];
-
-function renderAP(){
-  let h=`<thead><tr><th>Vendor</th><th>Entity</th><th>Type</th><th>Source</th>
-    <th>Payment date</th><th class="r">Amount (USD)</th><th>Cash month</th><th>Segment</th></tr></thead><tbody>`;
-  AP_ROWS.forEach(r=>{
-    const tc=r.type==='Fixed'?'var(--amber)':'var(--text2)';
-    h+=`<tr><td class="bold">${getGroup(r.vendor,r.ent)||r.vendor}${getGroup(r.vendor,r.ent)&&getGroup(r.vendor,r.ent)!==r.vendor?'<br><span style="font-size:13.0px;color:var(--text3);font-weight:400">'+r.vendor+'</span>':''}</td><td>${eb(r.ent)}</td>
-      <td><span style="font-size:14.5px;font-weight:500;color:${tc}">${r.type}</span></td>
-      <td style="font-size:15.0px">${r.src}</td><td style="font-size:15.0px">${r.pay}</td>
-      <td class="r" style="font-size:15.0px;color:var(--red);font-weight:500">($${r.amt.toLocaleString()})</td>
-      <td style="font-size:15.0px">${r.month}</td><td style="font-size:15.0px">${r.seg}</td></tr>`;
-  });
-  document.getElementById('apt').innerHTML=h+'</tbody>';
-}
-
-function addAP(){
-  const tbody=document.getElementById('apt').querySelector('tbody');
-  const sel=o=>`<select style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-size:15.0px;border-radius:4px;padding:2px 4px;font-family:var(--sans)">${o.map(x=>`<option>${x}</option>`).join('')}</select>`;
-  const inp=(p,w='130px')=>`<input placeholder="${p}" style="background:transparent;border:none;border-bottom:1px solid var(--border2);color:var(--text);width:${w};font-size:15.0px;font-family:var(--sans)">`;
-  const tr=document.createElement('tr');
-  tr.innerHTML=`<td class="bold">${inp('Vendor name','150px')}</td><td>${sel(['BH','BC'])}</td>
-    <td>${sel(['Fixed','Variable'])}</td><td>${sel(['Skuad','Payoneer','Alaan','Bank Transfer','WIO'])}</td>
-    <td><input type="date" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-size:15.0px;border-radius:4px;padding:2px 4px"></td>
-    <td class="r"><input type="number" placeholder="0" style="background:transparent;border:none;border-bottom:1px solid var(--border2);color:var(--red);width:80px;font-size:15.0px;text-align:right"></td>
-    <td>${sel(['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'])}</td>
-    <td>${inp('Segment','90px')}</td>`;
-  tbody.appendChild(tr);
-  tr.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
 // ── Contact mapping store ──
@@ -1900,6 +1816,9 @@ function detectFileType(name){
 function normKey(s){return String(s||'').toLowerCase().replace(/\s+/g,' ').trim();}
 
 function initImport(){
+  const savedToken=localStorage.getItem('gh_token');
+  const ti=document.getElementById('gh-token-input');
+  if(ti&&savedToken)ti.placeholder='Token saved ✓ (enter new to replace)';
   ['bh','bc'].forEach(e=>{
     const dz=document.getElementById('dz-'+e);
     const fi=document.getElementById('fi-'+e);
@@ -2233,19 +2152,134 @@ let AP_FCST = [];
 try { AR_FCST = JSON.parse(localStorage.getItem('ar_fcst')||'[]'); } catch(e){}
 try { AP_FCST = JSON.parse(localStorage.getItem('ap_fcst')||'[]'); } catch(e){}
 
+function normalizeToISO(v){
+  // Returns YYYY-MM-DD string or original value if not parseable
+  if(!v||v==='—')return v;
+  const s=String(v);
+  if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.slice(0,10); // already ISO
+  // Human: "28 Apr 2026" or "28 April 2026"
+  const hr=s.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/);
+  if(hr){
+    const MOS=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+    const mi=MOS.indexOf(hr[2].toLowerCase().slice(0,3));
+    if(mi>=0)return`${hr[3]}-${String(mi+1).padStart(2,'0')}-${String(hr[1]).padStart(2,'0')}`;
+  }
+  // Excel serial
+  const n=Number(s);
+  if(!isNaN(n)&&n>40000&&n<60000){
+    const d=new Date(Math.round((n-25569)*86400000));
+    return`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+  }
+  return v;
+}
+
+function recalcARRow(r){
+  if(!r.fx)r.fx=1;
+  if(r.amount){r.usdValue=parseFloat((r.amount*r.fx).toFixed(2));}
+  const ibPct=r.ibPct!==undefined?r.ibPct:1;
+  r.ibPct=ibPct;
+  r.usdValue=r.usdValue||0;
+  r.interbank=parseFloat(((r.usdValue*ibPct/100)||0).toFixed(2));
+  r.cash=parseFloat((r.usdValue-(r.fee||0)-r.interbank).toFixed(2));
+  // Normalize dates to ISO YYYY-MM-DD
+  if(r.invoiceDate)r.invoiceDate=normalizeToISO(r.invoiceDate);
+  if(r.dueDate)r.dueDate=normalizeToISO(r.dueDate);
+  if(r.paymentDate)r.paymentDate=normalizeToISO(r.paymentDate);
+  if(!r.invoiceMonth&&r.invoiceDate){
+    const d=new Date(r.invoiceDate);
+    if(!isNaN(d))r.invoiceMonth=ALL_MONTHS[d.getMonth()];
+  }
+  if(r.cashMonth)r.cashMonth=normalizeCashMonth(r.cashMonth);
+  return r;
+}
+
+// Auto-recalculate all existing rows on load
+AR_FCST=AR_FCST.map(recalcARRow);
+
 function saveFcastAR(){ try{localStorage.setItem('ar_fcst',JSON.stringify(AR_FCST));}catch(e){} }
 function saveFcastAP(){ try{localStorage.setItem('ap_fcst',JSON.stringify(AP_FCST));}catch(e){} }
 
+const ALL_MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function getMonthIdx(m){const i=ALL_MONTHS.indexOf(m);return i>=0?i:99;}
+
+function normalizeCashMonth(val){
+  if(!val)return'';
+  const v=String(val).toLowerCase().trim();
+  // full names
+  const fullMap={january:'Jan',february:'Feb',march:'Mar',april:'Apr',may:'May',june:'Jun',
+    july:'Jul',august:'Aug',september:'Sep',october:'Oct',november:'Nov',december:'Dec'};
+  for(const[k,mv] of Object.entries(fullMap)){if(v.startsWith(k))return mv;}
+  // 3-letter abbreviations (case-insensitive)
+  const abbr=v.slice(0,3);
+  const abbrMap={jan:'Jan',feb:'Feb',mar:'Mar',apr:'Apr',may:'May',jun:'Jun',
+    jul:'Jul',aug:'Aug',sep:'Sep',oct:'Oct',nov:'Nov',dec:'Dec'};
+  if(abbrMap[abbr])return abbrMap[abbr];
+  // numeric month 1-12
+  const n=parseInt(v);
+  if(n>=1&&n<=12)return ALL_MONTHS[n-1];
+  return String(val).trim();
+}
+
 function getFcastInflow(month){
-  return AR_FCST.filter(r=>r.cashMonth===month&&r.status!=='Paid').reduce((s,r)=>s+(r.cash||0),0);
+  return AR_FCST.filter(r=>normalizeCashMonth(r.cashMonth)===month&&r.status!=='Paid').reduce((s,r)=>s+(r.cash||0),0);
 }
 function getFcastOutflow(month){
-  return AP_FCST.filter(r=>r.cashMonth===month).reduce((s,r)=>s+(r.amount||0),0);
+  return AP_FCST.filter(r=>normalizeCashMonth(r.cashMonth)===month).reduce((s,r)=>s+(r.amount||0),0);
+}
+
+// ── Sort state ──
+let AR_SORT={col:null,dir:1};
+let AP_SORT={col:null,dir:1};
+
+function sortFcastAR(col){
+  if(AR_SORT.col===col)AR_SORT.dir*=-1;else{AR_SORT.col=col;AR_SORT.dir=1;}
+  renderFcastAR();
+}
+function sortFcastAP(col){
+  if(AP_SORT.col===col)AP_SORT.dir*=-1;else{AP_SORT.col=col;AP_SORT.dir=1;}
+  renderFcastAP();
+}
+
+const AR_NUM_COLS=['amount','fx','usdValue','fee','interbank','cash'];
+const AR_DATE_COLS=['invoiceDate','dueDate','paymentDate'];
+const AR_MONTH_COLS=['invoiceMonth','cashMonth'];
+const AP_NUM_COLS=['amount'];
+const AP_DATE_COLS=['paymentDate'];
+const AP_MONTH_COLS=['cashMonth'];
+
+function sortedRows(rows,sort,numCols,dateCols,monthCols){
+  if(!sort.col)return rows;
+  const col=sort.col,dir=sort.dir;
+  return [...rows].sort((a,b)=>{
+    let av=a[col],bv=b[col];
+    if(monthCols.includes(col)){
+      return dir*(getMonthIdx(normalizeCashMonth(av))-getMonthIdx(normalizeCashMonth(bv)));
+    }
+    if(dateCols.includes(col)){
+      const at=av?new Date(av).getTime():0,bt=bv?new Date(bv).getTime():0;
+      return dir*(at-bt);
+    }
+    if(numCols.includes(col)){return dir*((av||0)-(bv||0));}
+    av=String(av||'').toLowerCase();bv=String(bv||'').toLowerCase();
+    return dir*(av<bv?-1:av>bv?1:0);
+  });
+}
+
+function thSort(label,col,sort,fn,align){
+  const active=sort.col===col;
+  const arrow=active?(sort.dir===1?' ▲':' ▼'):'';
+  const style=`cursor:pointer;user-select:none;white-space:nowrap${align?';text-align:'+align:''}${active?';color:var(--accent)':''}`;
+  return`<th onclick="${fn}('${col}')" style="${style}">${label}${arrow}</th>`;
+}
+
+function clearARFilters(){
+  ['ar-f-client','ar-f-entity','ar-f-month'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  renderFcastAR();
 }
 
 // ── Forecast AR render ──
 function renderFcastAR(){
-  // Summary bar
+  // Summary bar (always uses full unfiltered data)
   const sumEl=document.getElementById('fcar-summary');
   if(sumEl){
     sumEl.innerHTML=FCST_MONTHS.map(m=>{
@@ -2253,45 +2287,96 @@ function renderFcastAR(){
       return `<div class="fsum-card"><div class="fsc-m">${m}</div><div class="fsc-v">${v?$f(v):'—'}</div></div>`;
     }).join('');
   }
+  // Populate client filter options (unique sorted clients)
+  const fClientEl=document.getElementById('ar-f-client');
+  const fEntityEl=document.getElementById('ar-f-entity');
+  const fMonthEl=document.getElementById('ar-f-month');
+  if(fClientEl){
+    const curClient=fClientEl.value;
+    const clients=[...new Set(AR_FCST.map(r=>r.client||'').filter(Boolean))].sort();
+    fClientEl.innerHTML=`<option value="">All</option>`+clients.map(c=>`<option${c===curClient?' selected':''}>${c}</option>`).join('');
+  }
+  if(fMonthEl){
+    const curMonth=fMonthEl.value;
+    const months=FCST_MONTHS.filter(m=>AR_FCST.some(r=>normalizeCashMonth(r.cashMonth)===m));
+    fMonthEl.innerHTML=`<option value="">All</option>`+months.map(m=>`<option${m===curMonth?' selected':''}>${m}</option>`).join('');
+  }
+  // Read active filters
+  const fClient=fClientEl?fClientEl.value:'';
+  const fEntity=fEntityEl?fEntityEl.value:'';
+  const fMonth=fMonthEl?fMonthEl.value:'';
+  const hasFilter=!!(fClient||fEntity||fMonth);
+  const clearBtn=document.getElementById('ar-f-clear');
+  if(clearBtn)clearBtn.style.display=hasFilter?'':'none';
+  // Apply filters
+  const filtered=AR_FCST.filter(r=>{
+    if(fClient&&(r.client||'')!==fClient)return false;
+    if(fEntity&&(r.entity||'BH')!==fEntity)return false;
+    if(fMonth&&normalizeCashMonth(r.cashMonth)!==fMonth)return false;
+    return true;
+  });
+  const countEl=document.getElementById('ar-f-count');
+  if(countEl)countEl.textContent=hasFilter?`${filtered.length} of ${AR_FCST.length} rows`:'';
   // Table
   const tEl=document.getElementById('fcar-table');
   if(!tEl)return;
   const stClass={Draft:'st-draft',Invoiced:'st-invoiced',Partial:'st-partial',Paid:'st-paid',Overdue:'st-overdue'};
+  const s=AR_SORT,sf='sortFcastAR';
   let h=`<thead><tr>
-    <th>Client</th><th>Invoice #</th><th>Inv. Date</th><th>Month</th><th>Due Date</th><th>Payment Date</th>
-    <th>Currency</th><th style="text-align:right">Amount</th><th style="text-align:right">FX</th>
-    <th style="text-align:right">USD Value</th><th>Mode</th><th style="text-align:right">Fee</th>
-    <th style="text-align:right">Interbank</th><th style="text-align:right">Cash</th>
-    <th>Cash Month</th><th>Status</th><th>Actions</th>
+    ${thSort('Client','client',s,sf)}
+    ${thSort('Entity','entity',s,sf)}
+    ${thSort('Invoice #','invoiceNo',s,sf)}
+    ${thSort('Inv. Date','invoiceDate',s,sf)}
+    ${thSort('Month','invoiceMonth',s,sf)}
+    ${thSort('Due Date','dueDate',s,sf)}
+    ${thSort('Payment Date','paymentDate',s,sf)}
+    ${thSort('Currency','currency',s,sf)}
+    ${thSort('Amount','amount',s,sf,'right')}
+    ${thSort('FX','fx',s,sf,'right')}
+    ${thSort('USD Value','usdValue',s,sf,'right')}
+    ${thSort('Mode','mode',s,sf)}
+    ${thSort('Fee','fee',s,sf,'right')}
+    ${thSort('Interbank','interbank',s,sf,'right')}
+    ${thSort('Cash','cash',s,sf,'right')}
+    ${thSort('Cash Month','cashMonth',s,sf)}
+    ${thSort('Status','status',s,sf)}
+    <th>Actions</th>
   </tr></thead><tbody>`;
-  if(AR_FCST.length===0){
-    h+=`<tr><td colspan="17" style="text-align:center;color:var(--text3);padding:28px">No forecast invoices yet — click ＋ Add invoice to get started</td></tr>`;
+  const displayRows=sortedRows(filtered,AR_SORT,AR_NUM_COLS,AR_DATE_COLS,AR_MONTH_COLS);
+  if(displayRows.length===0){
+    h+=`<tr><td colspan="18" style="text-align:center;color:var(--text3);padding:28px">${AR_FCST.length?'No rows match the current filters — click ✕ Clear filters to reset':'No forecast invoices yet — click ＋ Add invoice to get started'}</td></tr>`;
   } else {
-    AR_FCST.forEach(r=>{
-      const sc=stClass[r.status]||'st-draft';
-      h+=`<tr>
-        <td style="font-weight:600">${r.client||'—'}</td>
-        <td style="color:var(--text2)">${r.invoiceNo||'—'}</td>
-        <td style="font-size:14px">${r.invoiceDate||'—'}</td>
-        <td style="font-size:14px">${r.invoiceMonth||'—'}</td>
-        <td style="font-size:14px">${r.dueDate||'—'}</td>
-        <td style="font-size:14px">${r.paymentDate||'—'}</td>
-        <td>${r.currency||'USD'}</td>
-        <td style="text-align:right">${r.amount?$f(r.amount):'—'}</td>
-        <td style="text-align:right">${r.fx||1}</td>
-        <td style="text-align:right">${r.usdValue?$f(r.usdValue):'—'}</td>
-        <td style="font-size:14px">${r.mode||'—'}</td>
-        <td style="text-align:right">${r.fee?$f(r.fee):'—'}</td>
-        <td style="text-align:right">${r.interbank?$f(r.interbank):'—'}</td>
-        <td style="text-align:right;color:var(--green);font-weight:600">${r.cash?$f(r.cash):'—'}</td>
-        <td>${r.cashMonth||'—'}</td>
-        <td><span class="st-badge ${sc}">${r.status||'Draft'}</span></td>
-        <td style="white-space:nowrap">
-          <button onclick="openARModal('${r.id}')" style="background:none;border:none;cursor:pointer;color:var(--text3);padding:3px 6px;font-size:15px" title="Edit">✎</button>
-          <button onclick="deleteFcastRow('ar','${r.id}')" style="background:none;border:none;cursor:pointer;color:var(--red);padding:3px 6px;font-size:15px" title="Delete">🗑</button>
-        </td>
-      </tr>`;
+    let rowErr=null;
+    displayRows.forEach(r=>{
+      try{
+        const sc=stClass[r.status]||'st-draft';
+        const rid=esc(String(r.id||''));
+        h+=`<tr>
+          <td style="font-weight:600">${esc(r.client)||'—'}</td>
+          <td>${r.entity?`<span class="ent-badge">${esc(r.entity)}</span>`:'—'}</td>
+          <td style="color:var(--text2)">${esc(r.invoiceNo)||'—'}</td>
+          <td style="font-size:14px">${fmtDate(r.invoiceDate)}</td>
+          <td style="font-size:14px">${esc(r.invoiceMonth)||'—'}</td>
+          <td style="font-size:14px">${fmtDate(r.dueDate)}</td>
+          <td style="font-size:14px">${fmtDate(r.paymentDate)}</td>
+          <td>${esc(r.currency)||'USD'}</td>
+          <td style="text-align:right">${r.amount?$f(r.amount):'—'}</td>
+          <td style="text-align:right">${r.fx||1}</td>
+          <td style="text-align:right">${r.usdValue?$f(r.usdValue):'—'}</td>
+          <td style="font-size:14px">${esc(r.mode)||'—'}</td>
+          <td style="text-align:right">${r.fee?$f(r.fee):'—'}</td>
+          <td style="text-align:right">${r.interbank?$f(r.interbank):'—'}</td>
+          <td style="text-align:right;color:var(--green);font-weight:600">${r.cash?$f(r.cash):'—'}</td>
+          <td>${esc(normalizeCashMonth(r.cashMonth))||'—'}</td>
+          <td><span class="st-badge ${sc}">${esc(r.status)||'Draft'}</span></td>
+          <td style="white-space:nowrap">
+            <button onclick="openARModal('${rid}')" style="background:none;border:none;cursor:pointer;color:var(--text3);padding:3px 6px;font-size:15px" title="Edit">✎</button>
+            <button onclick="deleteFcastRow('ar','${rid}')" style="background:none;border:none;cursor:pointer;color:var(--red);padding:3px 6px;font-size:15px" title="Delete">🗑</button>
+          </td>
+        </tr>`;
+      }catch(e){rowErr=e.message;}
     });
+    if(rowErr)h+=`<tr><td colspan="18" style="color:var(--red);padding:8px 10px;font-size:13px">⚠ Row render error: ${esc(rowErr)}</td></tr>`;
   }
   h+='</tbody>';
   tEl.innerHTML=h;
@@ -2310,30 +2395,63 @@ function renderFcastAP(){
   // Table
   const tEl=document.getElementById('fcap-table');
   if(!tEl)return;
+  const s2=AP_SORT,sf2='sortFcastAP';
   let h=`<thead><tr>
-    <th>Vendor</th><th>Entity</th><th>Category</th><th>Payment Date</th>
-    <th style="text-align:right">Amount (USD)</th><th>Cash Month</th><th>Actions</th>
+    ${thSort('Vendor','vendor',s2,sf2)}
+    ${thSort('Entity','entity',s2,sf2)}
+    ${thSort('Category','category',s2,sf2)}
+    ${thSort('Payment Date','paymentDate',s2,sf2)}
+    ${thSort('Amount (USD)','amount',s2,sf2,'right')}
+    ${thSort('Cash Month','cashMonth',s2,sf2)}
+    <th>Actions</th>
   </tr></thead><tbody>`;
-  if(AP_FCST.length===0){
+  const displayAP=sortedRows(AP_FCST,AP_SORT,AP_NUM_COLS,AP_DATE_COLS,AP_MONTH_COLS);
+  if(displayAP.length===0){
     h+=`<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:28px">No forecast payments yet — click ＋ Add payment to get started</td></tr>`;
   } else {
-    AP_FCST.forEach(r=>{
-      h+=`<tr>
-        <td style="font-weight:600">${r.vendor||'—'}</td>
-        <td>${r.entity?eb(r.entity):'—'}</td>
-        <td style="font-size:14px">${r.category||'—'}</td>
-        <td style="font-size:14px">${r.paymentDate||'—'}</td>
-        <td style="text-align:right;color:var(--red);font-weight:500">${r.amount?'($'+$f(r.amount).replace('$',')'):'—'}</td>
-        <td>${r.cashMonth||'—'}</td>
-        <td style="white-space:nowrap">
-          <button onclick="openAPModal('${r.id}')" style="background:none;border:none;cursor:pointer;color:var(--text3);padding:3px 6px;font-size:15px" title="Edit">✎</button>
-          <button onclick="deleteFcastRow('ap','${r.id}')" style="background:none;border:none;cursor:pointer;color:var(--red);padding:3px 6px;font-size:15px" title="Delete">🗑</button>
-        </td>
-      </tr>`;
+    displayAP.forEach(r=>{
+      try{
+        const rid=esc(String(r.id||''));
+        h+=`<tr>
+          <td style="font-weight:600">${esc(r.vendor)||'—'}</td>
+          <td>${r.entity?eb(esc(r.entity)):'—'}</td>
+          <td style="font-size:14px">${esc(r.category)||'—'}</td>
+          <td style="font-size:14px">${fmtDate(r.paymentDate)}</td>
+          <td style="text-align:right;color:var(--red);font-weight:500">${r.amount?'($'+$f(r.amount).replace('$',')'):'—'}</td>
+          <td>${esc(normalizeCashMonth(r.cashMonth))||'—'}</td>
+          <td style="white-space:nowrap">
+            <button onclick="openAPModal('${rid}')" style="background:none;border:none;cursor:pointer;color:var(--text3);padding:3px 6px;font-size:15px" title="Edit">✎</button>
+            <button onclick="deleteFcastRow('ap','${rid}')" style="background:none;border:none;cursor:pointer;color:var(--red);padding:3px 6px;font-size:15px" title="Delete">🗑</button>
+          </td>
+        </tr>`;
+      }catch(e){}
     });
   }
   h+='</tbody>';
   tEl.innerHTML=h;
+}
+
+// ── Date display normalizer ──
+function fmtDate(v){
+  if(!v||v==='—')return'—';
+  const MOS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  // Try ISO datetime: 2026-04-28T... or 2026-04-28
+  const iso=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(v));
+  if(iso){
+    return `${parseInt(iso[3])} ${MOS[parseInt(iso[2])-1]} ${iso[1]}`;
+  }
+  // Already human-readable (e.g. "28 April 2026", "28 May 2026") — shorten month name
+  const hr=/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/.exec(String(v));
+  if(hr){
+    return `${parseInt(hr[1])} ${hr[2].slice(0,3)} ${hr[3]}`;
+  }
+  // Excel serial number (e.g. 46000)
+  const n=Number(v);
+  if(!isNaN(n)&&n>40000&&n<60000){
+    const d=new Date(Math.round((n-25569)*86400000));
+    return `${d.getUTCDate()} ${MOS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+  }
+  return String(v);
 }
 
 // ── Forecast modal helpers ──
@@ -2345,13 +2463,16 @@ function calcARAutoFields(){
   const amt=parseFloat(document.getElementById('far-amount')?.value)||0;
   const fx=parseFloat(document.getElementById('far-fx')?.value)||1;
   const fee=parseFloat(document.getElementById('far-fee')?.value)||0;
-  const ib=parseFloat(document.getElementById('far-interbank')?.value)||0;
-  const usd=amt*fx;
-  const cash=usd-fee-ib;
+  const ibPct=parseFloat(document.getElementById('far-ibpct')?.value)||0;
+  const usd=parseFloat((amt*fx).toFixed(2));
+  const ib=parseFloat((usd*ibPct/100).toFixed(2));
+  const cash=parseFloat((usd-fee-ib).toFixed(2));
   const usdEl=document.getElementById('far-usdvalue');
+  const ibEl=document.getElementById('far-interbank');
   const cashEl=document.getElementById('far-cash');
-  if(usdEl)usdEl.value=usd?usd.toFixed(2):'';
-  if(cashEl)cashEl.value=cash?cash.toFixed(2):'';
+  if(usdEl)usdEl.value=usd||'';
+  if(ibEl)ibEl.value=ib||'';
+  if(cashEl)cashEl.value=cash||'';
 }
 
 function autoFillMonth(){
@@ -2395,9 +2516,9 @@ function getCategories(){
 
 // ── AR Modal ──
 function openARModal(id){
-  const row=id?AR_FCST.find(r=>r.id===id):null;
+  const row=id?AR_FCST.find(r=>String(r.id)===String(id)):null;
   const v=k=>row?row[k]:'';
-  const monthOpts=FCST_MONTHS.map(m=>`<option${(v('cashMonth')===m)?` selected`:``}>${m}</option>`).join('');
+  const monthOpts=FCST_MONTHS.map(m=>`<option${normalizeCashMonth(v('cashMonth'))===m?` selected`:``}>${m}</option>`).join('');
   const currencies=['USD','AED','GBP','EUR','INR'];
   const modes=['Payoneer','Stripe','Wire/SWIFT','Upwork','Other'];
   const statuses=['Draft','Invoiced','Partial','Paid','Overdue'];
@@ -2413,27 +2534,34 @@ function openARModal(id){
     <div class="fcst-form">
       <div>
         <label>Client name</label>
-        <input id="far-client" list="far-clients-list" value="${v('client')}" placeholder="Client name">
+        <input id="far-client" list="far-clients-list" value="${esc(v('client'))}" placeholder="Client name">
+      </div>
+      <div>
+        <label>Entity</label>
+        <select id="far-entity">
+          <option${v('entity')==='BH'?' selected':''}>BH</option>
+          <option${v('entity')==='BC'?' selected':''}>BC</option>
+        </select>
       </div>
       <div>
         <label>Invoice #</label>
-        <input id="far-invoiceno" value="${v('invoiceNo')}" placeholder="INV-001">
+        <input id="far-invoiceno" value="${esc(v('invoiceNo'))}" placeholder="INV-001">
       </div>
       <div>
         <label>Invoice Date</label>
-        <input id="far-invoicedate" type="date" value="${v('invoiceDate')}" oninput="autoFillMonth()">
+        <input id="far-invoicedate" type="date" value="${toDateInput(v('invoiceDate'))}" oninput="autoFillMonth()">
       </div>
       <div>
         <label>Month of Invoice</label>
-        <input id="far-invoicemonth" value="${v('invoiceMonth')}" readonly placeholder="Auto">
+        <input id="far-invoicemonth" value="${esc(v('invoiceMonth'))}" readonly placeholder="Auto">
       </div>
       <div>
         <label>Due Date</label>
-        <input id="far-duedate" type="date" value="${v('dueDate')}">
+        <input id="far-duedate" type="date" value="${toDateInput(v('dueDate'))}">
       </div>
       <div>
         <label>Payment Date</label>
-        <input id="far-paymentdate" type="date" value="${v('paymentDate')}">
+        <input id="far-paymentdate" type="date" value="${toDateInput(v('paymentDate'))}">
       </div>
       <div>
         <label>Currency</label>
@@ -2464,8 +2592,12 @@ function openARModal(id){
         <input id="far-fee" type="number" value="${v('fee')||0}" placeholder="0" step="0.01" oninput="calcARAutoFields()">
       </div>
       <div>
-        <label>Interbank (USD)</label>
-        <input id="far-interbank" type="number" value="${v('interbank')||0}" placeholder="0" step="0.01" oninput="calcARAutoFields()">
+        <label>Interbank %</label>
+        <input id="far-ibpct" type="number" value="${v('ibPct')!==undefined&&v('ibPct')!==''?v('ibPct'):1}" placeholder="1" step="0.01" min="0" oninput="calcARAutoFields()">
+      </div>
+      <div>
+        <label>Interbank (auto)</label>
+        <input id="far-interbank" type="number" value="${v('interbank')||0}" readonly placeholder="Auto" style="opacity:.7">
       </div>
       <div>
         <label>Cash (auto)</label>
@@ -2498,6 +2630,7 @@ function saveARModal(id){
   const row={
     id:id||Date.now().toString(36)+Math.random().toString(36).slice(2,6),
     client:get('far-client'),
+    entity:get('far-entity')||'BH',
     invoiceNo:get('far-invoiceno'),
     invoiceDate:get('far-invoicedate'),
     invoiceMonth:get('far-invoicemonth'),
@@ -2509,12 +2642,13 @@ function saveARModal(id){
     usdValue:getN('far-usdvalue'),
     mode:get('far-mode'),
     fee:getN('far-fee'),
+    ibPct:getN('far-ibpct'),
     interbank:getN('far-interbank'),
     cash:getN('far-cash'),
     cashMonth:get('far-cashmonth'),
     status:get('far-status')
   };
-  if(id){const i=AR_FCST.findIndex(r=>r.id===id);if(i>=0)AR_FCST[i]=row;else AR_FCST.push(row);}
+  if(id){const i=AR_FCST.findIndex(r=>String(r.id)===String(id));if(i>=0)AR_FCST[i]=row;else AR_FCST.push(row);}
   else AR_FCST.push(row);
   saveFcastAR();
   closeFcstModal();
@@ -2523,9 +2657,9 @@ function saveARModal(id){
 
 // ── AP Modal ──
 function openAPModal(id){
-  const row=id?AP_FCST.find(r=>r.id===id):null;
+  const row=id?AP_FCST.find(r=>String(r.id)===String(id)):null;
   const v=k=>row?row[k]:'';
-  const monthOpts=FCST_MONTHS.map(m=>`<option${v('cashMonth')===m?' selected':''}>${m}</option>`).join('');
+  const monthOpts=FCST_MONTHS.map(m=>`<option${normalizeCashMonth(v('cashMonth'))===m?' selected':''}>${m}</option>`).join('');
   const categories=getCategories();
   const vendorNames=getVendorNames();
   const vendorList=vendorNames.map(n=>`<option value="${n.replace(/"/g,'&quot;')}">`).join('');
@@ -2587,7 +2721,7 @@ function saveAPModal(id){
     amount:getN('fap-amount'),
     cashMonth:get('fap-cashmonth')
   };
-  if(id){const i=AP_FCST.findIndex(r=>r.id===id);if(i>=0)AP_FCST[i]=row;else AP_FCST.push(row);}
+  if(id){const i=AP_FCST.findIndex(r=>String(r.id)===String(id));if(i>=0)AP_FCST[i]=row;else AP_FCST.push(row);}
   else AP_FCST.push(row);
   saveFcastAP();
   closeFcstModal();
@@ -2596,8 +2730,8 @@ function saveAPModal(id){
 
 function deleteFcastRow(type,id){
   if(!confirm('Delete this row?'))return;
-  if(type==='ar'){AR_FCST=AR_FCST.filter(r=>r.id!==id);saveFcastAR();renderFcastAR();}
-  else{AP_FCST=AP_FCST.filter(r=>r.id!==id);saveFcastAP();renderFcastAP();}
+  if(type==='ar'){AR_FCST=AR_FCST.filter(r=>String(r.id)!==String(id));saveFcastAR();renderFcastAR();renderCF();}
+  else{AP_FCST=AP_FCST.filter(r=>String(r.id)!==String(id));saveFcastAP();renderFcastAP();renderCF();}
 }
 
 // ── Export CSV helpers ──
@@ -2615,9 +2749,9 @@ function dlCSV(filename,rows){
 }
 
 function exportARCSV(){
-  const headers=['Client','Invoice #','Invoice Date','Due Date','Payment Date','Currency','Amount','FX Rate','USD Value','Mode','Fee','Interbank','Cash','Cash Month','Status'];
+  const headers=['Client','Entity','Invoice #','Invoice Date','Due Date','Payment Date','Currency','Amount','FX Rate','USD Value','Mode','Fee','Interbank','Cash','Cash Month','Status'];
   const rows=[headers,...AR_FCST.map(r=>[
-    r.client||'',r.invoiceNo||'',r.invoiceDate||'',r.dueDate||'',r.paymentDate||'',
+    r.client||'',r.entity||'BH',r.invoiceNo||'',r.invoiceDate||'',r.dueDate||'',r.paymentDate||'',
     r.currency||'',r.amount||'',r.fx||'',r.usdValue||'',r.mode||'',
     r.fee||'',r.interbank||'',r.cash||'',r.cashMonth||'',r.status||''
   ])];
@@ -2634,7 +2768,8 @@ function exportAPCSV(){
 
 // ── Import helpers ──
 const AR_COL_MAP={
-  'client':'client','invoice #':'invoiceNo','invoice no':'invoiceNo','invoice number':'invoiceNo',
+  'client':'client','entity':'entity',
+  'invoice #':'invoiceNo','invoice no':'invoiceNo','invoice number':'invoiceNo',
   'invoice date':'invoiceDate','due date':'dueDate','payment date':'paymentDate',
   'currency':'currency','amount':'amount','fx rate':'fx','fx':'fx',
   'usd value':'usdValue','mode':'mode','fee':'fee','interbank':'interbank',
@@ -2675,24 +2810,33 @@ function importARFile(file){
         jsonRows.forEach(raw=>{
           const r=mapRow(raw,AR_COL_MAP);
           if(!r.client&&!r.invoiceNo)return; // skip blank rows
+          // normalize entity and cashMonth
+          r.entity=normalizeEntity(r.entity);
+          if(r.cashMonth)r.cashMonth=normalizeCashMonth(r.cashMonth);
           // numeric coercion
-          ['amount','fx','usdValue','fee','interbank','cash'].forEach(k=>{
+          ['amount','fx','usdValue','fee','interbank','ibPct','cash'].forEach(k=>{
             if(r[k]!==undefined)r[k]=parseFloat(String(r[k]).replace(/[^0-9.\-]/g,''))||0;
           });
-          // recompute usdValue and cash if fx present
-          if(r.amount&&r.fx){r.usdValue=parseFloat((r.amount*r.fx).toFixed(2));}
-          if(r.usdValue&&r.fee!==undefined){r.cash=parseFloat((r.usdValue-r.fee-(r.interbank||0)).toFixed(2));}
+          recalcARRow(r);
           // find existing by invoiceNo or append
           const existing=r.invoiceNo?AR_FCST.findIndex(x=>x.invoiceNo&&x.invoiceNo===r.invoiceNo):-1;
           if(existing>=0){AR_FCST[existing]={...AR_FCST[existing],...r};updated++;}
           else{AR_FCST.push({id:Date.now()+Math.random(),...r});added++;}
         });
-        saveFcastAR();renderFcastAR();
+        saveFcastAR();renderFcastAR();renderCF();
         alert(`Import complete: ${added} added, ${updated} updated.`);
       }catch(err){alert('Import failed: '+err.message);}
     };
     reader.readAsArrayBuffer(file);
   });
+}
+
+function normalizeEntity(val){
+  if(!val)return'BH';
+  const v=String(val).toLowerCase().trim();
+  if(v==='bh'||v.includes('braveheart')||v.includes('fz llc')&&v.includes('brave'))return'BH';
+  if(v==='bc'||v.includes('bravecore'))return'BC';
+  return String(val).toUpperCase().trim()||'BH';
 }
 
 function importAPFile(file){
@@ -2710,16 +2854,100 @@ function importAPFile(file){
           const r=mapRow(raw,AP_COL_MAP);
           if(!r.vendor&&!r.category)return;
           if(r.amount!==undefined)r.amount=parseFloat(String(r.amount).replace(/[^0-9.\-]/g,''))||0;
+          r.entity=normalizeEntity(r.entity);
+          if(r.cashMonth)r.cashMonth=normalizeCashMonth(r.cashMonth);
           AP_FCST.push({id:Date.now()+Math.random(),...r});
           added++;
         });
-        saveFcastAP();renderFcastAP();
+        saveFcastAP();renderFcastAP();renderCF();
         alert(`Import complete: ${added} rows added.`);
       }catch(err){alert('Import failed: '+err.message);}
     };
     reader.readAsArrayBuffer(file);
   });
 }
+
+// ── GitHub sync ──
+const GH_OWNER='joinindexed';
+const GH_REPO='indexed-fpa';
+const GH_FILE='forecast-data.json';
+const GH_API=`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_FILE}`;
+const GH_RAW=`https://raw.githubusercontent.com/${GH_OWNER}/${GH_REPO}/main/${GH_FILE}`;
+
+function ghStatus(msg,ok){
+  const el=document.getElementById('gh-status');
+  if(el){el.textContent=msg;el.style.color=ok===false?'var(--red)':ok===true?'var(--green)':'var(--text3)';}
+}
+
+function saveGHToken(){
+  const v=document.getElementById('gh-token-input')?.value?.trim();
+  if(!v){ghStatus('Please enter a token first.',false);return;}
+  localStorage.setItem('gh_token',v);
+  document.getElementById('gh-token-input').value='';
+  document.getElementById('gh-token-input').placeholder='Token saved ✓ (enter new to replace)';
+  ghStatus('Token saved to this browser.',true);
+}
+
+async function ghPull(){
+  ghStatus('Pulling from GitHub…');
+  try{
+    const r=await fetch(GH_RAW+'?t='+Date.now());
+    if(!r.ok){ghStatus('File not found on GitHub — push your data first.',false);return;}
+    const d=await r.json();
+    if(d.ar_fcst&&d.ar_fcst.length){AR_FCST=d.ar_fcst.map(recalcARRow);saveFcastAR();}
+    if(d.ap_fcst&&d.ap_fcst.length){AP_FCST=d.ap_fcst;saveFcastAP();}
+    if(d.ct_map&&Object.keys(d.ct_map).length){
+      CT_MAP=d.ct_map;
+      try{localStorage.setItem('ct_map',JSON.stringify(CT_MAP));}catch(e){}
+    }
+    renderDash();renderCF();renderFcastAR();renderFcastAP();renderContacts();
+    const ts=d.updated_at?new Date(d.updated_at).toLocaleString():'unknown';
+    ghStatus(`Pulled ✓ · last pushed ${ts}${d.updated_by?' by '+d.updated_by:''}`,true);
+  }catch(e){ghStatus('Pull failed: '+e.message,false);}
+}
+
+async function ghPush(){
+  const token=localStorage.getItem('gh_token');
+  if(!token){ghStatus('No token saved. Add a Personal Access Token above first.',false);return;}
+  ghStatus('Pushing to GitHub…');
+  try{
+    const meta=await fetch(GH_API,{headers:{Authorization:`token ${token}`,Accept:'application/vnd.github.v3+json'}});
+    if(!meta.ok&&meta.status!==404){ghStatus('Could not reach GitHub API.',false);return;}
+    const metaJson=meta.status===404?{}:await meta.json();
+    const sha=metaJson.sha||null;
+    const payload={
+      ar_fcst:AR_FCST,ap_fcst:AP_FCST,ct_map:CT_MAP,
+      updated_at:new Date().toISOString(),updated_by:'karan'
+    };
+    const content=btoa(unescape(encodeURIComponent(JSON.stringify(payload,null,2))));
+    const body={message:`Update forecast data ${new Date().toISOString().slice(0,16)}`,content};
+    if(sha)body.sha=sha;
+    const r=await fetch(GH_API,{
+      method:'PUT',
+      headers:{Authorization:`token ${token}`,'Content-Type':'application/json',Accept:'application/vnd.github.v3+json'},
+      body:JSON.stringify(body)
+    });
+    if(!r.ok){const e=await r.json();ghStatus('Push failed: '+(e.message||'unknown error'),false);return;}
+    ghStatus('Pushed successfully ✓ · all devices will see this on next load',true);
+  }catch(e){ghStatus('Push failed: '+e.message,false);}
+}
+
+// Auto-pull on page load (no token needed — public read)
+(async()=>{
+  try{
+    const r=await fetch(GH_RAW+'?t='+Date.now());
+    if(!r.ok)return;
+    const d=await r.json();
+    let changed=false;
+    if(d.ar_fcst&&d.ar_fcst.length){AR_FCST=d.ar_fcst.map(recalcARRow);saveFcastAR();changed=true;}
+    if(d.ap_fcst&&d.ap_fcst.length){AP_FCST=d.ap_fcst;saveFcastAP();changed=true;}
+    if(d.ct_map&&Object.keys(d.ct_map).length){
+      CT_MAP=d.ct_map;
+      try{localStorage.setItem('ct_map',JSON.stringify(CT_MAP));}catch(e){}
+    }
+    if(changed){renderCF();renderFcastAR();renderFcastAP();}
+  }catch(e){}
+})();
 
 // ── Password gate ──
 const APP_PWD='fpaindexedfpa';
@@ -2736,6 +2964,7 @@ function submitPwd(){
     sessionStorage.setItem('fpa_auth','1');
     document.getElementById('auth-overlay').style.display='none';
     document.querySelector('.shell').style.display='flex';
+    renderDash();renderCF();renderFcastAR();renderFcastAP();
   } else {
     const err=document.getElementById('pwd-err');
     if(err){err.textContent='Incorrect password';err.style.display='block';}
@@ -2746,8 +2975,6 @@ function submitPwd(){
 // ── Init ──
 renderDash();
 renderCF();
-renderAR();
-renderAP();
 checkAuth();
 </script>
 </body>
