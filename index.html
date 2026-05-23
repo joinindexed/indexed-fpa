@@ -311,7 +311,13 @@ input,select{font-family:var(--sans)}
 <div id="screen-fcast-ar" class="screen">
   <div class="page-header">
     <div><div class="page-title">AR Pipeline</div><div class="page-sub">Forecast cash collections · May–Dec 2026</div></div>
-    <div><button onclick="openARModal(null)" style="padding:7px 14px;border-radius:6px;font-size:16.0px;font-weight:500;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">＋ Add invoice</button></div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button onclick="exportARCSV()" style="padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:var(--sans)">↓ Export CSV</button>
+      <label style="padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:var(--sans);white-space:nowrap">↑ Import
+        <input type="file" id="fi-ar-import" accept=".csv,.xlsx,.xls" style="display:none" onchange="importARFile(this.files[0]);this.value=''">
+      </label>
+      <button onclick="openARModal(null)" style="padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">＋ Add invoice</button>
+    </div>
   </div>
   <div class="content">
     <div class="fsum" id="fcar-summary"></div>
@@ -325,7 +331,13 @@ input,select{font-family:var(--sans)}
 <div id="screen-fcast-ap" class="screen">
   <div class="page-header">
     <div><div class="page-title">AP Schedule</div><div class="page-sub">Forecast cash payments · May–Dec 2026</div></div>
-    <div><button onclick="openAPModal(null)" style="padding:7px 14px;border-radius:6px;font-size:16.0px;font-weight:500;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">＋ Add payment</button></div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button onclick="exportAPCSV()" style="padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:var(--sans)">↓ Export CSV</button>
+      <label style="padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:var(--sans);white-space:nowrap">↑ Import
+        <input type="file" id="fi-ap-import" accept=".csv,.xlsx,.xls" style="display:none" onchange="importAPFile(this.files[0]);this.value=''">
+      </label>
+      <button onclick="openAPModal(null)" style="padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">＋ Add payment</button>
+    </div>
   </div>
   <div class="content">
     <div class="fsum" id="fcap-summary"></div>
@@ -2586,6 +2598,127 @@ function deleteFcastRow(type,id){
   if(!confirm('Delete this row?'))return;
   if(type==='ar'){AR_FCST=AR_FCST.filter(r=>r.id!==id);saveFcastAR();renderFcastAR();}
   else{AP_FCST=AP_FCST.filter(r=>r.id!==id);saveFcastAP();renderFcastAP();}
+}
+
+// ── Export CSV helpers ──
+function dlCSV(filename,rows){
+  const csv=rows.map(r=>r.map(v=>{
+    const s=String(v==null?'':v);
+    return s.includes(',')||s.includes('"')||s.includes('\n')?'"'+s.replace(/"/g,'""')+'"':s;
+  }).join(',')).join('\r\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=filename;
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+
+function exportARCSV(){
+  const headers=['Client','Invoice #','Invoice Date','Due Date','Payment Date','Currency','Amount','FX Rate','USD Value','Mode','Fee','Interbank','Cash','Cash Month','Status'];
+  const rows=[headers,...AR_FCST.map(r=>[
+    r.client||'',r.invoiceNo||'',r.invoiceDate||'',r.dueDate||'',r.paymentDate||'',
+    r.currency||'',r.amount||'',r.fx||'',r.usdValue||'',r.mode||'',
+    r.fee||'',r.interbank||'',r.cash||'',r.cashMonth||'',r.status||''
+  ])];
+  dlCSV('ar_pipeline_'+new Date().toISOString().slice(0,10)+'.csv',rows);
+}
+
+function exportAPCSV(){
+  const headers=['Vendor','Entity','Category','Payment Date','Amount (USD)','Cash Month'];
+  const rows=[headers,...AP_FCST.map(r=>[
+    r.vendor||'',r.entity||'',r.category||'',r.paymentDate||'',r.amount||'',r.cashMonth||''
+  ])];
+  dlCSV('ap_schedule_'+new Date().toISOString().slice(0,10)+'.csv',rows);
+}
+
+// ── Import helpers ──
+const AR_COL_MAP={
+  'client':'client','invoice #':'invoiceNo','invoice no':'invoiceNo','invoice number':'invoiceNo',
+  'invoice date':'invoiceDate','due date':'dueDate','payment date':'paymentDate',
+  'currency':'currency','amount':'amount','fx rate':'fx','fx':'fx',
+  'usd value':'usdValue','mode':'mode','fee':'fee','interbank':'interbank',
+  'cash':'cash','cash month':'cashMonth','status':'status'
+};
+const AP_COL_MAP={
+  'vendor':'vendor','entity':'entity','category':'category',
+  'payment date':'paymentDate','amount (usd)':'amount','amount':'amount',
+  'cash month':'cashMonth'
+};
+
+function parseSheetRows(wb,sheetIdx){
+  const XLSX=window.XLSX;
+  const sheet=wb.Sheets[wb.SheetNames[sheetIdx||0]];
+  return XLSX.utils.sheet_to_json(sheet,{defval:''});
+}
+
+function mapRow(raw,colMap){
+  const out={};
+  Object.keys(raw).forEach(k=>{
+    const mapped=colMap[k.trim().toLowerCase()];
+    if(mapped)out[mapped]=raw[k];
+  });
+  return out;
+}
+
+function importARFile(file){
+  if(!file)return;
+  loadSheetJS(()=>{
+    const reader=new FileReader();
+    reader.onload=e=>{
+      try{
+        const data=new Uint8Array(e.target.result);
+        const wb=window.XLSX.read(data,{type:'array',cellDates:true});
+        const jsonRows=parseSheetRows(wb,0);
+        if(!jsonRows.length){alert('No data rows found.');return;}
+        let added=0,updated=0;
+        jsonRows.forEach(raw=>{
+          const r=mapRow(raw,AR_COL_MAP);
+          if(!r.client&&!r.invoiceNo)return; // skip blank rows
+          // numeric coercion
+          ['amount','fx','usdValue','fee','interbank','cash'].forEach(k=>{
+            if(r[k]!==undefined)r[k]=parseFloat(String(r[k]).replace(/[^0-9.\-]/g,''))||0;
+          });
+          // recompute usdValue and cash if fx present
+          if(r.amount&&r.fx){r.usdValue=parseFloat((r.amount*r.fx).toFixed(2));}
+          if(r.usdValue&&r.fee!==undefined){r.cash=parseFloat((r.usdValue-r.fee-(r.interbank||0)).toFixed(2));}
+          // find existing by invoiceNo or append
+          const existing=r.invoiceNo?AR_FCST.findIndex(x=>x.invoiceNo&&x.invoiceNo===r.invoiceNo):-1;
+          if(existing>=0){AR_FCST[existing]={...AR_FCST[existing],...r};updated++;}
+          else{AR_FCST.push({id:Date.now()+Math.random(),...r});added++;}
+        });
+        saveFcastAR();renderFcastAR();
+        alert(`Import complete: ${added} added, ${updated} updated.`);
+      }catch(err){alert('Import failed: '+err.message);}
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function importAPFile(file){
+  if(!file)return;
+  loadSheetJS(()=>{
+    const reader=new FileReader();
+    reader.onload=e=>{
+      try{
+        const data=new Uint8Array(e.target.result);
+        const wb=window.XLSX.read(data,{type:'array',cellDates:true});
+        const jsonRows=parseSheetRows(wb,0);
+        if(!jsonRows.length){alert('No data rows found.');return;}
+        let added=0;
+        jsonRows.forEach(raw=>{
+          const r=mapRow(raw,AP_COL_MAP);
+          if(!r.vendor&&!r.category)return;
+          if(r.amount!==undefined)r.amount=parseFloat(String(r.amount).replace(/[^0-9.\-]/g,''))||0;
+          AP_FCST.push({id:Date.now()+Math.random(),...r});
+          added++;
+        });
+        saveFcastAP();renderFcastAP();
+        alert(`Import complete: ${added} rows added.`);
+      }catch(err){alert('Import failed: '+err.message);}
+    };
+    reader.readAsArrayBuffer(file);
+  });
 }
 
 // ── Password gate ──
