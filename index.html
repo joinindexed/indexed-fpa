@@ -2110,6 +2110,24 @@ let AP_FCST = [];
 try { AR_FCST = JSON.parse(localStorage.getItem('ar_fcst')||'[]'); } catch(e){}
 try { AP_FCST = JSON.parse(localStorage.getItem('ap_fcst')||'[]'); } catch(e){}
 
+function recalcARRow(r){
+  if(!r.fx)r.fx=1;
+  if(r.amount){r.usdValue=parseFloat((r.amount*r.fx).toFixed(2));}
+  const ibPct=r.ibPct!==undefined?r.ibPct:1;
+  r.ibPct=ibPct;
+  r.interbank=parseFloat((r.usdValue*ibPct/100).toFixed(2));
+  r.cash=parseFloat(((r.usdValue||0)-(r.fee||0)-r.interbank).toFixed(2));
+  if(!r.invoiceMonth&&r.invoiceDate){
+    const d=new Date(r.invoiceDate);
+    if(!isNaN(d))r.invoiceMonth=ALL_MONTHS[d.getMonth()];
+  }
+  if(r.cashMonth)r.cashMonth=normalizeCashMonth(r.cashMonth);
+  return r;
+}
+
+// Auto-recalculate all existing rows on load
+AR_FCST=AR_FCST.map(recalcARRow);
+
 function saveFcastAR(){ try{localStorage.setItem('ar_fcst',JSON.stringify(AR_FCST));}catch(e){} }
 function saveFcastAP(){ try{localStorage.setItem('ap_fcst',JSON.stringify(AP_FCST));}catch(e){} }
 
@@ -2718,18 +2736,7 @@ function importARFile(file){
           ['amount','fx','usdValue','fee','interbank','ibPct','cash'].forEach(k=>{
             if(r[k]!==undefined)r[k]=parseFloat(String(r[k]).replace(/[^0-9.\-]/g,''))||0;
           });
-          if(!r.fx)r.fx=1;
-          // recompute usdValue, interbank, cash
-          if(r.amount){r.usdValue=parseFloat((r.amount*r.fx).toFixed(2));}
-          const ibPct=r.ibPct!==undefined?r.ibPct:1;
-          r.ibPct=ibPct;
-          r.interbank=parseFloat((r.usdValue*ibPct/100).toFixed(2));
-          r.cash=parseFloat((r.usdValue-(r.fee||0)-r.interbank).toFixed(2));
-          // auto-fill invoiceMonth from invoiceDate if missing
-          if(!r.invoiceMonth&&r.invoiceDate){
-            const d=new Date(r.invoiceDate);
-            if(!isNaN(d))r.invoiceMonth=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
-          }
+          recalcARRow(r);
           // find existing by invoiceNo or append
           const existing=r.invoiceNo?AR_FCST.findIndex(x=>x.invoiceNo&&x.invoiceNo===r.invoiceNo):-1;
           if(existing>=0){AR_FCST[existing]={...AR_FCST[existing],...r};updated++;}
