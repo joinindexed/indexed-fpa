@@ -139,6 +139,32 @@ table.fin td.neg{color:var(--red)}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.12);border-radius:3px}
 input,select{font-family:var(--sans)}
+/* Forecast table */
+.fcst-table{width:100%;border-collapse:collapse;font-size:14.5px}
+.fcst-table th{padding:8px 10px;text-align:left;color:var(--text3);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--border);white-space:nowrap}
+.fcst-table td{padding:8px 10px;border-bottom:1px solid var(--border);white-space:nowrap;vertical-align:middle}
+.fcst-table tr:hover td{background:var(--surface2)}
+.fcst-scroll{overflow-x:auto;border:1px solid var(--border);border-radius:8px}
+.fsum{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px}
+.fsum-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;min-width:100px}
+.fsum-card .fsc-m{font-size:12px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+.fsum-card .fsc-v{font-size:17px;font-weight:700;color:var(--green);margin-top:3px}
+.fsum-card.out .fsc-v{color:var(--red)}
+/* Status badges */
+.st-badge{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:4px}
+.st-draft{background:rgba(255,255,255,0.06);color:var(--text3)}
+.st-invoiced{background:rgba(87,215,226,0.12);color:var(--accent)}
+.st-partial{background:rgba(251,191,36,0.12);color:var(--amber)}
+.st-paid{background:rgba(52,211,153,0.12);color:var(--green)}
+.st-overdue{background:rgba(248,113,113,0.12);color:var(--red)}
+/* Modal form */
+.fcst-form{display:grid;grid-template-columns:1fr 1fr;gap:14px 20px}
+.fcst-form .full{grid-column:1/-1}
+.fcst-form label{font-size:13px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:4px}
+.fcst-form input,.fcst-form select{width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:7px 10px;font-size:15px;color:var(--text);font-family:var(--sans)}
+.fcst-form input[readonly]{color:var(--accent);background:var(--accent-light);border-color:var(--accent-border)}
+/* Forecast badge */
+.bf{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:3px;font-size:10px;font-weight:700;background:rgba(251,191,36,0.15);color:#FBBF24;margin-right:3px}
 .dash-pl-metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:18px}
 .drop-zone{border:2px dashed var(--border2);border-radius:8px;padding:28px 16px;text-align:center;cursor:pointer;transition:all .15s;display:flex;flex-direction:column;align-items:center;gap:0}
 .drop-zone:hover,.drop-zone.drag-over{border-color:var(--accent);background:var(--accent-light)}
@@ -168,6 +194,11 @@ input,select{font-family:var(--sans)}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>AR</div>
     <div class="nav-item" onclick="go('ap',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>AP</div>
+    <div class="nav-section">Forecast</div>
+    <div class="nav-item" onclick="go('fcast-ar',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>AR Pipeline</div>
+    <div class="nav-item" onclick="go('fcast-ap',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2M9 12h6m-6 4h6"/></svg>AP Schedule</div>
     <div class="nav-section">Mapping</div>
     <div class="nav-item" onclick="go('contacts',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Contacts</div>
@@ -276,6 +307,34 @@ input,select{font-family:var(--sans)}
   </div>
 </div>
 
+<!-- FCAST AR -->
+<div id="screen-fcast-ar" class="screen">
+  <div class="page-header">
+    <div><div class="page-title">AR Pipeline</div><div class="page-sub">Forecast cash collections · May–Dec 2026</div></div>
+    <div><button onclick="openARModal(null)" style="padding:7px 14px;border-radius:6px;font-size:16.0px;font-weight:500;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">＋ Add invoice</button></div>
+  </div>
+  <div class="content">
+    <div class="fsum" id="fcar-summary"></div>
+    <div class="fcst-scroll">
+      <table class="fcst-table" id="fcar-table"></table>
+    </div>
+  </div>
+</div>
+
+<!-- FCAST AP -->
+<div id="screen-fcast-ap" class="screen">
+  <div class="page-header">
+    <div><div class="page-title">AP Schedule</div><div class="page-sub">Forecast cash payments · May–Dec 2026</div></div>
+    <div><button onclick="openAPModal(null)" style="padding:7px 14px;border-radius:6px;font-size:16.0px;font-weight:500;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">＋ Add payment</button></div>
+  </div>
+  <div class="content">
+    <div class="fsum" id="fcap-summary"></div>
+    <div class="fcst-scroll">
+      <table class="fcst-table" id="fcap-table"></table>
+    </div>
+  </div>
+</div>
+
 <!-- CONTACTS -->
 <div id="screen-contacts" class="screen">
   <div class="page-header">
@@ -353,6 +412,12 @@ input,select{font-family:var(--sans)}
 </div>
 
 </main>
+</div>
+
+<!-- Forecast modal -->
+<div id="fcst-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:200;align-items:center;justify-content:center" onclick="if(event.target===this)closeFcstModal()">
+  <div style="background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:28px;width:640px;max-width:95vw;max-height:90vh;overflow-y:auto" id="fcst-modal-body">
+  </div>
 </div>
 
 <!-- Password overlay -->
@@ -1082,6 +1147,8 @@ function go(id,el){
   if(id==='ap')renderAP();
   if(id==='contacts')renderContacts();
   if(id==='import')initImport();
+  if(id==='fcast-ar')renderFcastAR();
+  if(id==='fcast-ap')renderFcastAP();
 }
 function setEnt(e,el){
   ent=e;
@@ -1141,49 +1208,72 @@ function renderCFTable(d){
   const ytdIn=d.in.reduce((s,v)=>s+v,0);
   const ytdOut=d.out.reduce((s,v)=>s+v,0);
   const ytdFX=d.fx.reduce((s,v)=>s+v,0);
-  const cfCols=E.length+2;
+  // Forecast data per month
+  const fcastIn=FCST_MONTHS.map(m=>getFcastInflow(m));
+  const fcastOut=FCST_MONTHS.map(m=>getFcastOutflow(m));
+  const cfCols=E.length+FCST_MONTHS.length+2;
+  const fcastCellStyle='background:rgba(251,191,36,0.04)';
   let h='<thead><tr><th>Line item</th>';
   E.forEach(m=>h+=`<th><span class="ba">A</span> ${m}</th>`);
+  FCST_MONTHS.forEach(m=>h+=`<th style="opacity:.75"><span class="bf">F</span>${m}</th>`);
   h+='<th>YTD</th></tr></thead><tbody>';
   // Opening
   h+='<tr><td style="padding-left:10px;color:var(--text2)">Opening balance</td>';
   E.forEach((_,i)=>h+=`<td>${$f(i===0?d.open:d.close[i-1])}</td>`);
+  // Forecast opening = last actual close, then chain
+  let fcastClose=d.close[d.close.length-1]||0;
+  FCST_MONTHS.forEach((_,fi)=>{
+    const openBal=fi===0?fcastClose:(fcastClose);
+    h+=`<td style="${fcastCellStyle};color:var(--text3)">${$f(openBal)}</td>`;
+    fcastClose=openBal+fcastIn[fi]-fcastOut[fi];
+  });
   h+=`<td>${$f(d.open)}</td></tr>`;
   // Inflow — single expandable row
   h+=`<tr class="sr"><td colspan="${cfCols}" style="padding-left:10px">↑ Cash inflow</td></tr>`;
   h+=`<tr class="indent" style="cursor:pointer" onclick="togCFDrill('inflow',true)">`;
   h+=`<td style="padding-left:22px">Cash received from clients ▸</td>`;
   d.in.forEach(v=>h+=`<td class="pos">${$f(v)}</td>`);
+  fcastIn.forEach(v=>h+=`<td class="pos" style="${fcastCellStyle}">${v?$f(v):'—'}</td>`);
   h+=`<td class="pos">${$f(ytdIn)}</td></tr>`;
   h+=`<tr class="drill-row" id="dr-inflow"><td colspan="${cfCols}"><div class="di" id="dc-inflow"></div></td></tr>`;
   h+='<tr class="tr"><td style="padding-left:10px">Total inflow</td>';
   d.in.forEach(v=>h+=`<td class="pos">${$f(v)}</td>`);
+  fcastIn.forEach(v=>h+=`<td class="pos" style="${fcastCellStyle}">${v?$f(v):'—'}</td>`);
   h+=`<td class="pos">${$f(ytdIn)}</td></tr>`;
   // Outflow — single expandable row
   h+=`<tr class="sr"><td colspan="${cfCols}" style="padding-left:10px">↓ Cash outflow</td></tr>`;
   h+=`<tr class="indent" style="cursor:pointer" onclick="togCFDrill('outflow',false)">`;
   h+=`<td style="padding-left:22px">Payments to vendors &amp; expenses ▸</td>`;
   d.out.forEach(v=>h+=`<td class="neg">($${$f(v).replace('$','')})</td>`);
+  fcastOut.forEach(v=>h+=`<td class="neg" style="${fcastCellStyle}">${v?'($'+$f(v).replace('$',')'):'—'}</td>`);
   h+=`<td class="neg">(${$f(ytdOut).replace('$','')})</td></tr>`;
   h+=`<tr class="drill-row" id="dr-outflow"><td colspan="${cfCols}"><div class="di" id="dc-outflow"></div></td></tr>`;
   h+='<tr class="tr"><td style="padding-left:10px">Total outflow</td>';
   d.out.forEach(v=>h+=`<td class="neg">($${$f(v).replace('$','')})</td>`);
+  fcastOut.forEach(v=>h+=`<td class="neg" style="${fcastCellStyle}">${v?'($'+$f(v).replace('$',')'):'—'}</td>`);
   h+=`<td class="neg">(${$f(ytdOut).replace('$','')})</td></tr>`;
   // Net
   h+='<tr class="tr"><td style="padding-left:10px">Net movement</td>';
   E.forEach((_,i)=>{const v=d.in[i]-d.out[i];h+=`<td class="${v>=0?'pos':'neg'}">${v>=0?$f(v):'($'+$f(Math.abs(v)).replace('$','')+')'}</td>`;});
+  FCST_MONTHS.forEach((_,fi)=>{const v=fcastIn[fi]-fcastOut[fi];h+=`<td class="${v>=0?'pos':'neg'}" style="${fcastCellStyle}">${v>=0?$f(v):'($'+$f(Math.abs(v)).replace('$','')+')'}</td>`;});
   const ytdNet=ytdIn-ytdOut;
   h+=`<td class="${ytdNet>=0?'pos':'neg'}">${ytdNet>=0?$f(ytdNet):'($'+$f(Math.abs(ytdNet)).replace('$','')+')'}</td></tr>`;
-  // FX
+  // FX (actuals only)
   const hasFX=d.fx.some(v=>v!==0);
   if(hasFX){
     h+='<tr class="fx"><td style="padding-left:10px">FX / revaluation (non-cash)</td>';
     d.fx.forEach(v=>h+=`<td>${v?$f(v):'—'}</td>`);
+    FCST_MONTHS.forEach(()=>h+=`<td style="${fcastCellStyle}">—</td>`);
     h+=`<td>${ytdFX?$f(ytdFX):'—'}</td></tr>`;
   }
-  // Closing
+  // Closing — chain forecast from last actual
   h+='<tr class="br"><td style="padding-left:10px">Closing bank balance</td>';
   d.close.forEach(v=>h+=`<td>${$f(v)}</td>`);
+  let runClose=d.close[d.close.length-1]||0;
+  FCST_MONTHS.forEach((_,fi)=>{
+    runClose+=fcastIn[fi]-fcastOut[fi];
+    h+=`<td style="${fcastCellStyle};color:var(--amber);font-weight:800">${$f(runClose)}</td>`;
+  });
   h+=`<td>${$f(d.close[d.close.length-1])}</td></tr></tbody>`;
   document.getElementById('cft').innerHTML=h;
 }
@@ -2122,6 +2212,380 @@ function applyImport(entity,ftype){
 
   renderDash();renderCF();renderFin();
   delete importState[entity+'-'+ftype];
+}
+
+// ── Forecast data persistence ──
+const FCST_MONTHS = ['May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+let AR_FCST = [];
+let AP_FCST = [];
+try { AR_FCST = JSON.parse(localStorage.getItem('ar_fcst')||'[]'); } catch(e){}
+try { AP_FCST = JSON.parse(localStorage.getItem('ap_fcst')||'[]'); } catch(e){}
+
+function saveFcastAR(){ try{localStorage.setItem('ar_fcst',JSON.stringify(AR_FCST));}catch(e){} }
+function saveFcastAP(){ try{localStorage.setItem('ap_fcst',JSON.stringify(AP_FCST));}catch(e){} }
+
+function getFcastInflow(month){
+  return AR_FCST.filter(r=>r.cashMonth===month&&r.status!=='Paid').reduce((s,r)=>s+(r.cash||0),0);
+}
+function getFcastOutflow(month){
+  return AP_FCST.filter(r=>r.cashMonth===month).reduce((s,r)=>s+(r.amount||0),0);
+}
+
+// ── Forecast AR render ──
+function renderFcastAR(){
+  // Summary bar
+  const sumEl=document.getElementById('fcar-summary');
+  if(sumEl){
+    sumEl.innerHTML=FCST_MONTHS.map(m=>{
+      const v=getFcastInflow(m);
+      return `<div class="fsum-card"><div class="fsc-m">${m}</div><div class="fsc-v">${v?$f(v):'—'}</div></div>`;
+    }).join('');
+  }
+  // Table
+  const tEl=document.getElementById('fcar-table');
+  if(!tEl)return;
+  const stClass={Draft:'st-draft',Invoiced:'st-invoiced',Partial:'st-partial',Paid:'st-paid',Overdue:'st-overdue'};
+  let h=`<thead><tr>
+    <th>Client</th><th>Invoice #</th><th>Inv. Date</th><th>Month</th><th>Due Date</th><th>Payment Date</th>
+    <th>Currency</th><th style="text-align:right">Amount</th><th style="text-align:right">FX</th>
+    <th style="text-align:right">USD Value</th><th>Mode</th><th style="text-align:right">Fee</th>
+    <th style="text-align:right">Interbank</th><th style="text-align:right">Cash</th>
+    <th>Cash Month</th><th>Status</th><th>Actions</th>
+  </tr></thead><tbody>`;
+  if(AR_FCST.length===0){
+    h+=`<tr><td colspan="17" style="text-align:center;color:var(--text3);padding:28px">No forecast invoices yet — click ＋ Add invoice to get started</td></tr>`;
+  } else {
+    AR_FCST.forEach(r=>{
+      const sc=stClass[r.status]||'st-draft';
+      h+=`<tr>
+        <td style="font-weight:600">${r.client||'—'}</td>
+        <td style="color:var(--text2)">${r.invoiceNo||'—'}</td>
+        <td style="font-size:14px">${r.invoiceDate||'—'}</td>
+        <td style="font-size:14px">${r.invoiceMonth||'—'}</td>
+        <td style="font-size:14px">${r.dueDate||'—'}</td>
+        <td style="font-size:14px">${r.paymentDate||'—'}</td>
+        <td>${r.currency||'USD'}</td>
+        <td style="text-align:right">${r.amount?$f(r.amount):'—'}</td>
+        <td style="text-align:right">${r.fx||1}</td>
+        <td style="text-align:right">${r.usdValue?$f(r.usdValue):'—'}</td>
+        <td style="font-size:14px">${r.mode||'—'}</td>
+        <td style="text-align:right">${r.fee?$f(r.fee):'—'}</td>
+        <td style="text-align:right">${r.interbank?$f(r.interbank):'—'}</td>
+        <td style="text-align:right;color:var(--green);font-weight:600">${r.cash?$f(r.cash):'—'}</td>
+        <td>${r.cashMonth||'—'}</td>
+        <td><span class="st-badge ${sc}">${r.status||'Draft'}</span></td>
+        <td style="white-space:nowrap">
+          <button onclick="openARModal('${r.id}')" style="background:none;border:none;cursor:pointer;color:var(--text3);padding:3px 6px;font-size:15px" title="Edit">✎</button>
+          <button onclick="deleteFcastRow('ar','${r.id}')" style="background:none;border:none;cursor:pointer;color:var(--red);padding:3px 6px;font-size:15px" title="Delete">🗑</button>
+        </td>
+      </tr>`;
+    });
+  }
+  h+='</tbody>';
+  tEl.innerHTML=h;
+}
+
+// ── Forecast AP render ──
+function renderFcastAP(){
+  // Summary bar
+  const sumEl=document.getElementById('fcap-summary');
+  if(sumEl){
+    sumEl.innerHTML=FCST_MONTHS.map(m=>{
+      const v=getFcastOutflow(m);
+      return `<div class="fsum-card out"><div class="fsc-m">${m}</div><div class="fsc-v">${v?'($'+$f(v).replace('$',')'):'—'}</div></div>`;
+    }).join('');
+  }
+  // Table
+  const tEl=document.getElementById('fcap-table');
+  if(!tEl)return;
+  let h=`<thead><tr>
+    <th>Vendor</th><th>Entity</th><th>Category</th><th>Payment Date</th>
+    <th style="text-align:right">Amount (USD)</th><th>Cash Month</th><th>Actions</th>
+  </tr></thead><tbody>`;
+  if(AP_FCST.length===0){
+    h+=`<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:28px">No forecast payments yet — click ＋ Add payment to get started</td></tr>`;
+  } else {
+    AP_FCST.forEach(r=>{
+      h+=`<tr>
+        <td style="font-weight:600">${r.vendor||'—'}</td>
+        <td>${r.entity?eb(r.entity):'—'}</td>
+        <td style="font-size:14px">${r.category||'—'}</td>
+        <td style="font-size:14px">${r.paymentDate||'—'}</td>
+        <td style="text-align:right;color:var(--red);font-weight:500">${r.amount?'($'+$f(r.amount).replace('$',')'):'—'}</td>
+        <td>${r.cashMonth||'—'}</td>
+        <td style="white-space:nowrap">
+          <button onclick="openAPModal('${r.id}')" style="background:none;border:none;cursor:pointer;color:var(--text3);padding:3px 6px;font-size:15px" title="Edit">✎</button>
+          <button onclick="deleteFcastRow('ap','${r.id}')" style="background:none;border:none;cursor:pointer;color:var(--red);padding:3px 6px;font-size:15px" title="Delete">🗑</button>
+        </td>
+      </tr>`;
+    });
+  }
+  h+='</tbody>';
+  tEl.innerHTML=h;
+}
+
+// ── Forecast modal helpers ──
+function closeFcstModal(){
+  document.getElementById('fcst-modal').style.display='none';
+}
+
+function calcARAutoFields(){
+  const amt=parseFloat(document.getElementById('far-amount')?.value)||0;
+  const fx=parseFloat(document.getElementById('far-fx')?.value)||1;
+  const fee=parseFloat(document.getElementById('far-fee')?.value)||0;
+  const ib=parseFloat(document.getElementById('far-interbank')?.value)||0;
+  const usd=amt*fx;
+  const cash=usd-fee-ib;
+  const usdEl=document.getElementById('far-usdvalue');
+  const cashEl=document.getElementById('far-cash');
+  if(usdEl)usdEl.value=usd?usd.toFixed(2):'';
+  if(cashEl)cashEl.value=cash?cash.toFixed(2):'';
+}
+
+function autoFillMonth(){
+  const v=document.getElementById('far-invoicedate')?.value;
+  const mEl=document.getElementById('far-invoicemonth');
+  if(!v||!mEl)return;
+  const mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][new Date(v).getMonth()];
+  mEl.value=mo||'';
+}
+
+function autoFillFX(){
+  const cur=document.getElementById('far-currency')?.value;
+  const fxEl=document.getElementById('far-fx');
+  if(fxEl&&cur==='USD')fxEl.value='1';
+  calcARAutoFields();
+}
+
+// ── Build contact autocomplete list from existing data ──
+function getClientNames(){
+  const names=new Set();
+  Object.values(BH_IN_D).flat().forEach(t=>names.add(t.contact));
+  Object.values(BC_IN_D).flat().forEach(t=>names.add(t.contact));
+  return [...names].sort();
+}
+
+function getVendorNames(){
+  const names=new Set();
+  Object.values(BH_OUT_D).flat().forEach(t=>names.add(t.contact));
+  Object.values(BC_OUT_D).flat().forEach(t=>names.add(t.contact));
+  return [...names].sort();
+}
+
+function getCategories(){
+  const cats=new Set();
+  const merged=getMergedMap();
+  Object.values(merged).forEach(v=>{if(v.group)cats.add(v.group);});
+  // Also add standard AP segs
+  ['SEO','Web Dev','Mktg Ops','Finance','Content','Design','Company','Compliance','Accounting'].forEach(c=>cats.add(c));
+  return [...cats].sort();
+}
+
+// ── AR Modal ──
+function openARModal(id){
+  const row=id?AR_FCST.find(r=>r.id===id):null;
+  const v=k=>row?row[k]:'';
+  const monthOpts=FCST_MONTHS.map(m=>`<option${(v('cashMonth')===m)?` selected`:``}>${m}</option>`).join('');
+  const currencies=['USD','AED','GBP','EUR','INR'];
+  const modes=['Payoneer','Stripe','Wire/SWIFT','Upwork','Other'];
+  const statuses=['Draft','Invoiced','Partial','Paid','Overdue'];
+  const clientNames=getClientNames();
+  const clientList=clientNames.map(n=>`<option value="${n.replace(/"/g,'&quot;')}">`).join('');
+
+  const h=`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <div style="font-size:19px;font-weight:700">${id?'Edit Invoice':'New AR Forecast Invoice'}</div>
+      <button onclick="closeFcstModal()" style="background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;line-height:1">✕</button>
+    </div>
+    <datalist id="far-clients-list">${clientList}</datalist>
+    <div class="fcst-form">
+      <div>
+        <label>Client name</label>
+        <input id="far-client" list="far-clients-list" value="${v('client')}" placeholder="Client name">
+      </div>
+      <div>
+        <label>Invoice #</label>
+        <input id="far-invoiceno" value="${v('invoiceNo')}" placeholder="INV-001">
+      </div>
+      <div>
+        <label>Invoice Date</label>
+        <input id="far-invoicedate" type="date" value="${v('invoiceDate')}" oninput="autoFillMonth()">
+      </div>
+      <div>
+        <label>Month of Invoice</label>
+        <input id="far-invoicemonth" value="${v('invoiceMonth')}" readonly placeholder="Auto">
+      </div>
+      <div>
+        <label>Due Date</label>
+        <input id="far-duedate" type="date" value="${v('dueDate')}">
+      </div>
+      <div>
+        <label>Payment Date</label>
+        <input id="far-paymentdate" type="date" value="${v('paymentDate')}">
+      </div>
+      <div>
+        <label>Currency</label>
+        <select id="far-currency" onchange="autoFillFX()">
+          ${currencies.map(c=>`<option${v('currency')===c?' selected':''}>${c}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label>Amount</label>
+        <input id="far-amount" type="number" value="${v('amount')}" placeholder="0" oninput="calcARAutoFields()">
+      </div>
+      <div>
+        <label>FX Rate</label>
+        <input id="far-fx" type="number" value="${v('fx')||1}" placeholder="1.0" step="0.0001" oninput="calcARAutoFields()">
+      </div>
+      <div>
+        <label>USD Value</label>
+        <input id="far-usdvalue" type="number" value="${v('usdValue')}" readonly placeholder="Auto">
+      </div>
+      <div>
+        <label>Mode</label>
+        <select id="far-mode">
+          ${modes.map(m=>`<option${v('mode')===m?' selected':''}>${m}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label>Fee (USD)</label>
+        <input id="far-fee" type="number" value="${v('fee')||0}" placeholder="0" step="0.01" oninput="calcARAutoFields()">
+      </div>
+      <div>
+        <label>Interbank (USD)</label>
+        <input id="far-interbank" type="number" value="${v('interbank')||0}" placeholder="0" step="0.01" oninput="calcARAutoFields()">
+      </div>
+      <div>
+        <label>Cash (auto)</label>
+        <input id="far-cash" type="number" value="${v('cash')}" readonly placeholder="Auto">
+      </div>
+      <div>
+        <label>Cash Month</label>
+        <select id="far-cashmonth">${monthOpts}</select>
+      </div>
+      <div>
+        <label>Status</label>
+        <select id="far-status">
+          ${statuses.map(s=>`<option${v('status')===s?' selected':''}>${s}</option>`).join('')}
+        </select>
+      </div>
+      <div class="full" style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px">
+        <button onclick="closeFcstModal()" style="padding:8px 20px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:15px;cursor:pointer;font-family:var(--sans)">Cancel</button>
+        <button onclick="saveARModal('${id||''}')" style="padding:8px 20px;border-radius:6px;border:none;background:var(--accent);color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:var(--sans)">Save</button>
+      </div>
+    </div>`;
+  document.getElementById('fcst-modal-body').innerHTML=h;
+  document.getElementById('fcst-modal').style.display='flex';
+  // Init auto-calc
+  calcARAutoFields();
+}
+
+function saveARModal(id){
+  const get=k=>document.getElementById(k)?.value?.trim()||'';
+  const getN=k=>parseFloat(document.getElementById(k)?.value)||0;
+  const row={
+    id:id||Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+    client:get('far-client'),
+    invoiceNo:get('far-invoiceno'),
+    invoiceDate:get('far-invoicedate'),
+    invoiceMonth:get('far-invoicemonth'),
+    dueDate:get('far-duedate'),
+    paymentDate:get('far-paymentdate'),
+    currency:get('far-currency'),
+    amount:getN('far-amount'),
+    fx:getN('far-fx')||1,
+    usdValue:getN('far-usdvalue'),
+    mode:get('far-mode'),
+    fee:getN('far-fee'),
+    interbank:getN('far-interbank'),
+    cash:getN('far-cash'),
+    cashMonth:get('far-cashmonth'),
+    status:get('far-status')
+  };
+  if(id){const i=AR_FCST.findIndex(r=>r.id===id);if(i>=0)AR_FCST[i]=row;else AR_FCST.push(row);}
+  else AR_FCST.push(row);
+  saveFcastAR();
+  closeFcstModal();
+  renderFcastAR();
+}
+
+// ── AP Modal ──
+function openAPModal(id){
+  const row=id?AP_FCST.find(r=>r.id===id):null;
+  const v=k=>row?row[k]:'';
+  const monthOpts=FCST_MONTHS.map(m=>`<option${v('cashMonth')===m?' selected':''}>${m}</option>`).join('');
+  const categories=getCategories();
+  const vendorNames=getVendorNames();
+  const vendorList=vendorNames.map(n=>`<option value="${n.replace(/"/g,'&quot;')}">`).join('');
+
+  const h=`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <div style="font-size:19px;font-weight:700">${id?'Edit Payment':'New AP Forecast Payment'}</div>
+      <button onclick="closeFcstModal()" style="background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;line-height:1">✕</button>
+    </div>
+    <datalist id="fap-vendors-list">${vendorList}</datalist>
+    <div class="fcst-form" style="grid-template-columns:1fr">
+      <div>
+        <label>Vendor name</label>
+        <input id="fap-vendor" list="fap-vendors-list" value="${v('vendor')}" placeholder="Vendor name">
+      </div>
+      <div>
+        <label>Entity</label>
+        <select id="fap-entity">
+          <option${v('entity')==='BH'?' selected':''}>BH</option>
+          <option${v('entity')==='BC'?' selected':''}>BC</option>
+        </select>
+      </div>
+      <div>
+        <label>Category</label>
+        <select id="fap-category">
+          ${categories.map(c=>`<option${v('category')===c?' selected':''}>${c}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label>Payment Date</label>
+        <input id="fap-paymentdate" type="date" value="${v('paymentDate')}">
+      </div>
+      <div>
+        <label>Amount USD</label>
+        <input id="fap-amount" type="number" value="${v('amount')}" placeholder="0" step="0.01">
+      </div>
+      <div>
+        <label>Cash Month</label>
+        <select id="fap-cashmonth">${monthOpts}</select>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px">
+        <button onclick="closeFcstModal()" style="padding:8px 20px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:15px;cursor:pointer;font-family:var(--sans)">Cancel</button>
+        <button onclick="saveAPModal('${id||''}')" style="padding:8px 20px;border-radius:6px;border:none;background:var(--accent);color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:var(--sans)">Save</button>
+      </div>
+    </div>`;
+  document.getElementById('fcst-modal-body').innerHTML=h;
+  document.getElementById('fcst-modal').style.display='flex';
+}
+
+function saveAPModal(id){
+  const get=k=>document.getElementById(k)?.value?.trim()||'';
+  const getN=k=>parseFloat(document.getElementById(k)?.value)||0;
+  const row={
+    id:id||Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+    vendor:get('fap-vendor'),
+    entity:get('fap-entity'),
+    category:get('fap-category'),
+    paymentDate:get('fap-paymentdate'),
+    amount:getN('fap-amount'),
+    cashMonth:get('fap-cashmonth')
+  };
+  if(id){const i=AP_FCST.findIndex(r=>r.id===id);if(i>=0)AP_FCST[i]=row;else AP_FCST.push(row);}
+  else AP_FCST.push(row);
+  saveFcastAP();
+  closeFcstModal();
+  renderFcastAP();
+}
+
+function deleteFcastRow(type,id){
+  if(!confirm('Delete this row?'))return;
+  if(type==='ar'){AR_FCST=AR_FCST.filter(r=>r.id!==id);saveFcastAR();renderFcastAR();}
+  else{AP_FCST=AP_FCST.filter(r=>r.id!==id);saveFcastAP();renderFcastAP();}
 }
 
 // ── Password gate ──
