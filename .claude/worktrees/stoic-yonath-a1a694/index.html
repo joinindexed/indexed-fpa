@@ -2964,7 +2964,12 @@ function submitPwd(){
     sessionStorage.setItem('fpa_auth','1');
     document.getElementById('auth-overlay').style.display='none';
     document.querySelector('.shell').style.display='flex';
-    renderDash();renderCF();renderFcastAR();renderFcastAP();
+    // Scroll main area to top so KPI cards are visible, then render
+    const mainEl=document.querySelector('.main');
+    if(mainEl)mainEl.scrollTop=0;
+    requestAnimationFrame(()=>{
+      renderDash();renderCF();renderFcastAR();renderFcastAP();
+    });
   } else {
     const err=document.getElementById('pwd-err');
     if(err){err.textContent='Incorrect password';err.style.display='block';}
@@ -2973,8 +2978,10 @@ function submitPwd(){
 }
 
 // ── Init ──
-renderDash();
-renderCF();
+requestAnimationFrame(()=>{
+  renderDash();
+  renderCF();
+});
 checkAuth();
 </script>
 </body>
