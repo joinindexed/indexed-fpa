@@ -2213,11 +2213,14 @@ function toggleARSel(id){
   updateARSelUI();
 }
 function toggleARSelAll(cb){
+  const check=cb.checked;
+  AR_SELECTED=new Set();
   document.querySelectorAll('#fcar-table tbody input[type="checkbox"]').forEach(c=>{
-    c.checked=cb.checked;
-    if(cb.checked)AR_SELECTED.add(c.dataset.id);else AR_SELECTED.delete(c.dataset.id);
+    c.checked=check;
+    if(check)AR_SELECTED.add(c.dataset.id);
   });
-  updateARSelUI();
+  const btn=document.getElementById('ar-del-sel');
+  if(btn){btn.style.display=check&&AR_SELECTED.size?'':'none';const sp=btn.querySelector('span');if(sp)sp.textContent=AR_SELECTED.size;}
 }
 function updateARSelUI(){
   const n=AR_SELECTED.size;
@@ -2241,11 +2244,14 @@ function toggleAPSel(id){
   updateAPSelUI();
 }
 function toggleAPSelAll(cb){
+  const check=cb.checked;
+  AP_SELECTED=new Set();
   document.querySelectorAll('#fcap-table tbody input[type="checkbox"]').forEach(c=>{
-    c.checked=cb.checked;
-    if(cb.checked)AP_SELECTED.add(c.dataset.id);else AP_SELECTED.delete(c.dataset.id);
+    c.checked=check;
+    if(check)AP_SELECTED.add(c.dataset.id);
   });
-  updateAPSelUI();
+  const btn=document.getElementById('ap-del-sel');
+  if(btn){btn.style.display=check&&AP_SELECTED.size?'':'none';const sp=btn.querySelector('span');if(sp)sp.textContent=AP_SELECTED.size;}
 }
 function updateAPSelUI(){
   const n=AP_SELECTED.size;
@@ -2385,7 +2391,7 @@ function renderFcastAR(){
   const stClass={Draft:'st-draft',Invoiced:'st-invoiced',Partial:'st-partial',Paid:'st-paid',Overdue:'st-overdue'};
   const s=AR_SORT,sf='sortFcastAR';
   let h=`<thead><tr>
-    <th style="width:32px;padding:8px 6px"><input type="checkbox" id="ar-sel-all" onchange="toggleARSelAll(this)" style="cursor:pointer;accent-color:var(--accent)"></th>
+    <th style="width:32px;padding:8px 6px"><input type="checkbox" id="ar-sel-all" onclick="toggleARSelAll(this)" style="cursor:pointer;accent-color:var(--accent)"></th>
     ${thSort('Client','client',s,sf)}
     ${thSort('Entity','entity',s,sf)}
     ${thSort('Invoice #','invoiceNo',s,sf)}
@@ -2467,7 +2473,7 @@ function renderFcastAP(){
   if(!tEl)return;
   const s2=AP_SORT,sf2='sortFcastAP';
   let h=`<thead><tr>
-    <th style="width:32px;padding:8px 6px"><input type="checkbox" id="ap-sel-all" onchange="toggleAPSelAll(this)" style="cursor:pointer;accent-color:var(--accent)"></th>
+    <th style="width:32px;padding:8px 6px"><input type="checkbox" id="ap-sel-all" onclick="toggleAPSelAll(this)" style="cursor:pointer;accent-color:var(--accent)"></th>
     ${thSort('Vendor','vendor',s2,sf2)}
     ${thSort('Entity','entity',s2,sf2)}
     ${thSort('Category','category',s2,sf2)}
