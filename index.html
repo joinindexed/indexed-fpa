@@ -2236,11 +2236,77 @@ try { AP_FCST = JSON.parse(localStorage.getItem('ap_fcst')||'[]'); } catch(e){}
 function saveFcastAR(){ try{localStorage.setItem('ar_fcst',JSON.stringify(AR_FCST));}catch(e){} }
 function saveFcastAP(){ try{localStorage.setItem('ap_fcst',JSON.stringify(AP_FCST));}catch(e){} }
 
+const ALL_MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function getMonthIdx(m){const i=ALL_MONTHS.indexOf(m);return i>=0?i:99;}
+
+function normalizeCashMonth(val){
+  if(!val)return'';
+  const v=String(val).toLowerCase().trim();
+  // full names
+  const fullMap={january:'Jan',february:'Feb',march:'Mar',april:'Apr',may:'May',june:'Jun',
+    july:'Jul',august:'Aug',september:'Sep',october:'Oct',november:'Nov',december:'Dec'};
+  for(const[k,mv] of Object.entries(fullMap)){if(v.startsWith(k))return mv;}
+  // 3-letter abbreviations (case-insensitive)
+  const abbr=v.slice(0,3);
+  const abbrMap={jan:'Jan',feb:'Feb',mar:'Mar',apr:'Apr',may:'May',jun:'Jun',
+    jul:'Jul',aug:'Aug',sep:'Sep',oct:'Oct',nov:'Nov',dec:'Dec'};
+  if(abbrMap[abbr])return abbrMap[abbr];
+  // numeric month 1-12
+  const n=parseInt(v);
+  if(n>=1&&n<=12)return ALL_MONTHS[n-1];
+  return String(val).trim();
+}
+
 function getFcastInflow(month){
   return AR_FCST.filter(r=>r.cashMonth===month&&r.status!=='Paid').reduce((s,r)=>s+(r.cash||0),0);
 }
 function getFcastOutflow(month){
   return AP_FCST.filter(r=>r.cashMonth===month).reduce((s,r)=>s+(r.amount||0),0);
+}
+
+// ── Sort state ──
+let AR_SORT={col:null,dir:1};
+let AP_SORT={col:null,dir:1};
+
+function sortFcastAR(col){
+  if(AR_SORT.col===col)AR_SORT.dir*=-1;else{AR_SORT.col=col;AR_SORT.dir=1;}
+  renderFcastAR();
+}
+function sortFcastAP(col){
+  if(AP_SORT.col===col)AP_SORT.dir*=-1;else{AP_SORT.col=col;AP_SORT.dir=1;}
+  renderFcastAP();
+}
+
+const AR_NUM_COLS=['amount','fx','usdValue','fee','interbank','cash'];
+const AR_DATE_COLS=['invoiceDate','dueDate','paymentDate'];
+const AR_MONTH_COLS=['invoiceMonth','cashMonth'];
+const AP_NUM_COLS=['amount'];
+const AP_DATE_COLS=['paymentDate'];
+const AP_MONTH_COLS=['cashMonth'];
+
+function sortedRows(rows,sort,numCols,dateCols,monthCols){
+  if(!sort.col)return rows;
+  const col=sort.col,dir=sort.dir;
+  return [...rows].sort((a,b)=>{
+    let av=a[col],bv=b[col];
+    if(monthCols.includes(col)){
+      return dir*(getMonthIdx(normalizeCashMonth(av))-getMonthIdx(normalizeCashMonth(bv)));
+    }
+    if(dateCols.includes(col)){
+      const at=av?new Date(av).getTime():0,bt=bv?new Date(bv).getTime():0;
+      return dir*(at-bt);
+    }
+    if(numCols.includes(col)){return dir*((av||0)-(bv||0));}
+    av=String(av||'').toLowerCase();bv=String(bv||'').toLowerCase();
+    return dir*(av<bv?-1:av>bv?1:0);
+  });
+}
+
+function thSort(label,col,sort,fn,align){
+  const active=sort.col===col;
+  const arrow=active?(sort.dir===1?' ▲':' ▼'):'';
+  const style=`cursor:pointer;user-select:none;white-space:nowrap${align?';text-align:'+align:''}${active?';color:var(--accent)':''}`;
+  return`<th onclick="${fn}('${col}')" style="${style}">${label}${arrow}</th>`;
 }
 
 // ── Forecast AR render ──
@@ -2257,20 +2323,36 @@ function renderFcastAR(){
   const tEl=document.getElementById('fcar-table');
   if(!tEl)return;
   const stClass={Draft:'st-draft',Invoiced:'st-invoiced',Partial:'st-partial',Paid:'st-paid',Overdue:'st-overdue'};
+  const s=AR_SORT,sf='sortFcastAR';
   let h=`<thead><tr>
-    <th>Client</th><th>Invoice #</th><th>Inv. Date</th><th>Month</th><th>Due Date</th><th>Payment Date</th>
-    <th>Currency</th><th style="text-align:right">Amount</th><th style="text-align:right">FX</th>
-    <th style="text-align:right">USD Value</th><th>Mode</th><th style="text-align:right">Fee</th>
-    <th style="text-align:right">Interbank</th><th style="text-align:right">Cash</th>
-    <th>Cash Month</th><th>Status</th><th>Actions</th>
+    ${thSort('Client','client',s,sf)}
+    ${thSort('Entity','entity',s,sf)}
+    ${thSort('Invoice #','invoiceNo',s,sf)}
+    ${thSort('Inv. Date','invoiceDate',s,sf)}
+    ${thSort('Month','invoiceMonth',s,sf)}
+    ${thSort('Due Date','dueDate',s,sf)}
+    ${thSort('Payment Date','paymentDate',s,sf)}
+    ${thSort('Currency','currency',s,sf)}
+    ${thSort('Amount','amount',s,sf,'right')}
+    ${thSort('FX','fx',s,sf,'right')}
+    ${thSort('USD Value','usdValue',s,sf,'right')}
+    ${thSort('Mode','mode',s,sf)}
+    ${thSort('Fee','fee',s,sf,'right')}
+    ${thSort('Interbank','interbank',s,sf,'right')}
+    ${thSort('Cash','cash',s,sf,'right')}
+    ${thSort('Cash Month','cashMonth',s,sf)}
+    ${thSort('Status','status',s,sf)}
+    <th>Actions</th>
   </tr></thead><tbody>`;
-  if(AR_FCST.length===0){
-    h+=`<tr><td colspan="17" style="text-align:center;color:var(--text3);padding:28px">No forecast invoices yet — click ＋ Add invoice to get started</td></tr>`;
+  const displayRows=sortedRows(AR_FCST,AR_SORT,AR_NUM_COLS,AR_DATE_COLS,AR_MONTH_COLS);
+  if(displayRows.length===0){
+    h+=`<tr><td colspan="18" style="text-align:center;color:var(--text3);padding:28px">No forecast invoices yet — click ＋ Add invoice to get started</td></tr>`;
   } else {
-    AR_FCST.forEach(r=>{
+    displayRows.forEach(r=>{
       const sc=stClass[r.status]||'st-draft';
       h+=`<tr>
         <td style="font-weight:600">${r.client||'—'}</td>
+        <td>${r.entity?`<span class="ent-badge">${r.entity}</span>`:'—'}</td>
         <td style="color:var(--text2)">${r.invoiceNo||'—'}</td>
         <td style="font-size:14px">${r.invoiceDate||'—'}</td>
         <td style="font-size:14px">${r.invoiceMonth||'—'}</td>
@@ -2310,14 +2392,21 @@ function renderFcastAP(){
   // Table
   const tEl=document.getElementById('fcap-table');
   if(!tEl)return;
+  const s2=AP_SORT,sf2='sortFcastAP';
   let h=`<thead><tr>
-    <th>Vendor</th><th>Entity</th><th>Category</th><th>Payment Date</th>
-    <th style="text-align:right">Amount (USD)</th><th>Cash Month</th><th>Actions</th>
+    ${thSort('Vendor','vendor',s2,sf2)}
+    ${thSort('Entity','entity',s2,sf2)}
+    ${thSort('Category','category',s2,sf2)}
+    ${thSort('Payment Date','paymentDate',s2,sf2)}
+    ${thSort('Amount (USD)','amount',s2,sf2,'right')}
+    ${thSort('Cash Month','cashMonth',s2,sf2)}
+    <th>Actions</th>
   </tr></thead><tbody>`;
-  if(AP_FCST.length===0){
+  const displayAP=sortedRows(AP_FCST,AP_SORT,AP_NUM_COLS,AP_DATE_COLS,AP_MONTH_COLS);
+  if(displayAP.length===0){
     h+=`<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:28px">No forecast payments yet — click ＋ Add payment to get started</td></tr>`;
   } else {
-    AP_FCST.forEach(r=>{
+    displayAP.forEach(r=>{
       h+=`<tr>
         <td style="font-weight:600">${r.vendor||'—'}</td>
         <td>${r.entity?eb(r.entity):'—'}</td>
@@ -2684,8 +2773,9 @@ function importARFile(file){
         jsonRows.forEach(raw=>{
           const r=mapRow(raw,AR_COL_MAP);
           if(!r.client&&!r.invoiceNo)return; // skip blank rows
-          // normalize entity
+          // normalize entity and cashMonth
           r.entity=normalizeEntity(r.entity);
+          if(r.cashMonth)r.cashMonth=normalizeCashMonth(r.cashMonth);
           // numeric coercion
           ['amount','fx','usdValue','fee','interbank','cash'].forEach(k=>{
             if(r[k]!==undefined)r[k]=parseFloat(String(r[k]).replace(/[^0-9.\-]/g,''))||0;
@@ -2698,7 +2788,7 @@ function importARFile(file){
           if(existing>=0){AR_FCST[existing]={...AR_FCST[existing],...r};updated++;}
           else{AR_FCST.push({id:Date.now()+Math.random(),...r});added++;}
         });
-        saveFcastAR();renderFcastAR();
+        saveFcastAR();renderFcastAR();renderCF();
         alert(`Import complete: ${added} added, ${updated} updated.`);
       }catch(err){alert('Import failed: '+err.message);}
     };
@@ -2730,10 +2820,11 @@ function importAPFile(file){
           if(!r.vendor&&!r.category)return;
           if(r.amount!==undefined)r.amount=parseFloat(String(r.amount).replace(/[^0-9.\-]/g,''))||0;
           r.entity=normalizeEntity(r.entity);
+          if(r.cashMonth)r.cashMonth=normalizeCashMonth(r.cashMonth);
           AP_FCST.push({id:Date.now()+Math.random(),...r});
           added++;
         });
-        saveFcastAP();renderFcastAP();
+        saveFcastAP();renderFcastAP();renderCF();
         alert(`Import complete: ${added} rows added.`);
       }catch(err){alert('Import failed: '+err.message);}
     };
