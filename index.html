@@ -2355,7 +2355,7 @@ const AR_DATE_COLS=['invoiceDate','dueDate','paymentDate'];
 const AR_MONTH_COLS=['invoiceMonth','cashMonth'];
 const AP_NUM_COLS=['amount'];
 const AP_DATE_COLS=['paymentDate'];
-const AP_MONTH_COLS=['cashMonth'];
+const AP_MONTH_COLS=['cashMonth','workMonth'];
 
 function sortedRows(rows,sort,numCols,dateCols,monthCols){
   if(!sort.col)return rows;
@@ -2524,32 +2524,42 @@ function renderFcastAP(){
   const tEl=document.getElementById('fcap-table');
   if(!tEl)return;
   const s2=AP_SORT,sf2='sortFcastAP';
+  const spendBadge=(t)=>{const c={'Variable':'rgba(87,215,226,0.12)','Fixed':'rgba(251,191,36,0.12)'}[t]||'rgba(255,255,255,0.06)';const tc={'Variable':'var(--accent)','Fixed':'var(--amber)'}[t]||'var(--text3)';return t?`<span style="display:inline-block;padding:2px 7px;border-radius:4px;font-size:12px;font-weight:600;background:${c};color:${tc}">${esc(t)}</span>`:'—';};
+  const catBadge=(t)=>{const c={'COS':'rgba(52,211,153,0.12)','OPEX':'rgba(87,215,226,0.12)','TAX':'rgba(248,113,113,0.12)'}[t]||'rgba(255,255,255,0.06)';const tc={'COS':'var(--green)','OPEX':'var(--accent)','TAX':'var(--red)'}[t]||'var(--text3)';return t?`<span style="display:inline-block;padding:2px 7px;border-radius:4px;font-size:12px;font-weight:600;background:${c};color:${tc}">${esc(t)}</span>`:'—';};
   let h=`<thead><tr>
     <th style="width:32px;padding:8px 6px"><input type="checkbox" id="ap-sel-all" onclick="toggleAPSelAll(this)" style="cursor:pointer;accent-color:var(--accent)"></th>
     ${thSort('Vendor','vendor',s2,sf2)}
     ${thSort('Entity','entity',s2,sf2)}
-    ${thSort('Category','category',s2,sf2)}
+    ${thSort('Work Month','workMonth',s2,sf2)}
     ${thSort('Payment Date','paymentDate',s2,sf2)}
-    ${thSort('Amount (USD)','amount',s2,sf2,'right')}
     ${thSort('Cash Month','cashMonth',s2,sf2)}
+    ${thSort('Amount (USD)','amount',s2,sf2,'right')}
+    ${thSort('Spend Type','spendType',s2,sf2)}
+    ${thSort('Category','expenseCategory',s2,sf2)}
+    ${thSort('Pay Mode','paymentMode',s2,sf2)}
+    <th>Notes</th>
     <th>Actions</th>
   </tr></thead><tbody>`;
   const displayAP=sortedRows(AP_FCST,AP_SORT,AP_NUM_COLS,AP_DATE_COLS,AP_MONTH_COLS);
   if(displayAP.length===0){
-    h+=`<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:28px">No forecast payments yet — click ＋ Add payment to get started</td></tr>`;
+    h+=`<tr><td colspan="13" style="text-align:center;color:var(--text3);padding:28px">No forecast payments yet — click ＋ Add payment to get started</td></tr>`;
   } else {
     displayAP.forEach(r=>{
       try{
         const rid=esc(String(r.id||''));
         const checked=AP_SELECTED.has(rid)?' checked':'';
         h+=`<tr>
-          <td style="padding:8px 6px"><input type="checkbox" data-id="${rid}" onchange="toggleAPSel('${rid}')"${checked} style="cursor:pointer;accent-color:var(--accent)"></td>
+          <td style="padding:8px 6px"><input type="checkbox" data-id="${rid}" onclick="toggleAPSel('${rid}')"${checked} style="cursor:pointer;accent-color:var(--accent)"></td>
           <td style="font-weight:600">${esc(r.vendor)||'—'}</td>
           <td>${r.entity?eb(esc(r.entity)):'—'}</td>
-          <td style="font-size:14px">${esc(r.category)||'—'}</td>
+          <td style="font-size:14px">${esc(normalizeCashMonth(r.workMonth))||'—'}</td>
           <td style="font-size:14px">${fmtDate(r.paymentDate)}</td>
-          <td style="text-align:right;color:var(--red);font-weight:500">${r.amount?'($'+$f(r.amount).replace('$',')'):'—'}</td>
           <td>${esc(normalizeCashMonth(r.cashMonth))||'—'}</td>
+          <td style="text-align:right;color:var(--red);font-weight:500">${r.amount?'($'+$f(r.amount).replace('$',')'):'—'}</td>
+          <td>${spendBadge(r.spendType)}</td>
+          <td>${catBadge(r.expenseCategory)}</td>
+          <td style="font-size:14px">${esc(r.paymentMode)||'—'}</td>
+          <td style="max-width:160px;white-space:normal;font-size:13px;color:var(--text2)">${esc(r.notes)||''}</td>
           <td style="white-space:nowrap">
             <button onclick="openAPModal('${rid}')" style="background:none;border:none;cursor:pointer;color:var(--text3);padding:3px 6px;font-size:15px" title="Edit">✎</button>
             <button onclick="deleteFcastRow('ap','${rid}')" style="background:none;border:none;cursor:pointer;color:var(--red);padding:3px 6px;font-size:15px" title="Delete">🗑</button>
@@ -2818,13 +2828,28 @@ function saveARModal(id){
 }
 
 // ── AP Modal ──
+function autoFillAPCashMonth(){
+  const pdEl=document.getElementById('fap-paymentdate');
+  const cmEl=document.getElementById('fap-cashmonth');
+  if(!pdEl||!cmEl||!pdEl.value)return;
+  const d=new Date(pdEl.value);
+  if(isNaN(d))return;
+  const val=`${ALL_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  for(let i=0;i<cmEl.options.length;i++){if(cmEl.options[i].text===val){cmEl.selectedIndex=i;return;}}
+  const opt=document.createElement('option');opt.value=val;opt.text=val;opt.selected=true;cmEl.insertBefore(opt,cmEl.firstChild);
+}
+
 function openAPModal(id){
   const row=id?AP_FCST.find(r=>String(r.id)===String(id)):null;
   const v=k=>row?row[k]:'';
-  const _curCM2=normalizeCashMonth(v('cashMonth'));
-  let monthOpts='';
-  for(let y=2025;y<=2028;y++)ALL_MONTHS.forEach(m=>{const val=`${m} ${y}`;monthOpts+=`<option${_curCM2===val?' selected':''}>${val}</option>`;});
-  const categories=getCategories();
+  const _curCM=normalizeCashMonth(v('cashMonth'));
+  const _curWM=normalizeCashMonth(v('workMonth'));
+  let monthOpts='',workOpts='';
+  for(let y=2025;y<=2028;y++)ALL_MONTHS.forEach(m=>{
+    const val=`${m} ${y}`;
+    monthOpts+=`<option${_curCM===val?' selected':''}>${val}</option>`;
+    workOpts+=`<option${_curWM===val?' selected':''}>${val}</option>`;
+  });
   const vendorNames=getVendorNames();
   const vendorList=vendorNames.map(n=>`<option value="${n.replace(/"/g,'&quot;')}">`).join('');
 
@@ -2834,37 +2859,65 @@ function openAPModal(id){
       <button onclick="closeFcstModal()" style="background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;line-height:1">✕</button>
     </div>
     <datalist id="fap-vendors-list">${vendorList}</datalist>
-    <div class="fcst-form" style="grid-template-columns:1fr">
+    <div class="fcst-form">
       <div>
         <label>Vendor name</label>
-        <input id="fap-vendor" list="fap-vendors-list" value="${v('vendor')}" placeholder="Vendor name">
+        <input id="fap-vendor" list="fap-vendors-list" value="${esc(v('vendor'))}" placeholder="Vendor name">
       </div>
       <div>
         <label>Entity</label>
         <select id="fap-entity">
-          <option${v('entity')==='BH'?' selected':''}>BH</option>
+          <option${(v('entity')||'BH')==='BH'?' selected':''}>BH</option>
           <option${v('entity')==='BC'?' selected':''}>BC</option>
         </select>
       </div>
       <div>
-        <label>Category</label>
-        <select id="fap-category">
-          ${categories.map(c=>`<option${v('category')===c?' selected':''}>${c}</option>`).join('')}
-        </select>
+        <label>Month of Work</label>
+        <select id="fap-workmonth">${workOpts}</select>
       </div>
       <div>
         <label>Payment Date</label>
-        <input id="fap-paymentdate" type="date" value="${v('paymentDate')}">
+        <input id="fap-paymentdate" type="date" value="${toDateInput(v('paymentDate'))}" onchange="autoFillAPCashMonth()">
       </div>
       <div>
-        <label>Amount USD</label>
+        <label>Cash Month <span style="font-size:11px;color:var(--text3)">(auto)</span></label>
+        <select id="fap-cashmonth">${monthOpts}</select>
+      </div>
+      <div>
+        <label>Amount (USD)</label>
         <input id="fap-amount" type="number" value="${v('amount')}" placeholder="0" step="0.01">
       </div>
       <div>
-        <label>Cash Month</label>
-        <select id="fap-cashmonth">${monthOpts}</select>
+        <label>Spend Type</label>
+        <select id="fap-spendtype">
+          <option value="">— Select —</option>
+          <option${v('spendType')==='Variable'?' selected':''}>Variable</option>
+          <option${v('spendType')==='Fixed'?' selected':''}>Fixed</option>
+        </select>
       </div>
-      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px">
+      <div>
+        <label>Expense Category</label>
+        <select id="fap-expcategory">
+          <option value="">— Select —</option>
+          <option${v('expenseCategory')==='COS'?' selected':''}>COS</option>
+          <option${v('expenseCategory')==='OPEX'?' selected':''}>OPEX</option>
+          <option${v('expenseCategory')==='TAX'?' selected':''}>TAX</option>
+        </select>
+      </div>
+      <div>
+        <label>Payment Mode</label>
+        <select id="fap-paymode">
+          <option value="">— Select —</option>
+          <option${v('paymentMode')==='Skuad'?' selected':''}>Skuad</option>
+          <option${v('paymentMode')==='Bank Transfer'?' selected':''}>Bank Transfer</option>
+          <option${v('paymentMode')==='Alaan Pay'?' selected':''}>Alaan Pay</option>
+        </select>
+      </div>
+      <div class="full">
+        <label>Notes</label>
+        <textarea id="fap-notes" rows="2" placeholder="Optional notes…" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:14px;font-family:var(--sans);resize:vertical;box-sizing:border-box">${esc(v('notes'))}</textarea>
+      </div>
+      <div class="full" style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px">
         <button onclick="closeFcstModal()" style="padding:8px 20px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:15px;cursor:pointer;font-family:var(--sans)">Cancel</button>
         <button onclick="saveAPModal('${id||''}')" style="padding:8px 20px;border-radius:6px;border:none;background:var(--accent);color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:var(--sans)">Save</button>
       </div>
@@ -2879,11 +2932,15 @@ function saveAPModal(id){
   const row={
     id:id||Date.now().toString(36)+Math.random().toString(36).slice(2,6),
     vendor:get('fap-vendor'),
-    entity:get('fap-entity'),
-    category:get('fap-category'),
+    entity:get('fap-entity')||'BH',
+    workMonth:get('fap-workmonth'),
     paymentDate:get('fap-paymentdate'),
+    cashMonth:get('fap-cashmonth'),
     amount:getN('fap-amount'),
-    cashMonth:get('fap-cashmonth')
+    spendType:get('fap-spendtype'),
+    expenseCategory:get('fap-expcategory'),
+    paymentMode:get('fap-paymode'),
+    notes:document.getElementById('fap-notes')?.value?.trim()||''
   };
   if(id){const i=AP_FCST.findIndex(r=>String(r.id)===String(id));if(i>=0)AP_FCST[i]=row;else AP_FCST.push(row);}
   else AP_FCST.push(row);
