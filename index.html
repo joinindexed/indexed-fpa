@@ -285,6 +285,7 @@ input,select{font-family:var(--sans)}
       <label style="padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:var(--sans);white-space:nowrap">↑ Import
         <input type="file" id="fi-ar-import" accept=".csv,.xlsx,.xls" style="display:none" onchange="importARFile(this.files[0]);this.value=''">
       </label>
+      <button onclick="clearAllAR()" style="padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--red);background:transparent;color:var(--red);font-family:var(--sans)">🗑 Clear all</button>
       <button onclick="openARModal(null)" style="padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">＋ Add invoice</button>
     </div>
   </div>
@@ -327,6 +328,7 @@ input,select{font-family:var(--sans)}
       <label style="padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:var(--sans);white-space:nowrap">↑ Import
         <input type="file" id="fi-ap-import" accept=".csv,.xlsx,.xls" style="display:none" onchange="importAPFile(this.files[0]);this.value=''">
       </label>
+      <button onclick="clearAllAP()" style="padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--red);background:transparent;color:var(--red);font-family:var(--sans)">🗑 Clear all</button>
       <button onclick="openAPModal(null)" style="padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">＋ Add payment</button>
     </div>
   </div>
@@ -1151,6 +1153,30 @@ const CONSO_PL = [
 // ── Helpers ──
 const $f=(n,d=0)=>{if(n===null||n===undefined)return'—';const s='$'+Math.abs(n).toLocaleString('en',{minimumFractionDigits:d,maximumFractionDigits:d});return n<0?'('+s+')':s;};
 const eb=(e)=>`<span class="ent-badge">${e}</span>`;
+// HTML-escape user strings before inserting into innerHTML
+const esc=(s)=>s==null?'—':String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+// Format a date value to YYYY-MM-DD for <input type="date">
+const toDateInput=(v)=>{
+  if(!v||v==='—')return'';
+  const s=String(v);
+  // ISO: 2026-04-28 or 2026-04-28T...
+  const iso=s.match(/^(\d{4}-\d{2}-\d{2})/);
+  if(iso)return iso[1];
+  // Human: "28 Apr 2026" or "28 April 2026"
+  const hr=s.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/);
+  if(hr){
+    const MOS=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+    const mi=MOS.indexOf(hr[2].toLowerCase().slice(0,3));
+    if(mi>=0)return`${hr[3]}-${String(mi+1).padStart(2,'0')}-${String(hr[1]).padStart(2,'0')}`;
+  }
+  // Excel serial
+  const n=Number(s);
+  if(!isNaN(n)&&n>40000&&n<60000){
+    const d=new Date(Math.round((n-25569)*86400000));
+    return`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+  }
+  return'';
+};
 
 // ── Nav ──
 function go(id,el){
@@ -2123,35 +2149,77 @@ function applyImport(entity,ftype){
 
 // ── Forecast data persistence ──
 const FCST_MONTHS = ['May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const ALL_MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function getMonthIdx(m){const i=ALL_MONTHS.indexOf(m);return i>=0?i:99;}
 let AR_FCST = [];
 let AP_FCST = [];
 try { AR_FCST = JSON.parse(localStorage.getItem('ar_fcst')||'[]'); } catch(e){}
 try { AP_FCST = JSON.parse(localStorage.getItem('ap_fcst')||'[]'); } catch(e){}
 
-function recalcARRow(r){
-  if(!r.fx)r.fx=1;
-  if(r.amount){r.usdValue=parseFloat((r.amount*r.fx).toFixed(2));}
-  const ibPct=r.ibPct!==undefined?r.ibPct:1;
-  r.ibPct=ibPct;
-  r.usdValue=r.usdValue||0;
-  r.interbank=parseFloat(((r.usdValue*ibPct/100)||0).toFixed(2));
-  r.cash=parseFloat((r.usdValue-(r.fee||0)-r.interbank).toFixed(2));
-  if(!r.invoiceMonth&&r.invoiceDate){
-    const d=new Date(r.invoiceDate);
-    if(!isNaN(d))r.invoiceMonth=ALL_MONTHS[d.getMonth()];
+function normalizeToISO(v){
+  // Returns YYYY-MM-DD string or original value if not parseable
+  if(!v||v==='—')return v;
+  const s=String(v);
+  if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.slice(0,10); // already ISO
+  // Human: "28 Apr 2026" or "28 April 2026"
+  const hr=s.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/);
+  if(hr){
+    const MOS=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+    const mi=MOS.indexOf(hr[2].toLowerCase().slice(0,3));
+    if(mi>=0)return`${hr[3]}-${String(mi+1).padStart(2,'0')}-${String(hr[1]).padStart(2,'0')}`;
   }
-  if(r.cashMonth)r.cashMonth=normalizeCashMonth(r.cashMonth);
+  // Excel serial
+  const n=Number(s);
+  if(!isNaN(n)&&n>40000&&n<60000){
+    const d=new Date(Math.round((n-25569)*86400000));
+    return`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+  }
+  return v;
+}
+
+const _MO_NAMES=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function recalcARRow(r){
+  try{
+    if(!r.fx)r.fx=1;
+    if(r.amount){r.usdValue=parseFloat((r.amount*r.fx).toFixed(2));}
+    const ibPct=r.ibPct!==undefined?r.ibPct:1;
+    r.ibPct=ibPct;
+    r.usdValue=r.usdValue||0;
+    r.interbank=parseFloat(((r.usdValue*ibPct/100)||0).toFixed(2));
+    r.cash=parseFloat((r.usdValue-(r.fee||0)-r.interbank).toFixed(2));
+    // Normalize dates to ISO YYYY-MM-DD
+    if(r.invoiceDate)r.invoiceDate=normalizeToISO(r.invoiceDate);
+    if(r.dueDate)r.dueDate=normalizeToISO(r.dueDate);
+    if(r.paymentDate)r.paymentDate=normalizeToISO(r.paymentDate);
+    if(!r.invoiceMonth&&r.invoiceDate){
+      const d=new Date(r.invoiceDate);
+      if(!isNaN(d))r.invoiceMonth=_MO_NAMES[d.getMonth()];
+    }
+    if(r.cashMonth)r.cashMonth=normalizeCashMonth(r.cashMonth);
+  }catch(e){}
   return r;
 }
 
-// Auto-recalculate all existing rows on load
-AR_FCST=AR_FCST.map(recalcARRow);
+// Auto-recalculate all existing rows on load (wrapped in try/catch so a bad row never crashes the page)
+try{AR_FCST=AR_FCST.map(recalcARRow);}catch(e){}
 
 function saveFcastAR(){ try{localStorage.setItem('ar_fcst',JSON.stringify(AR_FCST));}catch(e){} }
 function saveFcastAP(){ try{localStorage.setItem('ap_fcst',JSON.stringify(AP_FCST));}catch(e){} }
 
-const ALL_MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-function getMonthIdx(m){const i=ALL_MONTHS.indexOf(m);return i>=0?i:99;}
+function clearAllAR(){
+  if(!confirm(`Clear all ${AR_FCST.length} AR forecast invoices? This cannot be undone.\n\nTip: Export a backup first using "↓ Export CSV".`))return;
+  AR_FCST=[];
+  saveFcastAR();
+  renderFcastAR();
+  renderCF();
+}
+function clearAllAP(){
+  if(!confirm(`Clear all ${AP_FCST.length} AP forecast payments? This cannot be undone.\n\nTip: Export a backup first using "↓ Export CSV".`))return;
+  AP_FCST=[];
+  saveFcastAP();
+  renderFcastAP();
+  renderCF();
+}
 
 function normalizeCashMonth(val){
   if(!val)return'';
@@ -2297,32 +2365,37 @@ function renderFcastAR(){
   if(displayRows.length===0){
     h+=`<tr><td colspan="18" style="text-align:center;color:var(--text3);padding:28px">${AR_FCST.length?'No rows match the current filters — click ✕ Clear filters to reset':'No forecast invoices yet — click ＋ Add invoice to get started'}</td></tr>`;
   } else {
+    let rowErr=null;
     displayRows.forEach(r=>{
-      const sc=stClass[r.status]||'st-draft';
-      h+=`<tr>
-        <td style="font-weight:600">${r.client||'—'}</td>
-        <td>${r.entity?`<span class="ent-badge">${r.entity}</span>`:'—'}</td>
-        <td style="color:var(--text2)">${r.invoiceNo||'—'}</td>
-        <td style="font-size:14px">${fmtDate(r.invoiceDate)}</td>
-        <td style="font-size:14px">${r.invoiceMonth||'—'}</td>
-        <td style="font-size:14px">${fmtDate(r.dueDate)}</td>
-        <td style="font-size:14px">${fmtDate(r.paymentDate)}</td>
-        <td>${r.currency||'USD'}</td>
-        <td style="text-align:right">${r.amount?$f(r.amount):'—'}</td>
-        <td style="text-align:right">${r.fx||1}</td>
-        <td style="text-align:right">${r.usdValue?$f(r.usdValue):'—'}</td>
-        <td style="font-size:14px">${r.mode||'—'}</td>
-        <td style="text-align:right">${r.fee?$f(r.fee):'—'}</td>
-        <td style="text-align:right">${r.interbank?$f(r.interbank):'—'}</td>
-        <td style="text-align:right;color:var(--green);font-weight:600">${r.cash?$f(r.cash):'—'}</td>
-        <td>${normalizeCashMonth(r.cashMonth)||'—'}</td>
-        <td><span class="st-badge ${sc}">${r.status||'Draft'}</span></td>
-        <td style="white-space:nowrap">
-          <button onclick="openARModal('${r.id}')" style="background:none;border:none;cursor:pointer;color:var(--text3);padding:3px 6px;font-size:15px" title="Edit">✎</button>
-          <button onclick="deleteFcastRow('ar','${r.id}')" style="background:none;border:none;cursor:pointer;color:var(--red);padding:3px 6px;font-size:15px" title="Delete">🗑</button>
-        </td>
-      </tr>`;
+      try{
+        const sc=stClass[r.status]||'st-draft';
+        const rid=esc(String(r.id||''));
+        h+=`<tr>
+          <td style="font-weight:600">${esc(r.client)||'—'}</td>
+          <td>${r.entity?`<span class="ent-badge">${esc(r.entity)}</span>`:'—'}</td>
+          <td style="color:var(--text2)">${esc(r.invoiceNo)||'—'}</td>
+          <td style="font-size:14px">${fmtDate(r.invoiceDate)}</td>
+          <td style="font-size:14px">${esc(r.invoiceMonth)||'—'}</td>
+          <td style="font-size:14px">${fmtDate(r.dueDate)}</td>
+          <td style="font-size:14px">${fmtDate(r.paymentDate)}</td>
+          <td>${esc(r.currency)||'USD'}</td>
+          <td style="text-align:right">${r.amount?$f(r.amount):'—'}</td>
+          <td style="text-align:right">${r.fx||1}</td>
+          <td style="text-align:right">${r.usdValue?$f(r.usdValue):'—'}</td>
+          <td style="font-size:14px">${esc(r.mode)||'—'}</td>
+          <td style="text-align:right">${r.fee?$f(r.fee):'—'}</td>
+          <td style="text-align:right">${r.interbank?$f(r.interbank):'—'}</td>
+          <td style="text-align:right;color:var(--green);font-weight:600">${r.cash?$f(r.cash):'—'}</td>
+          <td>${esc(normalizeCashMonth(r.cashMonth))||'—'}</td>
+          <td><span class="st-badge ${sc}">${esc(r.status)||'Draft'}</span></td>
+          <td style="white-space:nowrap">
+            <button onclick="openARModal('${rid}')" style="background:none;border:none;cursor:pointer;color:var(--text3);padding:3px 6px;font-size:15px" title="Edit">✎</button>
+            <button onclick="deleteFcastRow('ar','${rid}')" style="background:none;border:none;cursor:pointer;color:var(--red);padding:3px 6px;font-size:15px" title="Delete">🗑</button>
+          </td>
+        </tr>`;
+      }catch(e){rowErr=e.message;}
     });
+    if(rowErr)h+=`<tr><td colspan="18" style="color:var(--red);padding:8px 10px;font-size:13px">⚠ Row render error: ${esc(rowErr)}</td></tr>`;
   }
   h+='</tbody>';
   tEl.innerHTML=h;
@@ -2356,18 +2429,21 @@ function renderFcastAP(){
     h+=`<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:28px">No forecast payments yet — click ＋ Add payment to get started</td></tr>`;
   } else {
     displayAP.forEach(r=>{
-      h+=`<tr>
-        <td style="font-weight:600">${r.vendor||'—'}</td>
-        <td>${r.entity?eb(r.entity):'—'}</td>
-        <td style="font-size:14px">${r.category||'—'}</td>
-        <td style="font-size:14px">${r.paymentDate||'—'}</td>
-        <td style="text-align:right;color:var(--red);font-weight:500">${r.amount?'($'+$f(r.amount).replace('$',')'):'—'}</td>
-        <td>${r.cashMonth||'—'}</td>
-        <td style="white-space:nowrap">
-          <button onclick="openAPModal('${r.id}')" style="background:none;border:none;cursor:pointer;color:var(--text3);padding:3px 6px;font-size:15px" title="Edit">✎</button>
-          <button onclick="deleteFcastRow('ap','${r.id}')" style="background:none;border:none;cursor:pointer;color:var(--red);padding:3px 6px;font-size:15px" title="Delete">🗑</button>
-        </td>
-      </tr>`;
+      try{
+        const rid=esc(String(r.id||''));
+        h+=`<tr>
+          <td style="font-weight:600">${esc(r.vendor)||'—'}</td>
+          <td>${r.entity?eb(esc(r.entity)):'—'}</td>
+          <td style="font-size:14px">${esc(r.category)||'—'}</td>
+          <td style="font-size:14px">${fmtDate(r.paymentDate)}</td>
+          <td style="text-align:right;color:var(--red);font-weight:500">${r.amount?'($'+$f(r.amount).replace('$',')'):'—'}</td>
+          <td>${esc(normalizeCashMonth(r.cashMonth))||'—'}</td>
+          <td style="white-space:nowrap">
+            <button onclick="openAPModal('${rid}')" style="background:none;border:none;cursor:pointer;color:var(--text3);padding:3px 6px;font-size:15px" title="Edit">✎</button>
+            <button onclick="deleteFcastRow('ap','${rid}')" style="background:none;border:none;cursor:pointer;color:var(--red);padding:3px 6px;font-size:15px" title="Delete">🗑</button>
+          </td>
+        </tr>`;
+      }catch(e){}
     });
   }
   h+='</tbody>';
@@ -2377,17 +2453,22 @@ function renderFcastAP(){
 // ── Date display normalizer ──
 function fmtDate(v){
   if(!v||v==='—')return'—';
-  // Try ISO: 2026-04-28
+  const MOS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  // Try ISO datetime: 2026-04-28T... or 2026-04-28
   const iso=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(v));
   if(iso){
-    const mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(iso[2])-1];
-    return `${parseInt(iso[3])} ${mo} ${iso[1]}`;
+    return `${parseInt(iso[3])} ${MOS[parseInt(iso[2])-1]} ${iso[1]}`;
   }
   // Already human-readable (e.g. "28 April 2026", "28 May 2026") — shorten month name
   const hr=/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/.exec(String(v));
   if(hr){
-    const mo=hr[2].slice(0,3);
-    return `${parseInt(hr[1])} ${mo} ${hr[3]}`;
+    return `${parseInt(hr[1])} ${hr[2].slice(0,3)} ${hr[3]}`;
+  }
+  // Excel serial number (e.g. 46000)
+  const n=Number(v);
+  if(!isNaN(n)&&n>40000&&n<60000){
+    const d=new Date(Math.round((n-25569)*86400000));
+    return `${d.getUTCDate()} ${MOS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
   }
   return String(v);
 }
@@ -2472,7 +2553,7 @@ function openARModal(id){
     <div class="fcst-form">
       <div>
         <label>Client name</label>
-        <input id="far-client" list="far-clients-list" value="${v('client')}" placeholder="Client name">
+        <input id="far-client" list="far-clients-list" value="${esc(v('client'))}" placeholder="Client name">
       </div>
       <div>
         <label>Entity</label>
@@ -2483,23 +2564,23 @@ function openARModal(id){
       </div>
       <div>
         <label>Invoice #</label>
-        <input id="far-invoiceno" value="${v('invoiceNo')}" placeholder="INV-001">
+        <input id="far-invoiceno" value="${esc(v('invoiceNo'))}" placeholder="INV-001">
       </div>
       <div>
         <label>Invoice Date</label>
-        <input id="far-invoicedate" type="date" value="${v('invoiceDate')}" oninput="autoFillMonth()">
+        <input id="far-invoicedate" type="date" value="${toDateInput(v('invoiceDate'))}" oninput="autoFillMonth()">
       </div>
       <div>
         <label>Month of Invoice</label>
-        <input id="far-invoicemonth" value="${v('invoiceMonth')}" readonly placeholder="Auto">
+        <input id="far-invoicemonth" value="${esc(v('invoiceMonth'))}" readonly placeholder="Auto">
       </div>
       <div>
         <label>Due Date</label>
-        <input id="far-duedate" type="date" value="${v('dueDate')}">
+        <input id="far-duedate" type="date" value="${toDateInput(v('dueDate'))}">
       </div>
       <div>
         <label>Payment Date</label>
-        <input id="far-paymentdate" type="date" value="${v('paymentDate')}">
+        <input id="far-paymentdate" type="date" value="${toDateInput(v('paymentDate'))}">
       </div>
       <div>
         <label>Currency</label>
@@ -2902,7 +2983,12 @@ function submitPwd(){
     sessionStorage.setItem('fpa_auth','1');
     document.getElementById('auth-overlay').style.display='none';
     document.querySelector('.shell').style.display='flex';
-    renderDash();renderCF();
+    const mainEl=document.querySelector('.main');
+    if(mainEl)mainEl.scrollTop=0;
+    try{renderDash();}catch(e){}
+    try{renderCF();}catch(e){}
+    try{renderFcastAR();}catch(e){}
+    try{renderFcastAP();}catch(e){}
   } else {
     const err=document.getElementById('pwd-err');
     if(err){err.textContent='Incorrect password';err.style.display='block';}
@@ -2911,9 +2997,17 @@ function submitPwd(){
 }
 
 // ── Init ──
-renderDash();
-renderCF();
+// Run immediately (script is at bottom of body so DOM is ready)
+try{renderDash();}catch(e){}
+try{renderCF();}catch(e){}
 checkAuth();
+// Also re-render on the nav click that activates the dash screen,
+// and add a window.onload backup in case something above failed
+window.addEventListener('load',()=>{
+  if(document.getElementById('dash-kpis')&&!document.getElementById('dash-kpis').innerHTML){
+    try{renderDash();}catch(e){}
+  }
+});
 </script>
 </body>
 </html>
