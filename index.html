@@ -310,6 +310,14 @@ input,select{font-family:var(--sans)}
           <option value="">All</option>
         </select>
       </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:13px;color:var(--text2);white-space:nowrap">Type</span>
+        <select id="ar-f-type" onchange="renderFcastAR()" style="font-size:13px;padding:5px 8px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-family:var(--sans)">
+          <option value="">All</option>
+          <option value="Retainer">Retainer</option>
+          <option value="One-time">One-time</option>
+        </select>
+      </div>
       <button onclick="clearARFilters()" id="ar-f-clear" style="display:none;font-size:12px;padding:5px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text2);cursor:pointer;font-family:var(--sans)">✕ Clear filters</button>
       <span id="ar-f-count" style="font-size:12px;color:var(--text3);margin-left:4px"></span>
     </div>
@@ -2178,6 +2186,7 @@ function normalizeToISO(v){
 const _MO_NAMES=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function recalcARRow(r){
   try{
+    if(!r.invoiceType)r.invoiceType='Retainer';
     if(!r.fx)r.fx=1;
     if(r.amount){r.usdValue=parseFloat((r.amount*r.fx).toFixed(2));}
     const ibPct=r.ibPct!==undefined?r.ibPct:1;
@@ -2351,7 +2360,7 @@ function thSort(label,col,sort,fn,align){
 }
 
 function clearARFilters(){
-  ['ar-f-client','ar-f-entity','ar-f-month'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['ar-f-client','ar-f-entity','ar-f-month','ar-f-type'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   renderFcastAR();
 }
 
@@ -2361,6 +2370,7 @@ function renderFcastAR(){
   const fClientEl=document.getElementById('ar-f-client');
   const fEntityEl=document.getElementById('ar-f-entity');
   const fMonthEl=document.getElementById('ar-f-month');
+  const fTypeEl=document.getElementById('ar-f-type');
   if(fClientEl){
     const curClient=fClientEl.value;
     const clients=[...new Set(AR_FCST.map(r=>r.client||'').filter(Boolean))].sort();
@@ -2375,7 +2385,8 @@ function renderFcastAR(){
   const fClient=fClientEl?fClientEl.value:'';
   const fEntity=fEntityEl?fEntityEl.value:'';
   const fMonth=fMonthEl?fMonthEl.value:'';
-  const hasFilter=!!(fClient||fEntity||fMonth);
+  const fType=fTypeEl?fTypeEl.value:'';
+  const hasFilter=!!(fClient||fEntity||fMonth||fType);
   const clearBtn=document.getElementById('ar-f-clear');
   if(clearBtn)clearBtn.style.display=hasFilter?'':'none';
   // Apply filters
@@ -2383,6 +2394,7 @@ function renderFcastAR(){
     if(fClient&&(r.client||'')!==fClient)return false;
     if(fEntity&&(r.entity||'BH')!==fEntity)return false;
     if(fMonth&&normalizeCashMonth(r.cashMonth)!==fMonth)return false;
+    if(fType&&(r.invoiceType||'Retainer')!==fType)return false;
     return true;
   });
   const countEl=document.getElementById('ar-f-count');
@@ -2419,12 +2431,13 @@ function renderFcastAR(){
     ${thSort('Cash','cash',s,sf,'right')}
     ${thSort('Cash Month','cashMonth',s,sf)}
     ${thSort('Status','status',s,sf)}
+    ${thSort('Type','invoiceType',s,sf)}
     <th>Notes</th>
     <th>Actions</th>
   </tr></thead><tbody>`;
   const displayRows=sortedRows(filtered,AR_SORT,AR_NUM_COLS,AR_DATE_COLS,AR_MONTH_COLS);
   if(displayRows.length===0){
-    h+=`<tr><td colspan="21" style="text-align:center;color:var(--text3);padding:28px">${AR_FCST.length?'No rows match the current filters — click ✕ Clear filters to reset':'No forecast invoices yet — click ＋ Add invoice to get started'}</td></tr>`;
+    h+=`<tr><td colspan="22" style="text-align:center;color:var(--text3);padding:28px">${AR_FCST.length?'No rows match the current filters — click ✕ Clear filters to reset':'No forecast invoices yet — click ＋ Add invoice to get started'}</td></tr>`;
   } else {
     let rowErr=null;
     displayRows.forEach(r=>{
@@ -2451,6 +2464,7 @@ function renderFcastAR(){
           <td style="text-align:right;color:var(--green);font-weight:600">${r.cash?$f(r.cash):'—'}</td>
           <td>${esc(normalizeCashMonth(r.cashMonth))||'—'}</td>
           <td><span class="st-badge ${sc}">${esc(r.status)||'Draft'}</span></td>
+          <td><span style="display:inline-block;padding:2px 7px;border-radius:4px;font-size:12px;font-weight:600;${(r.invoiceType||'Retainer')==='Retainer'?'background:rgba(87,215,226,0.10);color:var(--accent)':'background:rgba(251,191,36,0.10);color:var(--amber)'}">${esc(r.invoiceType||'Retainer')}</span></td>
           <td style="max-width:180px;white-space:normal;font-size:13px;color:var(--text2)">${esc(r.notes)||''}</td>
           <td style="white-space:nowrap">
             <button onclick="openARModal('${rid}')" style="background:none;border:none;cursor:pointer;color:var(--text3);padding:3px 6px;font-size:15px" title="Edit">✎</button>
@@ -2460,7 +2474,7 @@ function renderFcastAR(){
         </tr>`;
       }catch(e){rowErr=e.message;}
     });
-    if(rowErr)h+=`<tr><td colspan="21" style="color:var(--red);padding:8px 10px;font-size:13px">⚠ Row render error: ${esc(rowErr)}</td></tr>`;
+    if(rowErr)h+=`<tr><td colspan="22" style="color:var(--red);padding:8px 10px;font-size:13px">⚠ Row render error: ${esc(rowErr)}</td></tr>`;
   }
   h+='</tbody>';
   tEl.innerHTML=h;
@@ -2706,6 +2720,13 @@ function openARModal(id){
           ${statuses.map(s=>`<option${v('status')===s?' selected':''}>${s}</option>`).join('')}
         </select>
       </div>
+      <div>
+        <label>Type</label>
+        <select id="far-type">
+          <option${(v('invoiceType')||'Retainer')==='Retainer'?' selected':''}>Retainer</option>
+          <option${v('invoiceType')==='One-time'?' selected':''}>One-time</option>
+        </select>
+      </div>
       <div class="full">
         <label>Notes</label>
         <textarea id="far-notes" rows="2" placeholder="Optional notes…" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:14px;font-family:var(--sans);resize:vertical;box-sizing:border-box">${v('notes')||''}</textarea>
@@ -2744,6 +2765,7 @@ function saveARModal(id){
     cash:getN('far-cash'),
     cashMonth:get('far-cashmonth'),
     status:get('far-status'),
+    invoiceType:get('far-type')||'Retainer',
     notes:document.getElementById('far-notes')?.value?.trim()||''
   };
   if(id){const i=AR_FCST.findIndex(r=>String(r.id)===String(id));if(i>=0)AR_FCST[i]=row;else AR_FCST.push(row);}
