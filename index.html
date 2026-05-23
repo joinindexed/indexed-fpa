@@ -189,11 +189,6 @@ input,select{font-family:var(--sans)}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>Cash flow</div>
     <div class="nav-item" onclick="go('fin',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 17v-2m3 2v-4m3 4v-6M9 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V9l-5-6z"/></svg>Financials</div>
-    <div class="nav-section">Inputs</div>
-    <div class="nav-item" onclick="go('ar',this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>AR</div>
-    <div class="nav-item" onclick="go('ap',this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>AP</div>
     <div class="nav-section">Forecast</div>
     <div class="nav-item" onclick="go('fcast-ar',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>AR Pipeline</div>
@@ -277,32 +272,6 @@ input,select{font-family:var(--sans)}
     <div id="fin-pl" class="itp">
       <div class="card"><div class="card-head"><span class="card-title" id="pl-title">Profit &amp; Loss</span></div>
         <div class="cf-wrap"><table class="fin" id="plt"></table></div></div>
-    </div>
-  </div>
-</div>
-
-<!-- AR -->
-<div id="screen-ar" class="screen">
-  <div class="page-header"><div><div class="page-title">AR</div><div class="page-sub">Customer invoices · actuals from Xero</div></div>
-    <div><button onclick="addAR()" style="padding:7px 14px;border-radius:6px;font-size:16.0px;font-weight:500;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">+ Add invoice</button></div>
-  </div>
-  <div class="content">
-    <div class="card"><div class="card-head"><span class="card-title">Invoice register</span></div>
-      <div style="overflow-x:auto"><table class="dt" id="art"></table></div>
-      <div class="add-row" onclick="addAR()">＋ Add forecast invoice</div>
-    </div>
-  </div>
-</div>
-
-<!-- AP -->
-<div id="screen-ap" class="screen">
-  <div class="page-header"><div><div class="page-title">AP</div><div class="page-sub">Vendor payments · actuals from Xero</div></div>
-    <div><button onclick="addAP()" style="padding:7px 14px;border-radius:6px;font-size:16.0px;font-weight:500;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">+ Add expense</button></div>
-  </div>
-  <div class="content">
-    <div class="card"><div class="card-head"><span class="card-title">Expense register</span></div>
-      <div style="overflow-x:auto"><table class="dt" id="apt"></table></div>
-      <div class="add-row" onclick="addAP()">＋ Add forecast expense</div>
     </div>
   </div>
 </div>
@@ -1155,8 +1124,6 @@ function go(id,el){
   if(id==='dash')renderDash();
   if(id==='cf')renderCF();
   if(id==='fin')renderFin();
-  if(id==='ar')renderAR();
-  if(id==='ap')renderAP();
   if(id==='contacts')renderContacts();
   if(id==='import')initImport();
   if(id==='fcast-ar')renderFcastAR();
@@ -1189,7 +1156,7 @@ function renderCF(){
   renderBnk();
 }
 
-let _cfInGroups=[], _cfOutGroups=[];
+let _cfInGroups=[], _cfOutGroups=[], _cfInFcstGroups=[], _cfOutFcstGroups=[];
 
 function buildCFGroups(isIn){
   const merged=getMergedMap();
@@ -1213,10 +1180,35 @@ function buildCFGroups(isIn){
     .sort((a,b)=>E.reduce((s,m)=>s+(b.vals[m]||0),0)-E.reduce((s,m)=>s+(a.vals[m]||0),0));
 }
 
+function buildFcastCFGroups(isIn){
+  const merged=getMergedMap();
+  const groups={};
+  const rows=isIn?AR_FCST.filter(r=>r.status!=='Paid'):AP_FCST;
+  rows.forEach(r=>{
+    const entity=(r.entity||'BH').toUpperCase();
+    if(ent!=='conso'&&entity!==ent.toUpperCase())return;
+    const contact=isIn?(r.client||'Unknown'):(r.vendor||'Unknown');
+    const m=r.cashMonth;
+    if(!FCST_MONTHS.includes(m))return;
+    const amt=isIn?(r.cash||0):(r.amount||0);
+    if(!amt)return;
+    const mapKey=contact+'||'+entity;
+    const grpName=merged[mapKey]?.group||contact;
+    if(!groups[grpName])groups[grpName]={group:grpName,vals:{},entities:{BH:{vals:{}},BC:{vals:{}}}};
+    groups[grpName].vals[m]=(groups[grpName].vals[m]||0)+amt;
+    if(!groups[grpName].entities[entity])groups[grpName].entities[entity]={vals:{}};
+    groups[grpName].entities[entity].vals[m]=(groups[grpName].entities[entity].vals[m]||0)+amt;
+  });
+  return Object.values(groups)
+    .sort((a,b)=>FCST_MONTHS.reduce((s,m)=>s+(b.vals[m]||0),0)-FCST_MONTHS.reduce((s,m)=>s+(a.vals[m]||0),0));
+}
+
 function renderCFTable(d){
   openDrill=null;
   _cfInGroups=buildCFGroups(true);
   _cfOutGroups=buildCFGroups(false);
+  _cfInFcstGroups=buildFcastCFGroups(true);
+  _cfOutFcstGroups=buildFcastCFGroups(false);
   const ytdIn=d.in.reduce((s,v)=>s+v,0);
   const ytdOut=d.out.reduce((s,v)=>s+v,0);
   const ytdFX=d.fx.reduce((s,v)=>s+v,0);
@@ -1298,19 +1290,38 @@ function togCFDrill(drId,isIn){
   if(openDrill===drId){row.classList.remove('open');openDrill=null;return;}
   if(openDrill){const p=document.getElementById('dr-'+openDrill);if(p)p.classList.remove('open');}
   openDrill=drId; row.classList.add('open');
-  const groups=isIn?_cfInGroups:_cfOutGroups;
+  const actGroups=isIn?_cfInGroups:_cfOutGroups;
+  const fcstGroups=isIn?_cfInFcstGroups:_cfOutFcstGroups;
   const cls=isIn?'pos':'neg';
   const fmt=v=>isIn?$f(v):'($'+$f(v).replace('$','')+')';
+  const fcs='background:rgba(251,191,36,0.04)';
+  // Merge actual + forecast groups by display group name
+  const mgMap={};
+  actGroups.forEach(g=>{
+    mgMap[g.group]={group:g.group,actVals:g.vals,actEnt:g.entities,fcstVals:{},fcstEnt:{BH:{vals:{}},BC:{vals:{}}}};
+  });
+  fcstGroups.forEach(g=>{
+    if(mgMap[g.group]){mgMap[g.group].fcstVals=g.vals;mgMap[g.group].fcstEnt=g.entities;}
+    else mgMap[g.group]={group:g.group,actVals:{},actEnt:{BH:{vals:{}},BC:{vals:{}}},fcstVals:g.vals,fcstEnt:g.entities};
+  });
+  const allGroups=Object.values(mgMap).sort((a,b)=>{
+    const at=E.reduce((s,m)=>s+(a.actVals[m]||0),0)+FCST_MONTHS.reduce((s,m)=>s+(a.fcstVals[m]||0),0);
+    const bt=E.reduce((s,m)=>s+(b.actVals[m]||0),0)+FCST_MONTHS.reduce((s,m)=>s+(b.fcstVals[m]||0),0);
+    return bt-at;
+  });
   const label=isIn?'Cash inflow by group':'Cash outflow by group';
   let h=`<div class="dt-hd"><span>↳ ${label}</span><span class="dc" onclick="clDrill()">✕</span></div>`;
   h+=`<table class="drt"><thead><tr><th>Display group</th><th>Entity</th>`;
-  E.forEach(m=>h+=`<th>${m}</th>`);
-  h+=`<th>YTD</th></tr></thead><tbody>`;
-  groups.forEach((g,gi)=>{
-    const total=E.reduce((s,m)=>s+(g.vals[m]||0),0);
+  E.forEach(m=>h+=`<th><span class="ba" style="font-size:9px">A</span> ${m}</th>`);
+  FCST_MONTHS.forEach(m=>h+=`<th style="opacity:.85"><span class="bf" style="font-size:9px">F</span> ${m}</th>`);
+  h+=`<th>Total</th></tr></thead><tbody>`;
+  allGroups.forEach((mg,gi)=>{
+    const actTotal=E.reduce((s,m)=>s+(mg.actVals[m]||0),0);
+    const fcstTotal=FCST_MONTHS.reduce((s,m)=>s+(mg.fcstVals[m]||0),0);
+    const total=actTotal+fcstTotal;
     if(!total)return;
-    const hasBH=E.some(m=>g.entities.BH.vals[m]);
-    const hasBC=E.some(m=>g.entities.BC.vals[m]);
+    const hasBH=E.some(m=>mg.actEnt.BH?.vals[m])||FCST_MONTHS.some(m=>mg.fcstEnt.BH?.vals[m]);
+    const hasBC=E.some(m=>mg.actEnt.BC?.vals[m])||FCST_MONTHS.some(m=>mg.fcstEnt.BC?.vals[m]);
     const isMulti=hasBH&&hasBC;
     let entBadge;
     if(ent==='bh') entBadge=eb('BH');
@@ -1320,19 +1331,24 @@ function togCFDrill(drId,isIn){
     else entBadge=eb('BC');
     const rowId='cfent-'+drId+'-'+gi;
     h+=`<tr${isMulti&&ent==='conso'?' style="cursor:pointer" onclick="togEntDrill(\''+rowId+'\')"':''}>`;
-    h+=`<td style="font-weight:600">${isMulti&&ent==='conso'?'▸ ':''}${g.group}</td>`;
+    h+=`<td style="font-weight:600">${isMulti&&ent==='conso'?'▸ ':''}${mg.group}</td>`;
     h+=`<td>${entBadge}</td>`;
-    E.forEach(m=>h+=`<td class="${cls}">${g.vals[m]?fmt(g.vals[m]):'—'}</td>`);
+    E.forEach(m=>h+=`<td class="${cls}">${mg.actVals[m]?fmt(mg.actVals[m]):'—'}</td>`);
+    FCST_MONTHS.forEach(m=>h+=`<td class="${cls}" style="${fcs}">${mg.fcstVals[m]?fmt(mg.fcstVals[m]):'—'}</td>`);
     h+=`<td class="${cls}" style="font-weight:700">${fmt(total)}</td></tr>`;
     if(isMulti&&ent==='conso'){
       ['BH','BC'].forEach(ek=>{
-        const ev=g.entities[ek].vals;
-        const etot=E.reduce((s,m)=>s+(ev[m]||0),0);
+        const actEv=mg.actEnt[ek]?.vals||{};
+        const fcstEv=mg.fcstEnt[ek]?.vals||{};
+        const etotAct=E.reduce((s,m)=>s+(actEv[m]||0),0);
+        const etotFcst=FCST_MONTHS.reduce((s,m)=>s+(fcstEv[m]||0),0);
+        const etot=etotAct+etotFcst;
         if(!etot)return;
         h+=`<tr id="${rowId}-${ek}" style="display:none;background:var(--accent-light)">`;
-        h+=`<td style="padding-left:28px;color:var(--text2)">${g.group}</td>`;
+        h+=`<td style="padding-left:28px;color:var(--text2)">${mg.group}</td>`;
         h+=`<td>${eb(ek)}</td>`;
-        E.forEach(m=>h+=`<td class="${cls}" style="font-size:13px">${ev[m]?fmt(ev[m]):'—'}</td>`);
+        E.forEach(m=>h+=`<td class="${cls}" style="font-size:13px">${actEv[m]?fmt(actEv[m]):'—'}</td>`);
+        FCST_MONTHS.forEach(m=>h+=`<td class="${cls}" style="${fcs};font-size:13px">${fcstEv[m]?fmt(fcstEv[m]):'—'}</td>`);
         h+=`<td class="${cls}" style="font-size:13px">${fmt(etot)}</td></tr>`;
       });
     }
@@ -1412,167 +1428,6 @@ function renderFinTable(id,rows,curEnt,showYTD){
   });
   h+='</tbody>';
   document.getElementById(id).innerHTML=h;
-}
-
-// ── AR ──
-const AR_ROWS=[
-  {sr:1,client:'OE Partners',trade:'OE Partners',part:'SEO Retainer',seg:'SEO',ent:'BH',inv:'25-Jan',due:'25-Jan',pay:'9-Jan',cur:'USD',amt:1500,fx:1,usd:1500,mode:'Stripe',fee:'5%',net:1425,month:'Jan',st:'paid'},
-  {sr:2,client:'Phunk Creative',trade:'Phunk Creative',part:'SEO',seg:'SEO',ent:'BH',inv:'Jan',due:'Jan',pay:'9-Jan',cur:'USD',amt:368,fx:1,usd:368,mode:'Stripe',fee:'5%',net:350,month:'Jan',st:'paid'},
-  {sr:3,client:'Upvolt Ltd',trade:'Upvolt Ltd',part:'SEO',seg:'SEO',ent:'BH',inv:'31-Jan',due:'31-Jan',pay:'10-Jan',cur:'USD',amt:3300,fx:1,usd:3300,mode:'Stripe',fee:'5%',net:3135,month:'Jan',st:'paid'},
-  {sr:4,client:'Macol Limited',trade:'Inst. of Medical Physics',part:'SEO',seg:'SEO',ent:'BH',inv:'17-Jan',due:'17-Jan',pay:'12-Jan',cur:'USD',amt:3585,fx:1,usd:3585,mode:'Stripe',fee:'5%',net:3406,month:'Jan',st:'paid'},
-  {sr:5,client:'Motto LLC',trade:'Motto LLC',part:'SEO',seg:'SEO',ent:'BH',inv:'18-Jan',due:'3-Feb',pay:'10-Jan',cur:'USD',amt:2800,fx:1,usd:2800,mode:'Bank Transfer',fee:'1%',net:2772,month:'Jan',st:'paid'},
-  {sr:6,client:'Private Equity List',trade:'PEL',part:'SEO',seg:'SEO',ent:'BH',inv:'31-Jan',due:'31-Jan',pay:'10-Jan',cur:'USD',amt:240,fx:1,usd:240,mode:'Stripe',fee:'5%',net:228,month:'Jan',st:'paid'},
-  {sr:7,client:'Duo Strategy LLC',trade:'Duo Digital',part:'Affiliate',seg:'Affiliate',ent:'BH',inv:'24-Jan',due:'24-Jan',pay:'24-Jan',cur:'USD',amt:220,fx:1,usd:220,mode:'PayPal',fee:'4.5%',net:210,month:'Jan',st:'paid'},
-  {sr:8,client:'Anintah',trade:'Anintah',part:'SEO',seg:'SEO',ent:'BH',inv:'15-Jan',due:'15-Jan',pay:'25-Jan',cur:'USD',amt:10000,fx:1,usd:10000,mode:'Bank Transfer',fee:'1%',net:9900,month:'Jan',st:'paid'},
-  {sr:9,client:'RRVS Holdings (RecNation)',trade:'RecNation',part:'SEO',seg:'SEO',ent:'BH',inv:'Jan',due:'Jan',pay:'9-Jan',cur:'USD',amt:8150,fx:1,usd:8150,mode:'Payoneer',fee:'1%',net:8069,month:'Jan',st:'paid'},
-  {sr:10,client:'Cloud Web Solutions',trade:'Cloud Web',part:'Affiliate',seg:'Affiliate',ent:'BH',inv:'Jan',due:'Jan',pay:'9-Jan',cur:'USD',amt:2188,fx:1,usd:2188,mode:'Stripe AED',fee:'5%',net:2079,month:'Jan',st:'paid'},
-  {sr:11,client:'RRVS Holdings (RecNation)',trade:'RecNation',part:'Multiple (pSEO+HubSpot)',seg:'Multiple',ent:'BC',inv:'INV-04-11/2025',due:'7-Feb',pay:'7-Feb',cur:'USD',amt:16474,fx:1,usd:16474,mode:'Payoneer',fee:'1%',net:16310,month:'Jan',st:'paid'},
-  {sr:12,client:'OE Partners',trade:'OE Partners',part:'SEO Retainer',seg:'SEO',ent:'BH',inv:'4-Feb',due:'4-Feb',pay:'4-Feb',cur:'USD',amt:1500,fx:1,usd:1500,mode:'Stripe',fee:'5%',net:1425,month:'Feb',st:'paid'},
-  {sr:13,client:'Veriheal Inc',trade:'Veriheal',part:'SEO',seg:'SEO',ent:'BH',inv:'13-Feb',due:'13-Feb',pay:'13-Feb',cur:'USD',amt:14211,fx:1,usd:14211,mode:'Stripe',fee:'0%',net:14211,month:'Feb',st:'paid'},
-  {sr:14,client:'Upvolt Ltd',trade:'Upvolt Ltd',part:'SEO',seg:'SEO',ent:'BH',inv:'14-Feb',due:'14-Feb',pay:'14-Feb',cur:'USD',amt:6500,fx:1,usd:6500,mode:'Stripe',fee:'5%',net:6175,month:'Feb',st:'paid'},
-  {sr:15,client:'Macol Limited',trade:'Inst. of Medical Physics',part:'SEO',seg:'SEO',ent:'BH',inv:'17-Feb',due:'17-Feb',pay:'17-Feb',cur:'USD',amt:7170,fx:1,usd:7170,mode:'Stripe',fee:'5%',net:6812,month:'Feb',st:'paid'},
-  {sr:16,client:'Private Equity List',trade:'PEL',part:'SEO',seg:'SEO',ent:'BH',inv:'Feb',due:'Feb',pay:'12-Feb',cur:'USD',amt:1950,fx:1,usd:1950,mode:'Stripe',fee:'5%',net:1853,month:'Feb',st:'paid'},
-  {sr:17,client:'Cloud Web Solutions',trade:'Cloud Web',part:'Affiliate',seg:'Affiliate',ent:'BH',inv:'Feb',due:'Feb',pay:'4-Feb',cur:'USD',amt:2376,fx:1,usd:2376,mode:'Stripe AED',fee:'5%',net:2257,month:'Feb',st:'paid'},
-  {sr:18,client:'Anintah',trade:'Anintah',part:'SEO',seg:'SEO',ent:'BH',inv:'15-Feb',due:'15-Feb',pay:'25-Feb',cur:'USD',amt:10000,fx:1,usd:10000,mode:'Bank Transfer',fee:'1%',net:9900,month:'Feb',st:'paid'},
-  {sr:19,client:'RRVS Holdings (RecNation)',trade:'RecNation',part:'SEO/Dev',seg:'Multiple',ent:'BH',inv:'Feb',due:'Feb',pay:'12-Feb',cur:'USD',amt:7945,fx:1,usd:7945,mode:'Payoneer',fee:'1%',net:7866,month:'Feb',st:'paid'},
-  {sr:20,client:'Duo Strategy LLC',trade:'Duo Digital',part:'Affiliate',seg:'Affiliate',ent:'BH',inv:'27-Feb',due:'27-Feb',pay:'27-Feb',cur:'USD',amt:220,fx:1,usd:220,mode:'PayPal',fee:'5%',net:209,month:'Feb',st:'paid'},
-  {sr:21,client:'Ramp Business Corp',trade:'Ramp',part:'SEO',seg:'SEO',ent:'BH',inv:'22-Feb',due:'22-Feb',pay:'22-Feb',cur:'USD',amt:600,fx:1,usd:600,mode:'Bank Transfer',fee:'1%',net:594,month:'Feb',st:'paid'},
-  {sr:22,client:'Gregory Brooks (Upwork)',trade:'Gregory Brooks',part:'SEO',seg:'SEO',ent:'BH',inv:'Feb',due:'Feb',pay:'28-Feb',cur:'USD',amt:220,fx:1,usd:220,mode:'Upwork',fee:'10%',net:198,month:'Feb',st:'paid'},
-  {sr:23,client:'RRVS Holdings (RecNation)',trade:'RecNation',part:'Multiple',seg:'Multiple',ent:'BC',inv:'INV-05-11/2025 etc',due:'Feb',pay:'12-Feb',cur:'USD',amt:42829,fx:1,usd:42829,mode:'Payoneer',fee:'1%',net:42401,month:'Feb',st:'paid'},
-];
-
-function renderAR(){
-  const sc={paid:'st-p',outstanding:'st-o',notdue:'st-n'};
-  const sl={paid:'Paid',outstanding:'Outstanding',notdue:'Not due'};
-  let h=`<thead><tr><th>#</th><th>Client</th><th>Trade name</th><th>Particulars</th><th>Segment</th><th>Entity</th>
-    <th>Inv. date</th><th>Due date</th><th>Pay date</th><th>Curr.</th>
-    <th class="r">Inv. amount</th><th style="text-align:center">FX</th>
-    <th class="r">USD value</th><th>Mode</th><th style="text-align:center">Fee</th>
-    <th class="r">Net cash</th><th>Cash month</th><th>Status</th></tr></thead><tbody>`;
-  AR_ROWS.forEach(r=>{
-    h+=`<tr><td style="color:var(--text3)">${r.sr}</td>
-      <td class="bold">${getGroup(r.client,r.ent)||r.client}${getGroup(r.client,r.ent)&&getGroup(r.client,r.ent)!==r.client?'<br><span style="font-size:13.0px;color:var(--text3);font-weight:400">'+r.client+'</span>':''}</td><td>${r.trade}</td><td>${r.part}</td><td>${r.seg}</td>
-      <td>${eb(r.ent)}</td>
-      <td style="font-size:15.0px">${r.inv}</td><td style="font-size:15.0px">${r.due}</td><td style="font-size:15.0px">${r.pay}</td>
-      <td style="font-size:15.0px">${r.cur}</td>
-      <td class="r" style="font-size:15.0px">$${r.amt.toLocaleString()}</td>
-      <td style="text-align:center;font-size:15.0px">${r.fx}</td>
-      <td class="r" style="font-size:15.0px">$${r.usd.toLocaleString()}</td>
-      <td style="font-size:15.0px">${r.mode}</td>
-      <td style="text-align:center;font-size:15.0px">${r.fee}</td>
-      <td class="r" style="font-size:15.0px;color:var(--green);font-weight:600">$${r.net.toLocaleString()}</td>
-      <td style="font-size:15.0px">${r.month}</td>
-      <td><span class="st ${sc[r.st]}">${sl[r.st]}</span></td></tr>`;
-  });
-  document.getElementById('art').innerHTML=h+'</tbody>';
-}
-
-function addAR(){
-  const tbody=document.getElementById('art').querySelector('tbody');
-  const sel=o=>`<select style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-size:15.0px;border-radius:4px;padding:2px 4px;font-family:var(--sans)">${o.map(x=>`<option>${x}</option>`).join('')}</select>`;
-  const inp=(p,w='110px')=>`<input placeholder="${p}" style="background:transparent;border:none;border-bottom:1px solid var(--border2);color:var(--text);width:${w};font-size:15.0px;font-family:var(--sans)">`;
-  const tr=document.createElement('tr');
-  tr.innerHTML=`<td style="color:var(--text3)">—</td><td>${inp('Client','120px')}</td><td>${inp('Trade')}</td><td>${inp('Particulars')}</td>
-    <td>${sel(['SEO','Web Dev','Affiliate','Mktg Ops'])}</td><td>${sel(['BH','BC'])}</td>
-    <td><input type="date" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-size:15.0px;border-radius:4px;padding:2px 4px"></td>
-    <td><input type="date" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-size:15.0px;border-radius:4px;padding:2px 4px"></td>
-    <td><input type="date" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-size:15.0px;border-radius:4px;padding:2px 4px"></td>
-    <td>${sel(['USD','AED'])}</td>
-    <td><input type="number" placeholder="0" style="background:transparent;border:none;border-bottom:1px solid var(--border2);color:var(--text);width:80px;font-size:15.0px;text-align:right"></td>
-    <td><input type="number" value="1" style="background:transparent;border:none;border-bottom:1px solid var(--border2);color:var(--text);width:36px;font-size:15.0px;text-align:center"></td>
-    <td style="color:var(--text3)">—</td>
-    <td>${sel(['Stripe','Bank Transfer','Payoneer','PayPal','Upwork'])}</td>
-    <td><input type="number" placeholder="5" style="background:transparent;border:none;border-bottom:1px solid var(--border2);color:var(--text);width:36px;font-size:15.0px;text-align:center"></td>
-    <td style="color:var(--green);font-weight:600">—</td>
-    <td>${sel(['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'])}</td>
-    <td><span class="st" style="background:var(--blue-dim);color:var(--blue)">Forecast</span></td>`;
-  tbody.appendChild(tr);
-  tr.scrollIntoView({behavior:'smooth',block:'nearest'});
-}
-
-// ── AP ──
-const AP_ROWS=[
-  {vendor:'InZone (Trade License renewal)',ent:'BH',type:'Fixed',src:'Bank Transfer',pay:'29-Jan',amt:11543.91,month:'Jan',seg:'Compliance'},
-  {vendor:'Jagjit Singh',ent:'BH',type:'Variable',src:'Payoneer',pay:'31-Jan',amt:862.50,month:'Jan',seg:'SEO'},
-  {vendor:'Anirban Dutta Choudhury',ent:'BH',type:'Fixed',src:'Payoneer',pay:'31-Jan',amt:1153.20,month:'Jan',seg:'Content'},
-  {vendor:'Sarah Omoruku',ent:'BH',type:'Fixed',src:'Payoneer',pay:'31-Jan',amt:750.00,month:'Jan',seg:'SEO'},
-  {vendor:'Hayley Ward',ent:'BH',type:'Variable',src:'Skuad',pay:'31-Jan',amt:570.00,month:'Jan',seg:'SEO'},
-  {vendor:'Sagar Rauthan',ent:'BH',type:'Variable',src:'Skuad',pay:'31-Jan',amt:216.00,month:'Jan',seg:'SEO'},
-  {vendor:'Karan Mehta',ent:'BH',type:'Fixed',src:'Skuad',pay:'31-Jan',amt:825.00,month:'Jan',seg:'Finance'},
-  {vendor:'Aeman Parwez',ent:'BH',type:'Variable',src:'Skuad',pay:'31-Jan',amt:675.00,month:'Jan',seg:'SEO'},
-  {vendor:'Suchi Shah',ent:'BH',type:'Fixed',src:'Payoneer',pay:'31-Jan',amt:361.00,month:'Jan',seg:'Finance'},
-  {vendor:'Inayat Naqvi',ent:'BH',type:'Variable',src:'Alaan',pay:'27-Jan',amt:552.41,month:'Jan',seg:'Design'},
-  {vendor:'Anjandeep Singh Luthra',ent:'BH',type:'Variable',src:'Alaan',pay:'10-Jan',amt:618.92,month:'Jan',seg:'Company'},
-  {vendor:'Mine Akar',ent:'BH',type:'Variable',src:'Alaan',pay:'10-Jan',amt:274.35,month:'Jan',seg:'Company'},
-  {vendor:'Livia-Ioana Blaj',ent:'BH',type:'Variable',src:'Alaan',pay:'10-Jan',amt:541.99,month:'Jan',seg:'Company'},
-  {vendor:'SKUAD PTE (platform fee)',ent:'BH',type:'Variable',src:'Payoneer',pay:'31-Jan',amt:209.00,month:'Jan',seg:'Company'},
-  {vendor:'Pulkitsingh Parmar',ent:'BH',type:'Variable',src:'Skuad',pay:'31-Jan',amt:70.00,month:'Jan',seg:'SEO'},
-  {vendor:'Jayesh Ashok Jain',ent:'BH',type:'Variable',src:'Skuad',pay:'31-Jan',amt:120.00,month:'Jan',seg:'SEO'},
-  {vendor:'Nirav Nitinbhai Patel',ent:'BH',type:'Variable',src:'Skuad',pay:'31-Jan',amt:250.00,month:'Jan',seg:'SEO'},
-  {vendor:'Subscriptions & tools',ent:'BH',type:'Variable',src:'Alaan',pay:'Various',amt:2534.48,month:'Jan',seg:'Company'},
-  {vendor:'Bank & payment fees',ent:'BH',type:'Fixed',src:'Bank',pay:'Various',amt:209.02,month:'Jan',seg:'Company'},
-  {vendor:'Laitmatus Software Pvt Ltd',ent:'BC',type:'Variable',src:'Skuad',pay:'1-Jan',amt:19126.00,month:'Jan',seg:'Web Dev'},
-  {vendor:'Markestac Consulting Pvt Ltd',ent:'BC',type:'Variable',src:'Skuad',pay:'1-Jan',amt:6054.00,month:'Jan',seg:'Mktg Ops'},
-  {vendor:'Maticore Technologies Pvt Ltd',ent:'BC',type:'Variable',src:'Skuad',pay:'1-Jan',amt:1887.00,month:'Jan',seg:'Web Dev'},
-  {vendor:'OneMetric Marketing Solutions',ent:'BC',type:'Variable',src:'Skuad',pay:'18-Jan',amt:1680.00,month:'Jan',seg:'Mktg Ops'},
-  {vendor:'Virginia Boys LLC (Roedgers)',ent:'BC',type:'Variable',src:'Payoneer',pay:'18-Jan',amt:2000.00,month:'Jan',seg:'Web Dev'},
-  {vendor:'Bank fees & tools',ent:'BC',type:'Fixed',src:'WIO/Xero',pay:'Various',amt:336.60,month:'Jan',seg:'Company'},
-  // Feb
-  {vendor:'Anirban Dutta Choudhury',ent:'BH',type:'Fixed',src:'Skuad',pay:'12-Feb',amt:1144.71,month:'Feb',seg:'Content'},
-  {vendor:'Karan Mehta',ent:'BH',type:'Fixed',src:'Skuad',pay:'12-Feb',amt:1463.00,month:'Feb',seg:'Finance'},
-  {vendor:'Sarah Omoruku',ent:'BH',type:'Fixed',src:'Skuad',pay:'12-Feb',amt:750.00,month:'Feb',seg:'SEO'},
-  {vendor:'Hayley Ward',ent:'BH',type:'Variable',src:'Skuad',pay:'12-Feb',amt:850.00,month:'Feb',seg:'SEO'},
-  {vendor:'Jagjit Singh',ent:'BH',type:'Variable',src:'Skuad',pay:'12-Feb',amt:645.00,month:'Feb',seg:'SEO'},
-  {vendor:'Jayesh Ashok Jain',ent:'BH',type:'Variable',src:'Skuad',pay:'12-Feb',amt:550.00,month:'Feb',seg:'SEO'},
-  {vendor:'Sagar Rauthan',ent:'BH',type:'Variable',src:'Skuad',pay:'12-Feb',amt:324.00,month:'Feb',seg:'SEO'},
-  {vendor:'Nirav Nitinbhai Patel',ent:'BH',type:'Variable',src:'Skuad',pay:'12-Feb',amt:300.00,month:'Feb',seg:'SEO'},
-  {vendor:'Pulkitsingh Parmar',ent:'BH',type:'Variable',src:'Skuad',pay:'12-Feb',amt:180.00,month:'Feb',seg:'SEO'},
-  {vendor:'Suchi Shah',ent:'BH',type:'Fixed',src:'Skuad',pay:'12-Feb',amt:350.00,month:'Feb',seg:'Finance'},
-  {vendor:'Aeman Parwez',ent:'BH',type:'Variable',src:'Skuad',pay:'12-Feb',amt:180.00,month:'Feb',seg:'SEO'},
-  {vendor:'SKUAD PTE',ent:'BH',type:'Variable',src:'Payoneer',pay:'12-Feb',amt:209.00,month:'Feb',seg:'Company'},
-  {vendor:'Inayat Naqvi',ent:'BH',type:'Variable',src:'Skuad',pay:'12-Feb',amt:582.81,month:'Feb',seg:'Design'},
-  {vendor:'Zyla Accountants',ent:'BH',type:'Fixed',src:'Alaan',pay:'4-Feb',amt:354.53,month:'Feb',seg:'Accounting'},
-  {vendor:'Atul Sharma',ent:'BH',type:'Variable',src:'Skuad',pay:'17-Feb',amt:470.00,month:'Feb',seg:'SEO'},
-  {vendor:'Vibha Sharma',ent:'BH',type:'Variable',src:'Skuad',pay:'17-Feb',amt:180.00,month:'Feb',seg:'SEO'},
-  {vendor:'JAI KISHAN',ent:'BH',type:'Variable',src:'Skuad',pay:'22-Feb',amt:625.00,month:'Feb',seg:'SEO'},
-  {vendor:'Sajan Kumar',ent:'BH',type:'Variable',src:'Skuad',pay:'22-Feb',amt:490.00,month:'Feb',seg:'SEO'},
-  {vendor:'1Password',ent:'BH',type:'Variable',src:'Alaan',pay:'17-Feb',amt:287.28,month:'Feb',seg:'Company'},
-  {vendor:'Subscriptions & tools',ent:'BH',type:'Variable',src:'Alaan',pay:'Various',amt:3038.20,month:'Feb',seg:'Company'},
-  {vendor:'Bank & payment fees',ent:'BH',type:'Fixed',src:'Bank',pay:'Various',amt:209.00,month:'Feb',seg:'Company'},
-  {vendor:'Laitmatus Software Pvt Ltd',ent:'BC',type:'Variable',src:'Skuad',pay:'12-Feb',amt:15604.00,month:'Feb',seg:'Web Dev'},
-  {vendor:'Markestac Consulting Pvt Ltd',ent:'BC',type:'Variable',src:'Skuad',pay:'12-Feb',amt:4209.00,month:'Feb',seg:'Mktg Ops'},
-  {vendor:'Maticore Technologies Pvt Ltd',ent:'BC',type:'Variable',src:'Skuad',pay:'12-Feb',amt:1785.00,month:'Feb',seg:'Web Dev'},
-  {vendor:'Virginia Boys LLC (Roedgers)',ent:'BC',type:'Variable',src:'Payoneer',pay:'22-Feb',amt:2000.00,month:'Feb',seg:'Web Dev'},
-  {vendor:'Bank fees & tools',ent:'BC',type:'Fixed',src:'WIO/Xero',pay:'Various',amt:581.51,month:'Feb',seg:'Company'},
-];
-
-function renderAP(){
-  let h=`<thead><tr><th>Vendor</th><th>Entity</th><th>Type</th><th>Source</th>
-    <th>Payment date</th><th class="r">Amount (USD)</th><th>Cash month</th><th>Segment</th></tr></thead><tbody>`;
-  AP_ROWS.forEach(r=>{
-    const tc=r.type==='Fixed'?'var(--amber)':'var(--text2)';
-    h+=`<tr><td class="bold">${getGroup(r.vendor,r.ent)||r.vendor}${getGroup(r.vendor,r.ent)&&getGroup(r.vendor,r.ent)!==r.vendor?'<br><span style="font-size:13.0px;color:var(--text3);font-weight:400">'+r.vendor+'</span>':''}</td><td>${eb(r.ent)}</td>
-      <td><span style="font-size:14.5px;font-weight:500;color:${tc}">${r.type}</span></td>
-      <td style="font-size:15.0px">${r.src}</td><td style="font-size:15.0px">${r.pay}</td>
-      <td class="r" style="font-size:15.0px;color:var(--red);font-weight:500">($${r.amt.toLocaleString()})</td>
-      <td style="font-size:15.0px">${r.month}</td><td style="font-size:15.0px">${r.seg}</td></tr>`;
-  });
-  document.getElementById('apt').innerHTML=h+'</tbody>';
-}
-
-function addAP(){
-  const tbody=document.getElementById('apt').querySelector('tbody');
-  const sel=o=>`<select style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-size:15.0px;border-radius:4px;padding:2px 4px;font-family:var(--sans)">${o.map(x=>`<option>${x}</option>`).join('')}</select>`;
-  const inp=(p,w='130px')=>`<input placeholder="${p}" style="background:transparent;border:none;border-bottom:1px solid var(--border2);color:var(--text);width:${w};font-size:15.0px;font-family:var(--sans)">`;
-  const tr=document.createElement('tr');
-  tr.innerHTML=`<td class="bold">${inp('Vendor name','150px')}</td><td>${sel(['BH','BC'])}</td>
-    <td>${sel(['Fixed','Variable'])}</td><td>${sel(['Skuad','Payoneer','Alaan','Bank Transfer','WIO'])}</td>
-    <td><input type="date" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-size:15.0px;border-radius:4px;padding:2px 4px"></td>
-    <td class="r"><input type="number" placeholder="0" style="background:transparent;border:none;border-bottom:1px solid var(--border2);color:var(--red);width:80px;font-size:15.0px;text-align:right"></td>
-    <td>${sel(['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'])}</td>
-    <td>${inp('Segment','90px')}</td>`;
-  tbody.appendChild(tr);
-  tr.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
 // ── Contact mapping store ──
@@ -2857,8 +2712,6 @@ function submitPwd(){
 // ── Init ──
 renderDash();
 renderCF();
-renderAR();
-renderAP();
 checkAuth();
 </script>
 </body>
