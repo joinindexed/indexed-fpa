@@ -1256,16 +1256,18 @@ function buildFcastCFGroups(isIn){
     const entity=(r.entity||'BH').toUpperCase();
     if(ent!=='conso'&&entity!==ent.toUpperCase())return;
     const contact=isIn?(r.client||'Unknown'):(r.vendor||'Unknown');
-    const m=normalizeCashMonth(r.cashMonth);
-    if(!FCST_MONTHS.includes(m))return;
+    const mFull=normalizeCashMonth(r.cashMonth); // e.g. "Jun 2026"
+    const mKey=mFull.split(' ')[0]; // e.g. "Jun" — key used by FCST_MONTHS and drill table
+    const mYear=mFull.split(' ')[1]||FCST_YEAR;
+    if(!FCST_MONTHS.includes(mKey)||mYear!==FCST_YEAR)return;
     const amt=isIn?(r.cash||0):(r.amount||0);
     if(!amt)return;
     const mapKey=contact+'||'+entity;
     const grpName=merged[mapKey]?.group||contact;
     if(!groups[grpName])groups[grpName]={group:grpName,vals:{},entities:{BH:{vals:{}},BC:{vals:{}}}};
-    groups[grpName].vals[m]=(groups[grpName].vals[m]||0)+amt;
+    groups[grpName].vals[mKey]=(groups[grpName].vals[mKey]||0)+amt;
     if(!groups[grpName].entities[entity])groups[grpName].entities[entity]={vals:{}};
-    groups[grpName].entities[entity].vals[m]=(groups[grpName].entities[entity].vals[m]||0)+amt;
+    groups[grpName].entities[entity].vals[mKey]=(groups[grpName].entities[entity].vals[mKey]||0)+amt;
   });
   return Object.values(groups)
     .sort((a,b)=>FCST_MONTHS.reduce((s,m)=>s+(b.vals[m]||0),0)-FCST_MONTHS.reduce((s,m)=>s+(a.vals[m]||0),0));
