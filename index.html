@@ -285,7 +285,7 @@ input,select{font-family:var(--sans)}
       <label style="padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:var(--sans);white-space:nowrap">↑ Import
         <input type="file" id="fi-ar-import" accept=".csv,.xlsx,.xls" style="display:none" onchange="importARFile(this.files[0]);this.value=''">
       </label>
-      <button onclick="clearAllAR()" style="padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--red);background:transparent;color:var(--red);font-family:var(--sans)">🗑 Clear all</button>
+      <button id="ar-del-sel" onclick="deleteSelectedAR()" style="display:none;padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--red);background:var(--red);color:#fff;font-family:var(--sans)">🗑 Delete selected (<span id="ar-sel-count">0</span>)</button>
       <button onclick="openARModal(null)" style="padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">＋ Add invoice</button>
     </div>
   </div>
@@ -328,7 +328,7 @@ input,select{font-family:var(--sans)}
       <label style="padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:var(--sans);white-space:nowrap">↑ Import
         <input type="file" id="fi-ap-import" accept=".csv,.xlsx,.xls" style="display:none" onchange="importAPFile(this.files[0]);this.value=''">
       </label>
-      <button onclick="clearAllAP()" style="padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--red);background:transparent;color:var(--red);font-family:var(--sans)">🗑 Clear all</button>
+      <button id="ap-del-sel" onclick="deleteSelectedAP()" style="display:none;padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--red);background:var(--red);color:#fff;font-family:var(--sans)">🗑 Delete selected (<span id="ap-sel-count">0</span>)</button>
       <button onclick="openAPModal(null)" style="padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">＋ Add payment</button>
     </div>
   </div>
@@ -2204,19 +2204,64 @@ try{AR_FCST=AR_FCST.map(recalcARRow);}catch(e){}
 function saveFcastAR(){ try{localStorage.setItem('ar_fcst',JSON.stringify(AR_FCST));}catch(e){} if(!_sbPulling)sbPush(); }
 function saveFcastAP(){ try{localStorage.setItem('ap_fcst',JSON.stringify(AP_FCST));}catch(e){} if(!_sbPulling)sbPush(); }
 
-function clearAllAR(){
-  if(!confirm(`Clear all ${AR_FCST.length} AR forecast invoices? This cannot be undone.\n\nTip: Export a backup first using "↓ Export CSV".`))return;
-  AR_FCST=[];
-  saveFcastAR();
-  renderFcastAR();
-  renderCF();
+// ── Row selection ──
+let AR_SELECTED=new Set();
+let AP_SELECTED=new Set();
+
+function toggleARSel(id){
+  if(AR_SELECTED.has(id))AR_SELECTED.delete(id);else AR_SELECTED.add(id);
+  updateARSelUI();
 }
-function clearAllAP(){
-  if(!confirm(`Clear all ${AP_FCST.length} AP forecast payments? This cannot be undone.\n\nTip: Export a backup first using "↓ Export CSV".`))return;
-  AP_FCST=[];
-  saveFcastAP();
-  renderFcastAP();
-  renderCF();
+function toggleARSelAll(cb){
+  document.querySelectorAll('#fcar-table tbody input[type="checkbox"]').forEach(c=>{
+    c.checked=cb.checked;
+    if(cb.checked)AR_SELECTED.add(c.dataset.id);else AR_SELECTED.delete(c.dataset.id);
+  });
+  updateARSelUI();
+}
+function updateARSelUI(){
+  const n=AR_SELECTED.size;
+  const btn=document.getElementById('ar-del-sel');
+  if(btn){btn.style.display=n?'':'none';const sp=btn.querySelector('span');if(sp)sp.textContent=n;}
+  document.querySelectorAll('#fcar-table tbody input[type="checkbox"]').forEach(c=>{c.checked=AR_SELECTED.has(c.dataset.id);});
+  const allCb=document.getElementById('ar-sel-all');
+  if(allCb){const tot=document.querySelectorAll('#fcar-table tbody input[type="checkbox"]').length;allCb.checked=n>0&&n>=tot;allCb.indeterminate=n>0&&n<tot;}
+}
+function deleteSelectedAR(){
+  const n=AR_SELECTED.size;
+  if(!n)return;
+  if(!confirm(`Delete ${n} selected invoice${n>1?'s':''}? This cannot be undone.`))return;
+  AR_FCST=AR_FCST.filter(r=>!AR_SELECTED.has(String(r.id)));
+  AR_SELECTED.clear();
+  saveFcastAR();renderFcastAR();renderCF();
+}
+
+function toggleAPSel(id){
+  if(AP_SELECTED.has(id))AP_SELECTED.delete(id);else AP_SELECTED.add(id);
+  updateAPSelUI();
+}
+function toggleAPSelAll(cb){
+  document.querySelectorAll('#fcap-table tbody input[type="checkbox"]').forEach(c=>{
+    c.checked=cb.checked;
+    if(cb.checked)AP_SELECTED.add(c.dataset.id);else AP_SELECTED.delete(c.dataset.id);
+  });
+  updateAPSelUI();
+}
+function updateAPSelUI(){
+  const n=AP_SELECTED.size;
+  const btn=document.getElementById('ap-del-sel');
+  if(btn){btn.style.display=n?'':'none';const sp=btn.querySelector('span');if(sp)sp.textContent=n;}
+  document.querySelectorAll('#fcap-table tbody input[type="checkbox"]').forEach(c=>{c.checked=AP_SELECTED.has(c.dataset.id);});
+  const allCb=document.getElementById('ap-sel-all');
+  if(allCb){const tot=document.querySelectorAll('#fcap-table tbody input[type="checkbox"]').length;allCb.checked=n>0&&n>=tot;allCb.indeterminate=n>0&&n<tot;}
+}
+function deleteSelectedAP(){
+  const n=AP_SELECTED.size;
+  if(!n)return;
+  if(!confirm(`Delete ${n} selected payment${n>1?'s':''}? This cannot be undone.`))return;
+  AP_FCST=AP_FCST.filter(r=>!AP_SELECTED.has(String(r.id)));
+  AP_SELECTED.clear();
+  saveFcastAP();renderFcastAP();renderCF();
 }
 
 function normalizeCashMonth(val){
@@ -2340,6 +2385,7 @@ function renderFcastAR(){
   const stClass={Draft:'st-draft',Invoiced:'st-invoiced',Partial:'st-partial',Paid:'st-paid',Overdue:'st-overdue'};
   const s=AR_SORT,sf='sortFcastAR';
   let h=`<thead><tr>
+    <th style="width:32px;padding:8px 6px"><input type="checkbox" id="ar-sel-all" onchange="toggleARSelAll(this)" style="cursor:pointer;accent-color:var(--accent)"></th>
     ${thSort('Client','client',s,sf)}
     ${thSort('Entity','entity',s,sf)}
     ${thSort('Invoice #','invoiceNo',s,sf)}
@@ -2357,18 +2403,21 @@ function renderFcastAR(){
     ${thSort('Cash','cash',s,sf,'right')}
     ${thSort('Cash Month','cashMonth',s,sf)}
     ${thSort('Status','status',s,sf)}
+    <th>Notes</th>
     <th>Actions</th>
   </tr></thead><tbody>`;
   const displayRows=sortedRows(filtered,AR_SORT,AR_NUM_COLS,AR_DATE_COLS,AR_MONTH_COLS);
   if(displayRows.length===0){
-    h+=`<tr><td colspan="18" style="text-align:center;color:var(--text3);padding:28px">${AR_FCST.length?'No rows match the current filters — click ✕ Clear filters to reset':'No forecast invoices yet — click ＋ Add invoice to get started'}</td></tr>`;
+    h+=`<tr><td colspan="21" style="text-align:center;color:var(--text3);padding:28px">${AR_FCST.length?'No rows match the current filters — click ✕ Clear filters to reset':'No forecast invoices yet — click ＋ Add invoice to get started'}</td></tr>`;
   } else {
     let rowErr=null;
     displayRows.forEach(r=>{
       try{
         const sc=stClass[r.status]||'st-draft';
         const rid=esc(String(r.id||''));
+        const checked=AR_SELECTED.has(rid)?' checked':'';
         h+=`<tr>
+          <td style="padding:8px 6px"><input type="checkbox" data-id="${rid}" onchange="toggleARSel('${rid}')"${checked} style="cursor:pointer;accent-color:var(--accent)"></td>
           <td style="font-weight:600">${esc(r.client)||'—'}</td>
           <td>${r.entity?`<span class="ent-badge">${esc(r.entity)}</span>`:'—'}</td>
           <td style="color:var(--text2)">${esc(r.invoiceNo)||'—'}</td>
@@ -2386,6 +2435,7 @@ function renderFcastAR(){
           <td style="text-align:right;color:var(--green);font-weight:600">${r.cash?$f(r.cash):'—'}</td>
           <td>${esc(normalizeCashMonth(r.cashMonth))||'—'}</td>
           <td><span class="st-badge ${sc}">${esc(r.status)||'Draft'}</span></td>
+          <td style="max-width:180px;white-space:normal;font-size:13px;color:var(--text2)">${esc(r.notes)||''}</td>
           <td style="white-space:nowrap">
             <button onclick="openARModal('${rid}')" style="background:none;border:none;cursor:pointer;color:var(--text3);padding:3px 6px;font-size:15px" title="Edit">✎</button>
             <button onclick="deleteFcastRow('ar','${rid}')" style="background:none;border:none;cursor:pointer;color:var(--red);padding:3px 6px;font-size:15px" title="Delete">🗑</button>
@@ -2393,10 +2443,13 @@ function renderFcastAR(){
         </tr>`;
       }catch(e){rowErr=e.message;}
     });
-    if(rowErr)h+=`<tr><td colspan="18" style="color:var(--red);padding:8px 10px;font-size:13px">⚠ Row render error: ${esc(rowErr)}</td></tr>`;
+    if(rowErr)h+=`<tr><td colspan="21" style="color:var(--red);padding:8px 10px;font-size:13px">⚠ Row render error: ${esc(rowErr)}</td></tr>`;
   }
   h+='</tbody>';
   tEl.innerHTML=h;
+  // Sync header checkbox state
+  const allCb=document.getElementById('ar-sel-all');
+  if(allCb){const n=AR_SELECTED.size,tot=displayRows.length;allCb.checked=n>0&&n>=tot;allCb.indeterminate=n>0&&n<tot;}
 }
 
 // ── Forecast AP render ──
@@ -2414,6 +2467,7 @@ function renderFcastAP(){
   if(!tEl)return;
   const s2=AP_SORT,sf2='sortFcastAP';
   let h=`<thead><tr>
+    <th style="width:32px;padding:8px 6px"><input type="checkbox" id="ap-sel-all" onchange="toggleAPSelAll(this)" style="cursor:pointer;accent-color:var(--accent)"></th>
     ${thSort('Vendor','vendor',s2,sf2)}
     ${thSort('Entity','entity',s2,sf2)}
     ${thSort('Category','category',s2,sf2)}
@@ -2424,12 +2478,14 @@ function renderFcastAP(){
   </tr></thead><tbody>`;
   const displayAP=sortedRows(AP_FCST,AP_SORT,AP_NUM_COLS,AP_DATE_COLS,AP_MONTH_COLS);
   if(displayAP.length===0){
-    h+=`<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:28px">No forecast payments yet — click ＋ Add payment to get started</td></tr>`;
+    h+=`<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:28px">No forecast payments yet — click ＋ Add payment to get started</td></tr>`;
   } else {
     displayAP.forEach(r=>{
       try{
         const rid=esc(String(r.id||''));
+        const checked=AP_SELECTED.has(rid)?' checked':'';
         h+=`<tr>
+          <td style="padding:8px 6px"><input type="checkbox" data-id="${rid}" onchange="toggleAPSel('${rid}')"${checked} style="cursor:pointer;accent-color:var(--accent)"></td>
           <td style="font-weight:600">${esc(r.vendor)||'—'}</td>
           <td>${r.entity?eb(esc(r.entity)):'—'}</td>
           <td style="font-size:14px">${esc(r.category)||'—'}</td>
@@ -2446,6 +2502,9 @@ function renderFcastAP(){
   }
   h+='</tbody>';
   tEl.innerHTML=h;
+  // Sync header checkbox state
+  const allCb2=document.getElementById('ap-sel-all');
+  if(allCb2){const n=AP_SELECTED.size,tot=displayAP.length;allCb2.checked=n>0&&n>=tot;allCb2.indeterminate=n>0&&n<tot;}
 }
 
 // ── Date display normalizer ──
@@ -2630,6 +2689,10 @@ function openARModal(id){
           ${statuses.map(s=>`<option${v('status')===s?' selected':''}>${s}</option>`).join('')}
         </select>
       </div>
+      <div class="full">
+        <label>Notes</label>
+        <textarea id="far-notes" rows="2" placeholder="Optional notes…" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:14px;font-family:var(--sans);resize:vertical;box-sizing:border-box">${v('notes')||''}</textarea>
+      </div>
       <div class="full" style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px">
         <button onclick="closeFcstModal()" style="padding:8px 20px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:15px;cursor:pointer;font-family:var(--sans)">Cancel</button>
         <button onclick="saveARModal('${id||''}')" style="padding:8px 20px;border-radius:6px;border:none;background:var(--accent);color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:var(--sans)">Save</button>
@@ -2663,7 +2726,8 @@ function saveARModal(id){
     interbank:getN('far-interbank'),
     cash:getN('far-cash'),
     cashMonth:get('far-cashmonth'),
-    status:get('far-status')
+    status:get('far-status'),
+    notes:document.getElementById('far-notes')?.value?.trim()||''
   };
   if(id){const i=AR_FCST.findIndex(r=>String(r.id)===String(id));if(i>=0)AR_FCST[i]=row;else AR_FCST.push(row);}
   else AR_FCST.push(row);
