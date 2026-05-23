@@ -2147,6 +2147,8 @@ function applyImport(entity,ftype){
 
 // ── Forecast data persistence ──
 const FCST_MONTHS = ['May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const ALL_MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function getMonthIdx(m){const i=ALL_MONTHS.indexOf(m);return i>=0?i:99;}
 let AR_FCST = [];
 let AP_FCST = [];
 try { AR_FCST = JSON.parse(localStorage.getItem('ar_fcst')||'[]'); } catch(e){}
@@ -2198,9 +2200,6 @@ AR_FCST=AR_FCST.map(recalcARRow);
 
 function saveFcastAR(){ try{localStorage.setItem('ar_fcst',JSON.stringify(AR_FCST));}catch(e){} }
 function saveFcastAP(){ try{localStorage.setItem('ap_fcst',JSON.stringify(AP_FCST));}catch(e){} }
-
-const ALL_MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-function getMonthIdx(m){const i=ALL_MONTHS.indexOf(m);return i>=0?i:99;}
 
 function normalizeCashMonth(val){
   if(!val)return'';
