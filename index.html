@@ -383,19 +383,16 @@ input,select{font-family:var(--sans)}
   <div class="page-header"><div><div class="page-title">Import data</div><div class="page-sub">Drop any Xero export — file type auto-detected · All screens refresh automatically</div></div></div>
   <div class="content">
     <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px 24px;margin-bottom:20px">
-      <div style="font-size:16px;font-weight:700;margin-bottom:4px">GitHub Sync</div>
-      <div style="font-size:13px;color:var(--text2);margin-bottom:16px">Sync forecast + contacts across devices · stored in <code style="font-size:12px;background:var(--surface2);padding:1px 5px;border-radius:3px">forecast-data.json</code></div>
-      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
-        <div style="flex:1;min-width:260px">
-          <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:5px">Personal Access Token (repo write scope) — stored only on this device</label>
-          <input id="gh-token-input" type="password" placeholder="ghp_xxxxxxxxxxxx"
-            style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:14px;font-family:var(--sans);box-sizing:border-box">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:6px">
+        <div>
+          <div style="font-size:16px;font-weight:700;margin-bottom:2px">☁️ Cloud Sync</div>
+          <div style="font-size:13px;color:var(--text2)">All edits auto-save to the cloud — both you and the owner always see live data</div>
         </div>
-        <button onclick="saveGHToken()" style="padding:8px 16px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;cursor:pointer;font-family:var(--sans);white-space:nowrap">Save token</button>
-        <button onclick="ghPush()" style="padding:8px 16px;border-radius:6px;border:none;background:var(--accent);color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans);white-space:nowrap">↑ Push to GitHub</button>
-        <button onclick="ghPull()" style="padding:8px 16px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;cursor:pointer;font-family:var(--sans);white-space:nowrap">↓ Pull from GitHub</button>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div id="sb-status" style="font-size:13px;color:var(--text3)">Connecting…</div>
+          <button onclick="sbPull()" style="padding:7px 14px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;cursor:pointer;font-family:var(--sans);white-space:nowrap">↓ Pull latest</button>
+        </div>
       </div>
-      <div id="gh-status" style="margin-top:10px;font-size:13px;color:var(--text3)"></div>
     </div>
     <div class="ig">
       <div class="ie">
@@ -1666,6 +1663,7 @@ function saveMappings(){
     }
   });
   try { localStorage.setItem('ct_map',JSON.stringify(CT_MAP)); } catch(e){}
+  if(!_sbPulling)sbPush();
   renderContacts();
   renderCF();
   // Flash confirm
@@ -2203,8 +2201,8 @@ function recalcARRow(r){
 // Auto-recalculate all existing rows on load (wrapped in try/catch so a bad row never crashes the page)
 try{AR_FCST=AR_FCST.map(recalcARRow);}catch(e){}
 
-function saveFcastAR(){ try{localStorage.setItem('ar_fcst',JSON.stringify(AR_FCST));}catch(e){} }
-function saveFcastAP(){ try{localStorage.setItem('ap_fcst',JSON.stringify(AP_FCST));}catch(e){} }
+function saveFcastAR(){ try{localStorage.setItem('ar_fcst',JSON.stringify(AR_FCST));}catch(e){} if(!_sbPulling)sbPush(); }
+function saveFcastAP(){ try{localStorage.setItem('ap_fcst',JSON.stringify(AP_FCST));}catch(e){} if(!_sbPulling)sbPush(); }
 
 function clearAllAR(){
   if(!confirm(`Clear all ${AR_FCST.length} AR forecast invoices? This cannot be undone.\n\nTip: Export a backup first using "↓ Export CSV".`))return;
@@ -2886,86 +2884,71 @@ function importAPFile(file){
   });
 }
 
-// ── GitHub sync ──
-const GH_OWNER='joinindexed';
-const GH_REPO='indexed-fpa';
-const GH_FILE='forecast-data.json';
-const GH_API=`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_FILE}`;
-const GH_RAW=`https://raw.githubusercontent.com/${GH_OWNER}/${GH_REPO}/main/${GH_FILE}`;
+// ── Supabase sync ──
+const SB_URL='https://njtrqjcrqjzmspowkzax.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qdHJxamNycWp6bXNwb3dremF4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1NDE1ODIsImV4cCI6MjA5NTExNzU4Mn0.GcXzmobxg5XxuJ7DVDGMqMJfuRQzvuZa91TjxxWKMrM';
+const SB_HDR={apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`,'Content-Type':'application/json',Prefer:'return=minimal'};
+let _sbPulling=false;
 
-function ghStatus(msg,ok){
-  const el=document.getElementById('gh-status');
+function sbStatus(msg,ok){
+  const el=document.getElementById('sb-status');
   if(el){el.textContent=msg;el.style.color=ok===false?'var(--red)':ok===true?'var(--green)':'var(--text3)';}
 }
 
-function saveGHToken(){
-  const v=document.getElementById('gh-token-input')?.value?.trim();
-  if(!v){ghStatus('Please enter a token first.',false);return;}
-  localStorage.setItem('gh_token',v);
-  document.getElementById('gh-token-input').value='';
-  document.getElementById('gh-token-input').placeholder='Token saved ✓ (enter new to replace)';
-  ghStatus('Token saved to this browser.',true);
+let _sbTimer=null;
+function sbPush(){
+  clearTimeout(_sbTimer);
+  _sbTimer=setTimeout(async()=>{
+    sbStatus('Syncing…');
+    try{
+      const payload={ar_fcst:AR_FCST,ap_fcst:AP_FCST,ct_map:CT_MAP,updated_at:new Date().toISOString(),updated_by:'karan'};
+      const r=await fetch(`${SB_URL}/rest/v1/forecast_data?id=eq.1`,{
+        method:'PATCH',headers:SB_HDR,body:JSON.stringify(payload)
+      });
+      if(!r.ok){const e=await r.text();sbStatus('Sync error: '+e,false);return;}
+      sbStatus('✓ Synced '+new Date().toLocaleTimeString(),true);
+    }catch(e){sbStatus('Sync failed: '+e.message,false);}
+  },800);
 }
 
-async function ghPull(){
-  ghStatus('Pulling from GitHub…');
+async function sbPull(){
+  sbStatus('Pulling…');
   try{
-    const r=await fetch(GH_RAW+'?t='+Date.now());
-    if(!r.ok){ghStatus('File not found on GitHub — push your data first.',false);return;}
-    const d=await r.json();
-    if(d.ar_fcst&&d.ar_fcst.length){AR_FCST=d.ar_fcst.map(recalcARRow);saveFcastAR();}
-    if(d.ap_fcst&&d.ap_fcst.length){AP_FCST=d.ap_fcst;saveFcastAP();}
-    if(d.ct_map&&Object.keys(d.ct_map).length){
-      CT_MAP=d.ct_map;
-      try{localStorage.setItem('ct_map',JSON.stringify(CT_MAP));}catch(e){}
-    }
-    renderDash();renderCF();renderFcastAR();renderFcastAP();renderContacts();
-    const ts=d.updated_at?new Date(d.updated_at).toLocaleString():'unknown';
-    ghStatus(`Pulled ✓ · last pushed ${ts}${d.updated_by?' by '+d.updated_by:''}`,true);
-  }catch(e){ghStatus('Pull failed: '+e.message,false);}
+    const r=await fetch(`${SB_URL}/rest/v1/forecast_data?id=eq.1&select=*`,{headers:{apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`}});
+    if(!r.ok){sbStatus('Pull failed',false);return;}
+    const rows=await r.json();
+    if(!rows||!rows.length){sbStatus('No cloud data yet — save something first',false);return;}
+    const d=rows[0];
+    _sbPulling=true;
+    let changed=false;
+    if(d.ar_fcst&&d.ar_fcst.length){AR_FCST=d.ar_fcst.map(recalcARRow);try{localStorage.setItem('ar_fcst',JSON.stringify(AR_FCST));}catch(e){}changed=true;}
+    if(d.ap_fcst&&d.ap_fcst.length){AP_FCST=d.ap_fcst;try{localStorage.setItem('ap_fcst',JSON.stringify(AP_FCST));}catch(e){}changed=true;}
+    if(d.ct_map&&Object.keys(d.ct_map).length){CT_MAP=d.ct_map;try{localStorage.setItem('ct_map',JSON.stringify(CT_MAP));}catch(e){}}
+    _sbPulling=false;
+    if(changed){renderDash();renderCF();renderFcastAR();renderFcastAP();renderContacts();}
+    const ts=d.updated_at?new Date(d.updated_at).toLocaleString():'—';
+    sbStatus(`✓ Pulled · last saved ${ts}${d.updated_by?' by '+d.updated_by:''}`,true);
+  }catch(e){_sbPulling=false;sbStatus('Pull failed: '+e.message,false);}
 }
 
-async function ghPush(){
-  const token=localStorage.getItem('gh_token');
-  if(!token){ghStatus('No token saved. Add a Personal Access Token above first.',false);return;}
-  ghStatus('Pushing to GitHub…');
-  try{
-    const meta=await fetch(GH_API,{headers:{Authorization:`token ${token}`,Accept:'application/vnd.github.v3+json'}});
-    if(!meta.ok&&meta.status!==404){ghStatus('Could not reach GitHub API.',false);return;}
-    const metaJson=meta.status===404?{}:await meta.json();
-    const sha=metaJson.sha||null;
-    const payload={
-      ar_fcst:AR_FCST,ap_fcst:AP_FCST,ct_map:CT_MAP,
-      updated_at:new Date().toISOString(),updated_by:'karan'
-    };
-    const content=btoa(unescape(encodeURIComponent(JSON.stringify(payload,null,2))));
-    const body={message:`Update forecast data ${new Date().toISOString().slice(0,16)}`,content};
-    if(sha)body.sha=sha;
-    const r=await fetch(GH_API,{
-      method:'PUT',
-      headers:{Authorization:`token ${token}`,'Content-Type':'application/json',Accept:'application/vnd.github.v3+json'},
-      body:JSON.stringify(body)
-    });
-    if(!r.ok){const e=await r.json();ghStatus('Push failed: '+(e.message||'unknown error'),false);return;}
-    ghStatus('Pushed successfully ✓ · all devices will see this on next load',true);
-  }catch(e){ghStatus('Push failed: '+e.message,false);}
-}
-
-// Auto-pull on page load (no token needed — public read)
+// Auto-pull on page load
 (async()=>{
   try{
-    const r=await fetch(GH_RAW+'?t='+Date.now());
+    const r=await fetch(`${SB_URL}/rest/v1/forecast_data?id=eq.1&select=*`,{headers:{apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`}});
     if(!r.ok)return;
-    const d=await r.json();
+    const rows=await r.json();
+    if(!rows||!rows.length){sbStatus('Ready — no cloud data yet',null);return;}
+    const d=rows[0];
+    _sbPulling=true;
     let changed=false;
-    if(d.ar_fcst&&d.ar_fcst.length){AR_FCST=d.ar_fcst.map(recalcARRow);saveFcastAR();changed=true;}
-    if(d.ap_fcst&&d.ap_fcst.length){AP_FCST=d.ap_fcst;saveFcastAP();changed=true;}
-    if(d.ct_map&&Object.keys(d.ct_map).length){
-      CT_MAP=d.ct_map;
-      try{localStorage.setItem('ct_map',JSON.stringify(CT_MAP));}catch(e){}
-    }
-    if(changed){renderCF();renderFcastAR();renderFcastAP();}
-  }catch(e){}
+    if(d.ar_fcst&&d.ar_fcst.length){AR_FCST=d.ar_fcst.map(recalcARRow);try{localStorage.setItem('ar_fcst',JSON.stringify(AR_FCST));}catch(e){}changed=true;}
+    if(d.ap_fcst&&d.ap_fcst.length){AP_FCST=d.ap_fcst;try{localStorage.setItem('ap_fcst',JSON.stringify(AP_FCST));}catch(e){}changed=true;}
+    if(d.ct_map&&Object.keys(d.ct_map).length){CT_MAP=d.ct_map;try{localStorage.setItem('ct_map',JSON.stringify(CT_MAP));}catch(e){}}
+    _sbPulling=false;
+    if(changed){renderDash();renderCF();renderFcastAR();renderFcastAP();}
+    const ts=d.updated_at?new Date(d.updated_at).toLocaleString():'—';
+    sbStatus(`✓ Live · last saved ${ts}${d.updated_by?' by '+d.updated_by:''}`,true);
+  }catch(e){_sbPulling=false;sbStatus('Offline — using local data',false);}
 })();
 
 // ── Password gate ──
