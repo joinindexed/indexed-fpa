@@ -2321,6 +2321,16 @@ function duplicateARRow(id){
   openARModal(copy.id);
 }
 
+function duplicateAPRow(id){
+  const src=AP_FCST.find(r=>String(r.id)===String(id));
+  if(!src)return;
+  const copy={...src,id:Date.now().toString(36)+Math.random().toString(36).slice(2,6)};
+  const idx=AP_FCST.findIndex(r=>String(r.id)===String(id));
+  AP_FCST.splice(idx+1,0,copy);
+  saveFcastAP();renderFcastAP();
+  openAPModal(copy.id);
+}
+
 function toggleAPSel(id){
   if(AP_SELECTED.has(id))AP_SELECTED.delete(id);else AP_SELECTED.add(id);
   updateAPSelUI();
@@ -2657,6 +2667,7 @@ function renderFcastAP(){
           <td style="max-width:160px;white-space:normal;font-size:13px;color:var(--text2)">${esc(r.notes)||''}</td>
           <td style="white-space:nowrap">
             <button onclick="openAPModal('${rid}')" style="background:none;border:none;cursor:pointer;color:var(--text3);padding:3px 6px;font-size:15px" title="Edit">✎</button>
+            <button onclick="duplicateAPRow('${rid}')" style="background:none;border:none;cursor:pointer;color:var(--text3);padding:3px 6px;font-size:15px" title="Duplicate">⧉</button>
             <button onclick="deleteFcastRow('ap','${rid}')" style="background:none;border:none;cursor:pointer;color:var(--red);padding:3px 6px;font-size:15px" title="Delete">🗑</button>
           </td>
         </tr>`;
@@ -3094,9 +3105,15 @@ const AR_COL_MAP={
   'cash':'cash','cash month':'cashMonth','status':'status'
 };
 const AP_COL_MAP={
-  'vendor':'vendor','entity':'entity','category':'category',
-  'payment date':'paymentDate','amount (usd)':'amount','amount':'amount',
-  'cash month':'cashMonth'
+  'vendor':'vendor','entity':'entity',
+  'work month':'workMonth','month of work':'workMonth','month':'workMonth','work':'workMonth','spending month':'workMonth',
+  'payment date':'paymentDate','date':'paymentDate',
+  'cash month':'cashMonth','payment month':'cashMonth',
+  'amount (usd)':'amount','amount':'amount','usd amount':'amount','cost':'amount',
+  'spend type':'spendType','type':'spendType','type of spend':'spendType','variable/fixed':'spendType',
+  'expense category':'expenseCategory','category':'expenseCategory','cos/opex':'expenseCategory','opex/cos':'expenseCategory',
+  'payment mode':'paymentMode','pay mode':'paymentMode','mode':'paymentMode','payment method':'paymentMode',
+  'notes':'notes','note':'notes','description':'notes','remarks':'notes'
 };
 
 function parseSheetRows(wb,sheetIdx){
@@ -3157,6 +3174,44 @@ function normalizeEntity(val){
   return String(val).toUpperCase().trim()||'BH';
 }
 
+function recalcAPRow(r){
+  // Normalize entity
+  r.entity=normalizeEntity(r.entity||'');
+  // Normalize amount
+  if(r.amount!==undefined)r.amount=parseFloat(String(r.amount).replace(/[^0-9.\-]/g,''))||0;
+  // Normalize spendType casing
+  if(r.spendType){const s=String(r.spendType).trim();r.spendType=s.charAt(0).toUpperCase()+s.slice(1).toLowerCase();}
+  // Normalize expenseCategory (COS/OPEX/TAX uppercase)
+  if(r.expenseCategory){
+    const e=String(r.expenseCategory).trim().toUpperCase();
+    r.expenseCategory=['COS','OPEX','TAX'].find(x=>e===x||e.includes(x))||r.expenseCategory;
+  }
+  // Normalize paymentMode casing
+  if(r.paymentMode){
+    const pm=String(r.paymentMode).trim().toLowerCase();
+    if(pm.includes('skuad'))r.paymentMode='Skuad';
+    else if(pm.includes('alaan'))r.paymentMode='Alaan Pay';
+    else if(pm.includes('bank'))r.paymentMode='Bank Transfer';
+    else r.paymentMode=String(r.paymentMode).trim();
+  }
+  // Normalize paymentDate: Excel serial → ISO string
+  if(r.paymentDate&&typeof r.paymentDate==='number'&&r.paymentDate>40000){
+    const d=new Date(Math.round((r.paymentDate-25569)*86400000));
+    r.paymentDate=d.toISOString().slice(0,10);
+  } else if(r.paymentDate instanceof Date){
+    r.paymentDate=r.paymentDate.toISOString().slice(0,10);
+  }
+  // workMonth normalization
+  if(r.workMonth)r.workMonth=normalizeCashMonth(r.workMonth);
+  // cashMonth: auto-fill from paymentDate if missing or upgrade legacy
+  if(!r.cashMonth&&r.paymentDate){
+    const d=new Date(r.paymentDate);
+    if(!isNaN(d))r.cashMonth=`${ALL_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  } else if(r.cashMonth){
+    r.cashMonth=normalizeCashMonth(r.cashMonth);
+  }
+}
+
 function importAPFile(file){
   if(!file)return;
   loadSheetJS(()=>{
@@ -3170,11 +3225,9 @@ function importAPFile(file){
         let added=0;
         jsonRows.forEach(raw=>{
           const r=mapRow(raw,AP_COL_MAP);
-          if(!r.vendor&&!r.category)return;
-          if(r.amount!==undefined)r.amount=parseFloat(String(r.amount).replace(/[^0-9.\-]/g,''))||0;
-          r.entity=normalizeEntity(r.entity);
-          if(r.cashMonth)r.cashMonth=normalizeCashMonth(r.cashMonth);
-          AP_FCST.push({id:Date.now()+Math.random(),...r});
+          if(!r.vendor)return; // skip blank rows
+          recalcAPRow(r);
+          AP_FCST.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),...r});
           added++;
         });
         saveFcastAP();renderFcastAP();renderCF();
