@@ -342,6 +342,36 @@ input,select{font-family:var(--sans)}
   </div>
   <div class="content">
     <div class="fsum" id="fcap-summary"></div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:13px;color:var(--text2);white-space:nowrap">Vendor</span>
+        <select id="ap-f-vendor" onchange="renderFcastAP()" style="font-size:13px;padding:5px 8px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-family:var(--sans);min-width:140px"><option value="">All</option></select>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:13px;color:var(--text2);white-space:nowrap">Entity</span>
+        <select id="ap-f-entity" onchange="renderFcastAP()" style="font-size:13px;padding:5px 8px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-family:var(--sans)">
+          <option value="">All</option><option value="BH">BH</option><option value="BC">BC</option>
+        </select>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:13px;color:var(--text2);white-space:nowrap">Cash Month</span>
+        <select id="ap-f-month" onchange="renderFcastAP()" style="font-size:13px;padding:5px 8px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-family:var(--sans)"><option value="">All</option></select>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:13px;color:var(--text2);white-space:nowrap">Spend Type</span>
+        <select id="ap-f-spendtype" onchange="renderFcastAP()" style="font-size:13px;padding:5px 8px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-family:var(--sans)">
+          <option value="">All</option><option value="Variable">Variable</option><option value="Fixed">Fixed</option>
+        </select>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:13px;color:var(--text2);white-space:nowrap">Category</span>
+        <select id="ap-f-category" onchange="renderFcastAP()" style="font-size:13px;padding:5px 8px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-family:var(--sans)">
+          <option value="">All</option><option value="COS">COS</option><option value="OPEX">OPEX</option><option value="TAX">TAX</option>
+        </select>
+      </div>
+      <button onclick="clearAPFilters()" id="ap-f-clear" style="display:none;font-size:12px;padding:5px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text2);cursor:pointer;font-family:var(--sans)">✕ Clear filters</button>
+      <span id="ap-f-count" style="font-size:12px;color:var(--text3);margin-left:4px"></span>
+    </div>
     <div class="fcst-scroll">
       <table class="fcst-table" id="fcap-table"></table>
     </div>
@@ -1319,12 +1349,12 @@ function renderCFTable(d){
   h+=`<tr class="indent" style="cursor:pointer" onclick="togCFDrill('outflow',false)">`;
   h+=`<td style="padding-left:22px">Payments to vendors &amp; expenses ▸</td>`;
   d.out.forEach(v=>h+=`<td class="neg">($${$f(v).replace('$','')})</td>`);
-  fcastOut.forEach(v=>h+=`<td class="neg" style="${fcastCellStyle}">${v?'($'+$f(v).replace('$',')'):'—'}</td>`);
+  fcastOut.forEach(v=>h+=`<td class="neg" style="${fcastCellStyle}">${v?'('+$f(v)+')':'—'}</td>`);
   h+=`<td class="neg">(${$f(ytdOut).replace('$','')})</td></tr>`;
   h+=`<tr class="drill-row" id="dr-outflow"><td colspan="${cfCols}"><div class="di" id="dc-outflow"></div></td></tr>`;
   h+='<tr class="tr"><td style="padding-left:10px">Total outflow</td>';
   d.out.forEach(v=>h+=`<td class="neg">($${$f(v).replace('$','')})</td>`);
-  fcastOut.forEach(v=>h+=`<td class="neg" style="${fcastCellStyle}">${v?'($'+$f(v).replace('$',')'):'—'}</td>`);
+  fcastOut.forEach(v=>h+=`<td class="neg" style="${fcastCellStyle}">${v?'('+$f(v)+')':'—'}</td>`);
   h+=`<td class="neg">(${$f(ytdOut).replace('$','')})</td></tr>`;
   // Net
   h+='<tr class="tr"><td style="padding-left:10px">Net movement</td>';
@@ -1562,10 +1592,29 @@ function renderContacts(){
   renderMappingTable();
 }
 
+function sortGrpTable(id,col){
+  if(CONTACTS_SORT.id===id&&CONTACTS_SORT.col===col){CONTACTS_SORT.dir*=-1;}
+  else{CONTACTS_SORT.id=id;CONTACTS_SORT.col=col;CONTACTS_SORT.dir=1;}
+  renderContacts();
+}
+
 function renderGrpTable(id,data){
-  const sorted=[...data].sort((a,b)=>Math.abs(b.inflow-b.outflow)-Math.abs(a.inflow-a.outflow));
-  let h=`<thead><tr><th>Group / Contact</th><th>Entity</th><th>Type</th>
-    <th class="r">Inflow</th><th class="r">Outflow</th><th class="r">Net</th></tr></thead><tbody>`;
+  // Determine sort
+  const isActive=CONTACTS_SORT.id===id;
+  const sc=isActive?CONTACTS_SORT.col:null;
+  const sd=isActive?CONTACTS_SORT.dir:1;
+  const sorted=[...data].sort((a,b)=>{
+    if(!sc){return Math.abs(b.inflow-b.outflow)-Math.abs(a.inflow-a.outflow);}
+    let av,bv;
+    if(sc==='group'){av=(a.group||'').toLowerCase();bv=(b.group||'').toLowerCase();return sd*(av<bv?-1:av>bv?1:0);}
+    if(sc==='entity'){av=(a.entity||'').toLowerCase();bv=(b.entity||'').toLowerCase();return sd*(av<bv?-1:av>bv?1:0);}
+    if(sc==='type'){av=(a.type||'').toLowerCase();bv=(b.type||'').toLowerCase();return sd*(av<bv?-1:av>bv?1:0);}
+    if(sc==='net'){av=a.inflow-a.outflow;bv=b.inflow-b.outflow;return sd*(bv-av);}
+    return 0;
+  });
+  const thG=(label,col)=>{const act=isActive&&sc===col;const arrow=act?(sd===1?' ▲':' ▼'):'';return`<th style="cursor:pointer;user-select:none${act?';color:var(--accent)':''}" onclick="sortGrpTable('${id}','${col}')">${label}${arrow}</th>`;};
+  let h=`<thead><tr>${thG('Group / Contact','group')}${thG('Entity','entity')}${thG('Type','type')}
+    <th class="r">Inflow</th><th class="r">Outflow</th>${thG('Net','net').replace('<th ','<th class="r" ')}</tr></thead><tbody>`;
   sorted.forEach((g,i)=>{
     const net=g.inflow-g.outflow;
     const tc=g.type==='client'?'var(--green)':'var(--amber)';
@@ -2340,6 +2389,7 @@ function getFcastOutflow(month){
 // ── Sort state ──
 let AR_SORT={col:null,dir:1};
 let AP_SORT={col:null,dir:1};
+let CONTACTS_SORT={id:null,col:null,dir:1};
 
 function sortFcastAR(col){
   if(AR_SORT.col===col)AR_SORT.dir*=-1;else{AR_SORT.col=col;AR_SORT.dir=1;}
@@ -2511,13 +2561,58 @@ function renderFcastAR(){
 }
 
 // ── Forecast AP render ──
+function clearAPFilters(){
+  ['ap-f-vendor','ap-f-entity','ap-f-month','ap-f-spendtype','ap-f-category'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  renderFcastAP();
+}
+
 function renderFcastAP(){
-  // Summary bar
+  // Populate filter options
+  const fVendorEl=document.getElementById('ap-f-vendor');
+  const fEntityEl=document.getElementById('ap-f-entity');
+  const fMonthEl=document.getElementById('ap-f-month');
+  const fSpendEl=document.getElementById('ap-f-spendtype');
+  const fCatEl=document.getElementById('ap-f-category');
+  if(fVendorEl){
+    const cur=fVendorEl.value;
+    const vendors=[...new Set(AP_FCST.map(r=>r.vendor||'').filter(Boolean))].sort();
+    fVendorEl.innerHTML=`<option value="">All</option>`+vendors.map(v=>`<option${v===cur?' selected':''}>${esc(v)}</option>`).join('');
+  }
+  if(fMonthEl){
+    const cur=fMonthEl.value;
+    const allCMs=[...new Set(AP_FCST.map(r=>normalizeCashMonth(r.cashMonth)).filter(Boolean))].sort((a,b)=>{
+      const parse=s=>{const p=s.split(' ');return(parseInt(p[1]||FCST_YEAR))*100+ALL_MONTHS.indexOf(p[0]);};
+      return parse(a)-parse(b);
+    });
+    fMonthEl.innerHTML=`<option value="">All</option>`+allCMs.map(m=>`<option${m===cur?' selected':''}>${m}</option>`).join('');
+  }
+  // Read active filters
+  const fVendor=fVendorEl?fVendorEl.value:'';
+  const fEntity=fEntityEl?fEntityEl.value:'';
+  const fMonth=fMonthEl?fMonthEl.value:'';
+  const fSpend=fSpendEl?fSpendEl.value:'';
+  const fCat=fCatEl?fCatEl.value:'';
+  const hasFilter=!!(fVendor||fEntity||fMonth||fSpend||fCat);
+  const clearBtn=document.getElementById('ap-f-clear');
+  if(clearBtn)clearBtn.style.display=hasFilter?'':'none';
+  // Apply filters
+  const filtered=AP_FCST.filter(r=>{
+    if(fVendor&&(r.vendor||'')!==fVendor)return false;
+    if(fEntity&&(r.entity||'BH')!==fEntity)return false;
+    if(fMonth&&normalizeCashMonth(r.cashMonth)!==fMonth)return false;
+    if(fSpend&&(r.spendType||'')!==fSpend)return false;
+    if(fCat&&(r.expenseCategory||'')!==fCat)return false;
+    return true;
+  });
+  const countEl=document.getElementById('ap-f-count');
+  if(countEl)countEl.textContent=hasFilter?`${filtered.length} of ${AP_FCST.length} rows`:'';
+  // Summary bar — reflects active filters
   const sumEl=document.getElementById('fcap-summary');
   if(sumEl){
     sumEl.innerHTML=FCST_MONTHS.map(m=>{
-      const v=getFcastOutflow(m);
-      return `<div class="fsum-card out"><div class="fsc-m">${m}</div><div class="fsc-v">${v?'($'+$f(v).replace('$',')'):'—'}</div></div>`;
+      const _fm=`${m} ${FCST_YEAR}`;
+      const v=filtered.reduce((s,r)=>{const cm=normalizeCashMonth(r.cashMonth);return(cm===_fm||cm===m)?s+(r.amount||0):s;},0);
+      return `<div class="fsum-card out"><div class="fsc-m">${m}</div><div class="fsc-v">${v?'('+$f(v)+')':'—'}</div></div>`;
     }).join('');
   }
   // Table
@@ -2540,9 +2635,9 @@ function renderFcastAP(){
     <th>Notes</th>
     <th>Actions</th>
   </tr></thead><tbody>`;
-  const displayAP=sortedRows(AP_FCST,AP_SORT,AP_NUM_COLS,AP_DATE_COLS,AP_MONTH_COLS);
+  const displayAP=sortedRows(filtered,AP_SORT,AP_NUM_COLS,AP_DATE_COLS,AP_MONTH_COLS);
   if(displayAP.length===0){
-    h+=`<tr><td colspan="13" style="text-align:center;color:var(--text3);padding:28px">No forecast payments yet — click ＋ Add payment to get started</td></tr>`;
+    h+=`<tr><td colspan="13" style="text-align:center;color:var(--text3);padding:28px">${AP_FCST.length?'No rows match the current filters — click ✕ Clear filters to reset':'No forecast payments yet — click ＋ Add payment to get started'}</td></tr>`;
   } else {
     displayAP.forEach(r=>{
       try{
@@ -2555,7 +2650,7 @@ function renderFcastAP(){
           <td style="font-size:14px">${esc(normalizeCashMonth(r.workMonth))||'—'}</td>
           <td style="font-size:14px">${fmtDate(r.paymentDate)}</td>
           <td>${esc(normalizeCashMonth(r.cashMonth))||'—'}</td>
-          <td style="text-align:right;color:var(--red);font-weight:500">${r.amount?'($'+$f(r.amount).replace('$',')'):'—'}</td>
+          <td style="text-align:right;color:var(--red);font-weight:500">${r.amount?'('+$f(r.amount)+')':'—'}</td>
           <td>${spendBadge(r.spendType)}</td>
           <td>${catBadge(r.expenseCategory)}</td>
           <td style="font-size:14px">${esc(r.paymentMode)||'—'}</td>
