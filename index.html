@@ -2970,19 +2970,21 @@ function dlCSV(filename,rows){
 }
 
 function exportARCSV(){
-  const headers=['Client','Entity','Invoice #','Invoice Date','Due Date','Payment Date','Currency','Amount','FX Rate','USD Value','Mode','Fee','Interbank','Cash','Cash Month','Status'];
+  const headers=['Client','Entity','Invoice #','Invoice Date','Invoice Month','Due Date','Payment Date','Currency','Amount','FX Rate','USD Value','Mode','Fee','Interbank','Cash','Cash Month','Status','Type','Notes'];
   const rows=[headers,...AR_FCST.map(r=>[
-    r.client||'',r.entity||'BH',r.invoiceNo||'',r.invoiceDate||'',r.dueDate||'',r.paymentDate||'',
-    r.currency||'',r.amount||'',r.fx||'',r.usdValue||'',r.mode||'',
-    r.fee||'',r.interbank||'',r.cash||'',r.cashMonth||'',r.status||''
+    r.client||'',r.entity||'BH',r.invoiceNo||'',r.invoiceDate||'',r.invoiceMonth||'',
+    r.dueDate||'',r.paymentDate||'',r.currency||'',r.amount||'',r.fx||'',r.usdValue||'',
+    r.mode||'',r.fee||'',r.interbank||'',r.cash||'',r.cashMonth||'',r.status||'',
+    r.invoiceType||'Retainer',r.notes||''
   ])];
   dlCSV('ar_pipeline_'+new Date().toISOString().slice(0,10)+'.csv',rows);
 }
 
 function exportAPCSV(){
-  const headers=['Vendor','Entity','Category','Payment Date','Amount (USD)','Cash Month'];
+  const headers=['Vendor','Entity','Work Month','Payment Date','Cash Month','Amount (USD)','Spend Type','Expense Category','Payment Mode','Notes'];
   const rows=[headers,...AP_FCST.map(r=>[
-    r.vendor||'',r.entity||'',r.category||'',r.paymentDate||'',r.amount||'',r.cashMonth||''
+    r.vendor||'',r.entity||'BH',r.workMonth||'',r.paymentDate||'',r.cashMonth||'',
+    r.amount||'',r.spendType||'',r.expenseCategory||'',r.paymentMode||'',r.notes||''
   ])];
   dlCSV('ap_schedule_'+new Date().toISOString().slice(0,10)+'.csv',rows);
 }
