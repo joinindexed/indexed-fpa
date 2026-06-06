@@ -1867,10 +1867,21 @@ function loadSheetJS(cb){
 
 function detectFileType(name){
   const n=name.toLowerCase();
-  if(n.includes('account_transaction')||n.includes('account transaction'))return'gl';
-  if(n.includes('balance_sheet')||n.includes('balance sheet'))return'bs';
-  if(n.includes('profit')||n.includes('income_statement')||n.includes('income statement'))return'pl';
+  if(n.includes('account_transaction')||n.includes('account transaction')||n.includes('account_txn'))return'gl';
+  if(n.includes('balance_sheet')||n.includes('balance sheet')||n.includes('balancesheet'))return'bs';
+  if(n.includes('profit')||n.includes('income_statement')||n.includes('income statement')||n.includes('p&l')||n.includes('pnl'))return'pl';
   return'gl';
+}
+
+function detectFileTypeFromContent(rows){
+  // Scan first 10 rows for Xero report-type clues
+  for(let i=0;i<Math.min(rows.length,10);i++){
+    const line=rows[i].map(c=>String(c||'').toLowerCase()).join(' ');
+    if(line.includes('balance sheet'))return'bs';
+    if(line.includes('profit and loss')||line.includes('profit & loss')||line.includes('income statement'))return'pl';
+    if(line.includes('account transactions')||line.includes('account name')&&line.includes('debit'))return'gl';
+  }
+  return null;
 }
 function normKey(s){return String(s||'').toLowerCase().replace(/\s+/g,' ').trim();}
 
@@ -1892,15 +1903,26 @@ function initImport(){
 }
 
 function processImport(file,entity){
-  const ftype=detectFileType(file.name);
-  const stEl=document.getElementById(`ist-${entity}-${ftype}`);
-  if(stEl)stEl.textContent='Parsing…';
+  let ftype=detectFileType(file.name);
+  // Show "parsing" on all three status slots since we may redirect
+  ['gl','bs','pl'].forEach(t=>{const el=document.getElementById(`ist-${entity}-${t}`);if(el)el.textContent='';});
+  const stEl=()=>document.getElementById(`ist-${entity}-${ftype}`);
+  if(stEl())stEl().textContent='Parsing…';
   loadSheetJS(()=>{
     file.arrayBuffer().then(buf=>{
       try{
         const wb=window.XLSX.read(buf,{type:'array',cellDates:false,raw:false});
         const ws=wb.Sheets[wb.SheetNames[0]];
         const rows=window.XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});
+        // Content-based type detection overrides filename if filename was ambiguous
+        if(ftype==='gl'){
+          const detected=detectFileTypeFromContent(rows);
+          if(detected&&detected!=='gl'){
+            if(stEl())stEl().textContent='';
+            ftype=detected;
+            if(stEl())stEl().textContent='Parsing…';
+          }
+        }
         let parsed;
         if(ftype==='gl')parsed=parseXeroAccountTx(rows,entity.toUpperCase());
         else if(ftype==='bs')parsed=parseXeroBS(rows,entity.toUpperCase());
@@ -1908,12 +1930,12 @@ function processImport(file,entity){
         parsed.ftype=ftype;
         importState[entity+'-'+ftype]=parsed;
         renderImportPreview(entity,parsed,ftype);
-        if(stEl){
+        if(stEl()){
           const ml=parsed.months.join(', ')||'none';
-          stEl.innerHTML=parsed.months.length?`<span style="color:var(--green)">✓ ${ml}</span>`:`<span style="color:var(--amber)">⚠ No data found</span>`;
+          stEl().innerHTML=parsed.months.length?`<span style="color:var(--green)">✓ ${ml}</span>`:`<span style="color:var(--amber)">⚠ No data found — check file is a Xero export</span>`;
         }
       }catch(err){
-        if(stEl)stEl.innerHTML=`<span style="color:var(--red)">Error</span>`;
+        if(stEl())stEl().innerHTML=`<span style="color:var(--red)">Error: ${err.message}</span>`;
         console.error(err);
       }
     });
@@ -1998,29 +2020,37 @@ function parseXeroAccountTx(rows,entity){
 }
 
 function parseXeroBS(rows,entity){
-  // Supports "As at DD Month YYYY" single-period or comparative with month column headers
+  // Supports "As at DD Month YYYY", "30 April 2026", "Apr 2026", "30/04/2026" headers
   const result={entity,ftype:'bs',months:[],rows:[]};
   const parseFl=v=>parseFloat(String(v||'').replace(/[,$\s]/g,''))||0;
+  const MONTH_NAMES=['january','february','march','april','may','june','july','august','september','october','november','december'];
+  const MO3=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-  // Find month columns — look for a header row containing 2+ month names
-  let colMonths=[], headerRow=-1;
-  for(let i=0;i<Math.min(rows.length,15);i++){
-    const rs=rows[i].map(c=>String(c||'').trim());
-    const hits=rs.map((c,ci)=>{
-      // "As at DD Month YYYY" or "Jan 2026" or "January 2026"
-      const m=c.match(/(?:as at\s+\d+\s+)?([A-Za-z]{3,9})\s+\d{4}/i);
-      return m?{ci,month:m[1].substring(0,3)}:null;
-    }).filter(Boolean);
-    if(hits.length>=1){colMonths=hits;headerRow=i;break;}
+  function extractMonth(c){
+    const s=String(c||'').trim();
+    if(!s)return null;
+    // "Apr 2026" or "April 2026" or "30 April 2026" or "As at 30 April 2026"
+    const m1=s.match(/([A-Za-z]{3,9})\s+\d{4}/i);
+    if(m1){const abbr=m1[1].substring(0,3);const idx=MO3.findIndex(x=>x.toLowerCase()===abbr.toLowerCase());return idx>=0?MO3[idx]:null;}
+    // "30/04/2026" or "04/30/2026" — try both DD/MM/YYYY and MM/DD/YYYY
+    const m2=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if(m2){
+      const mm=parseInt(m2[2]),dd=parseInt(m2[1]);
+      // Xero uses DD/MM/YYYY
+      if(mm>=1&&mm<=12)return MO3[mm-1];
+    }
+    // "2026-04-30"
+    const m3=s.match(/^\d{4}-(\d{2})-\d{2}/);
+    if(m3){const mm=parseInt(m3[1]);if(mm>=1&&mm<=12)return MO3[mm-1];}
+    return null;
   }
 
-  if(colMonths.length===0){
-    // Single "As at" period in page title rows
-    for(let i=0;i<Math.min(rows.length,8);i++){
-      const cell=String(rows[i][0]||'').trim();
-      const m=cell.match(/as at\s+\d+\s+([A-Za-z]{3,9})\s+\d{4}/i);
-      if(m){colMonths=[{ci:rows[i].length-1,month:m[1].substring(0,3)}];headerRow=i;break;}
-    }
+  // Find month columns — search up to 25 rows
+  let colMonths=[], headerRow=-1;
+  for(let i=0;i<Math.min(rows.length,25);i++){
+    const rs=rows[i].map(c=>String(c||'').trim());
+    const hits=rs.map((c,ci)=>{const m=extractMonth(c);return m?{ci,month:m}:null;}).filter(Boolean);
+    if(hits.length>=1){colMonths=hits;headerRow=i;break;}
   }
 
   if(colMonths.length===0)return result;
@@ -2044,9 +2074,10 @@ function parseXeroPL(rows,entity){
   const parseFl=v=>parseFloat(String(v||'').replace(/[,$\s]/g,''))||0;
 
   let colMonths=[], headerRow=-1;
-  for(let i=0;i<Math.min(rows.length,20);i++){
+  for(let i=0;i<Math.min(rows.length,25);i++){
     const rs=rows[i].map(c=>String(c||'').trim());
     const hits=rs.map((c,ci)=>{
+      // "Jan", "Jan 2026", "January", "January 2026"
       const m=c.match(/^([A-Za-z]{3,9})(?:\s+\d{4})?$/);
       if(!m)return null;
       const idx=MO.findIndex(mo=>mo.toLowerCase()===m[1].toLowerCase().substring(0,3));
