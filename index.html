@@ -1788,47 +1788,57 @@ function swCtSub(tab,el){
 }
 
 // ── Dashboard ──
+// Helper: find value from imported fin data by flexible label matching
+function _impFinVal(entityKey,ftype,lastMonthOnly,...labels){
+  const imp=(window._importedFin||{})[entityKey+'_'+ftype];
+  if(!imp||!imp.rows)return null;
+  const nk=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,' ').replace(/\s+/g,' ').trim();
+  for(const lbl of labels){
+    const lk=nk(lbl);
+    const row=imp.rows.find(r=>{const rk=nk(r.label);return rk===lk||rk.includes(lk)||lk.includes(rk);});
+    if(!row)continue;
+    if(lastMonthOnly){
+      // For BS: use value of the most recent imported month
+      const months=(imp.months||[]).slice().sort((a,b)=>ALL_MONTHS.indexOf(a)-ALL_MONTHS.indexOf(b));
+      for(let mi=months.length-1;mi>=0;mi--){if(row.vals&&row.vals[months[mi]]!==undefined)return row.vals[months[mi]]||0;}
+      return 0;
+    } else {
+      // For PL: sum across all imported months
+      return Object.values(row.vals||{}).reduce((s,v)=>s+(v||0),0);
+    }
+  }
+  return null;
+}
+
 function getPL(){
   const src=ent==='bh'?BH_PL:ent==='bc'?BC_PL:CONSO_PL;
-  const get=label=>(src.find(r=>r.label===label)||{v:[0,0,0,0]}).v;
-  const sum=v=>v.reduce((s,x)=>s+x,0);
-  const revLbl=ent==='bh'?'Total Trading Income':'Total Income';
+  const hardGet=label=>(src.find(r=>r.label===label)||{v:Array(E.length).fill(0)}).v;
+  const sum=v=>(v||[]).reduce((s,x)=>s+(x||0),0);
+  const ek=ent==='conso'?null:ent;
+  // Revenue: try imported then hardcoded
+  const ytdRev=ek?(_impFinVal(ek,'pl',false,'Total Trading Income','Total Income','Revenue','Total Revenue','Operating Revenue','Trading Income')??sum(hardGet(ent==='bh'?'Total Trading Income':'Total Income'))):sum(hardGet(ent==='bh'?'Total Trading Income':'Total Income'));
+  const ytdGP=ek?(_impFinVal(ek,'pl',false,'Gross Profit','Gross Income','Gross Margin')??sum(hardGet('Gross Profit'))):sum(hardGet('Gross Profit'));
   const netLbl=ent==='bh'?'Net Profit':ent==='bc'?'Net Income':'Net Profit / Income';
-  const ytdRev=sum(get(revLbl));
-  const ytdGP=sum(get('Gross Profit'));
-  const ytdNet=sum(get(netLbl));
-  const ytdWages=ent==='bc'?0:sum((BH_PL.find(r=>r.label==='Wages & Salaries')||{v:[0,0,0,0]}).v);
+  const ytdNet=ek?(_impFinVal(ek,'pl',false,'Net Profit','Net Income','Profit for the Period','Net Profit / Income','Profit/(Loss)')??sum(hardGet(netLbl))):sum(hardGet(netLbl));
+  const ytdWages=ent==='bc'?0:(ek?(_impFinVal(ek,'pl',false,'Wages & Salaries','Wages','Salaries','Staff Costs','Employee Costs')??sum(hardGet('Wages & Salaries'))):sum(hardGet('Wages & Salaries')));
   const adjNet=ytdNet+ytdWages;
-  return{ytdRev,ytdGP,ytdNet,adjNet,
-    gpPct:ytdRev?ytdGP/ytdRev:0,
-    adjNetPct:ytdRev?adjNet/ytdRev:0};
+  return{ytdRev,ytdGP,ytdNet,adjNet,gpPct:ytdRev?ytdGP/ytdRev:0,adjNetPct:ytdRev?adjNet/ytdRev:0};
 }
 
 function getBSMetrics(){
   const i=E.length-1;
-  const bhGet=label=>(BH_BS.find(r=>r.label===label)||{v:[0,0,0,0]}).v[i];
-  const bcGet=label=>(BC_BS.find(r=>r.label===label)||{v:[0,0,0,0]}).v[i];
-  if(ent==='bh') return{
-    ar:bhGet('Accounts Receivable'),
-    ap:bhGet('Accounts Payable'),
-    accruals:bhGet('Accruals'),
-    dirLoan:bhGet('Directors Loan Account'),
-    loanDir:0
-  };
-  if(ent==='bc') return{
-    ar:bcGet('Accounts Receivable'),
-    ap:bcGet('Accounts Payable'),
-    accruals:bcGet('Accruals'),
-    dirLoan:0,
-    loanDir:bcGet('Loan from Director')
-  };
-  return{
-    ar:bhGet('Accounts Receivable')+bcGet('Accounts Receivable'),
-    ap:bhGet('Accounts Payable')+bcGet('Accounts Payable'),
-    accruals:bhGet('Accruals')+bcGet('Accruals'),
-    dirLoan:bhGet('Directors Loan Account'),
-    loanDir:bcGet('Loan from Director')
-  };
+  const ek=ent==='conso'?null:ent;
+  function bsVal(entityKey,hardArr,...labels){
+    if(entityKey){
+      const v=_impFinVal(entityKey,'bs',true,...labels);
+      if(v!==null)return v;
+    }
+    for(const lbl of labels){const row=hardArr.find(r=>r.label===lbl);if(row&&row.v)return row.v[i]||0;}
+    return 0;
+  }
+  if(ent==='bh')return{ar:bsVal('bh',BH_BS,'Accounts Receivable','Trade Debtors','Debtors'),ap:bsVal('bh',BH_BS,'Accounts Payable','Trade Creditors','Creditors'),accruals:bsVal('bh',BH_BS,'Accruals','Accrued Liabilities'),dirLoan:bsVal('bh',BH_BS,'Directors Loan Account','Director Loan','Director\'s Loan'),loanDir:0};
+  if(ent==='bc')return{ar:bsVal('bc',BC_BS,'Accounts Receivable','Trade Debtors','Debtors'),ap:bsVal('bc',BC_BS,'Accounts Payable','Trade Creditors','Creditors'),accruals:bsVal('bc',BC_BS,'Accruals','Accrued Liabilities'),dirLoan:0,loanDir:bsVal('bc',BC_BS,'Loan from Director','Director Loan')};
+  return{ar:bsVal('bh',BH_BS,'Accounts Receivable')+bsVal('bc',BC_BS,'Accounts Receivable'),ap:bsVal('bh',BH_BS,'Accounts Payable')+bsVal('bc',BC_BS,'Accounts Payable'),accruals:bsVal('bh',BH_BS,'Accruals')+bsVal('bc',BC_BS,'Accruals'),dirLoan:bsVal('bh',BH_BS,'Directors Loan Account'),loanDir:bsVal('bc',BC_BS,'Loan from Director')};
 }
 
 function renderDash(){
@@ -2266,9 +2276,42 @@ function applyImport(entity,ftype){
   }
 
   if(ftype==='bs'||ftype==='pl'){
-    // Store directly for rendering — no label matching required
+    // 1. Store for direct Financials tab rendering
     if(!window._importedFin)window._importedFin={};
     window._importedFin[entity+'_'+ftype]=parsed;
+
+    // 2. Also update the hardcoded KPI arrays so Dashboard / P&L metrics stay live.
+    //    Use flexible label matching — imported label just needs to contain or be contained by
+    //    the hardcoded label (case-insensitive, punctuation-stripped).
+    const kpiTarget=ftype==='bs'?(isB?BH_BS:BC_BS):(isB?BH_PL:BC_PL);
+    const dataRows=parsed.rows.filter(r=>r.type==='i'||r.type==='t');
+    dataRows.forEach(r=>{
+      const rk=normKey(r.label);
+      const hit=kpiTarget.find(t=>{
+        if(!t.label)return false;
+        const tk=normKey(t.label);
+        return tk===rk||tk.includes(rk)||rk.includes(tk);
+      });
+      if(hit&&hit.v){
+        parsed.months.forEach(m=>{const i=E.indexOf(m);if(i>=0)hit.v[i]=r.vals[m]||0;});
+      }
+    });
+    // Rebuild consolidated
+    if(ftype==='bs'){
+      CONSO_BS.forEach(cr=>{
+        if(!cr.v||!cr.label)return;
+        const bhr=BH_BS.find(r=>r.label&&normKey(r.label)===normKey(cr.label));
+        const bcr=BC_BS.find(r=>r.label&&normKey(r.label)===normKey(cr.label));
+        if(bhr||bcr)cr.v=E.map((_,i)=>((bhr&&bhr.v?bhr.v[i]:0)||0)+((bcr&&bcr.v?bcr.v[i]:0)||0));
+      });
+    } else {
+      CONSO_PL.forEach(cr=>{
+        if(!cr.v||!cr.label)return;
+        const bhr=BH_PL.find(r=>r.label&&normKey(r.label)===normKey(cr.label));
+        const bcr=BC_PL.find(r=>r.label&&normKey(r.label)===normKey(cr.label));
+        if(bhr||bcr)cr.v=E.map((_,i)=>((bhr&&bhr.v?bhr.v[i]:0)||0)+((bcr&&bcr.v?bcr.v[i]:0)||0));
+      });
+    }
   }
 
   // Update sidebar actuals label
