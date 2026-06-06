@@ -2687,6 +2687,23 @@ function applyImport(entity,ftype){
       const prevClose=idx===0?OPEN:CLOSE[idx-1];
       FX[idx]=Math.round((CLOSE[idx]-prevClose-IN[idx]+OUT[idx])*100)/100;
     });
+    // If BS was already imported, restore its exact bank balances and recompute FX from them
+    // (GL-derived sectionMonthlyNet can drift; BS is authoritative for closing balance)
+    if(window._importedFin&&window._importedFin[entity+'_bs']){
+      const bsArr2=isB?BH_BS:BC_BS;
+      const bankLbl2=isB?'Total Bank':'Total Cash';
+      const bankRow2=bsArr2.find(r=>r.label===bankLbl2);
+      Object.keys(BANKS).forEach(bankName=>{
+        const row=bsArr2.find(r=>r.label&&normKey(r.label)===normKey(bankName));
+        if(row&&row.v)row.v.forEach((v,i)=>{if(i<BANKS[bankName].length)BANKS[bankName][i]=v;});
+      });
+      E.forEach((_,i)=>{CLOSE[i]=closeFn(i);});
+      if(bankRow2&&bankRow2.v)bankRow2.v.forEach((v,i)=>{if(v!==0)CLOSE[i]=v;});
+      E.forEach((_,idx)=>{
+        const prevClose=idx===0?OPEN:CLOSE[idx-1];
+        FX[idx]=Math.round((CLOSE[idx]-prevClose-IN[idx]+OUT[idx])*100)/100;
+      });
+    }
   }
 
   if(ftype==='bs'||ftype==='pl'){
@@ -2743,14 +2760,29 @@ function applyImport(entity,ftype){
       rebuildConso(CONSO_BS,BH_BS,BC_BS);
       [BH_BS,BC_BS,CONSO_BS].forEach(recalcBSTotals);
       validateBS(BH_BS,'bh_bs'); validateBS(BC_BS,'bc_bs'); validateBS(CONSO_BS,'conso_bs');
-      // Sync closing cash balance from BS "Total Bank" / "Total Cash" rows
-      // so the chart and KPI show correctly even when no GL import has been done.
+      // Sync bank account breakdown + closing balance + FX from BS (BS is authoritative)
       const bsArr=isB?BH_BS:BC_BS;
       const bankLbl=isB?'Total Bank':'Total Cash';
       const bankRow=bsArr.find(r=>r.label===bankLbl);
       const closeArr=isB?BH_CLOSE:BC_CLOSE;
+      const banksTarget=isB?BH_BANKS:BC_BANKS;
+      // 1. Sync individual bank rows → breakdown table uses exact BS values
+      Object.keys(banksTarget).forEach(bankName=>{
+        const row=bsArr.find(r=>r.label&&normKey(r.label)===normKey(bankName));
+        if(row&&row.v)row.v.forEach((v,i)=>{if(i<banksTarget[bankName].length)banksTarget[bankName][i]=v;});
+      });
+      // 2. Sync total closing balance from BS Total Bank/Cash row
       if(bankRow&&bankRow.v){
         bankRow.v.forEach((v,i)=>{if(v!==0)closeArr[i]=v;});
+      }
+      // 3. Recompute FX from BS-authoritative closing (only if GL already imported)
+      const INarr=isB?BH_IN:BC_IN, OUTarr=isB?BH_OUT:BC_OUT, FXarr=isB?BH_FX:BC_FX;
+      const OPENval=isB?BH_OPEN:BC_OPEN;
+      if(INarr.some(v=>v!==0)||OUTarr.some(v=>v!==0)){
+        E.forEach((_,idx)=>{
+          const prevClose=idx===0?OPENval:closeArr[idx-1];
+          FXarr[idx]=Math.round((closeArr[idx]-prevClose-INarr[idx]+OUTarr[idx])*100)/100;
+        });
       }
     } else {
       rebuildConso(CONSO_PL,BH_PL,BC_PL);
