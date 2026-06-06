@@ -449,6 +449,32 @@ input,select{font-family:var(--sans)}
       <div style="background:var(--accent-light);border:1px solid var(--border);border-radius:8px;padding:12px 16px;font-size:15.0px;color:var(--text2);margin-top:4px">
         <strong style="color:var(--accent)">How it works:</strong> During import, if a Xero account name doesn't match any dashboard label automatically, this table is checked first. Click <strong>"Map this →"</strong> in the import preview to jump here with the label pre-filled. Mappings apply on every future import automatically.
       </div>
+      <div class="card" style="margin-top:16px">
+        <div class="card-head">
+          <span class="card-title">Add new dashboard label</span>
+          <span class="card-hint">Creates a new row in the Financials template under the section you choose</span>
+        </div>
+        <div style="padding:12px 16px">
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+            <div style="flex:1;min-width:160px">
+              <div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.06em">Dashboard label</div>
+              <input id="newrow-label" type="text" placeholder="e.g. Staff Costs" style="width:100%;padding:6px 10px;border:1px solid var(--border2);border-radius:5px;font-size:14px;background:var(--surface2);color:var(--text);font-family:var(--sans);box-sizing:border-box">
+            </div>
+            <div style="flex:1;min-width:160px">
+              <div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.06em">Place under section</div>
+              <select id="newrow-section" style="width:100%;padding:6px 10px;border:1px solid var(--border2);border-radius:5px;font-size:14px;background:var(--surface2);color:var(--text);font-family:var(--sans)"></select>
+            </div>
+            <div style="flex:1;min-width:160px">
+              <div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.06em">Xero account name (optional)</div>
+              <input id="newrow-xero" type="text" placeholder="Exact label from Xero…" style="width:100%;padding:6px 10px;border:1px solid var(--border2);border-radius:5px;font-size:14px;background:var(--surface2);color:var(--text);font-family:var(--sans);box-sizing:border-box">
+            </div>
+            <div style="padding-top:18px">
+              <button onclick="addNewDashboardRow()" style="padding:7px 14px;border-radius:5px;border:1px solid var(--accent);background:var(--accent);color:#fff;font-size:14px;cursor:pointer;font-family:var(--sans);white-space:nowrap;font-weight:600">+ Add row</button>
+            </div>
+          </div>
+          <div id="newrow-list" style="font-size:13px;color:var(--text2)"></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -1718,6 +1744,8 @@ try { CT_MAP = JSON.parse(localStorage.getItem('ct_map')||'{}'); } catch(e){}
 
 let GL_MAPPINGS={};
 try{GL_MAPPINGS=JSON.parse(localStorage.getItem('gl_mappings')||'{}');}catch(e){}
+let USER_ROWS=[];
+try{USER_ROWS=JSON.parse(localStorage.getItem('user_rows')||'[]');}catch(e){}
 var glmKey='bc_pl';
 
 // No pre-seeded groups — you define everything in the mapping tab
@@ -2628,6 +2656,7 @@ function saveActuals(){
     if(window._importedFin)snap._importedFin=window._importedFin;
     if(window._xeroTotals)snap._xeroTotals=window._xeroTotals;
     if(GL_MAPPINGS&&Object.keys(GL_MAPPINGS).length)snap._glMappings=GL_MAPPINGS;
+    if(USER_ROWS&&USER_ROWS.length)snap._userRows=USER_ROWS;
     localStorage.setItem('actuals_snap',JSON.stringify(snap));
   }catch(e){}
 }
@@ -2640,6 +2669,8 @@ function loadActuals(){
     if(snap._importedFin){window._importedFin=snap._importedFin;}
     if(snap._xeroTotals){window._xeroTotals=snap._xeroTotals;}
     if(snap._glMappings){GL_MAPPINGS=snap._glMappings;try{localStorage.setItem('gl_mappings',JSON.stringify(GL_MAPPINGS));}catch(e){}}
+    if(snap._userRows){USER_ROWS=snap._userRows;try{localStorage.setItem('user_rows',JSON.stringify(USER_ROWS));}catch(e){}}
+    applyUserRows();
     // Replay GL imports through applyImport (updates Dashboard/CF)
     ['bh','bc'].forEach(e=>{
       ['gl','bs','pl'].forEach(ft=>{
@@ -2671,6 +2702,111 @@ function renderGLMapTable(){
   const sel=document.getElementById('glmap-tmpl-select');
   if(tb)tb.innerHTML=rows;
   if(sel)sel.innerHTML=opts;
+
+  // Populate section dropdown for "Add new row" form
+  const sectionSel=document.getElementById('newrow-section');
+  if(sectionSel){
+    const [ekey,ftkey]=glmKey.split('_');
+    const arr=ftkey==='pl'?(ekey==='bh'?BH_PL:BC_PL):(ekey==='bh'?BH_BS:BC_BS);
+    // Collect all h/sh headers that have item rows under them
+    const sections=[];
+    arr.forEach(r=>{if((r.type==='h'||r.type==='sh')&&r.g)sections.push({g:r.g,type:r.type});});
+    sectionSel.innerHTML=sections.map(s=>`<option value="${esc(s.g)}">${esc(s.g)}</option>`).join('');
+  }
+
+  // Show user-added rows for this key
+  const keyRows=USER_ROWS.filter(r=>r.entity+'_'+r.ftype===glmKey);
+  const newRowList=document.getElementById('newrow-list');
+  if(newRowList){
+    if(keyRows.length){
+      newRowList.innerHTML=`<div style="margin-top:8px;font-size:12px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">User-added rows</div>`+
+        keyRows.map((r,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:4px 0;border-bottom:1px solid var(--border)">
+          <span style="flex:1;font-size:13px">${esc(r.label)}</span>
+          <span style="color:var(--text3);font-size:13px">under <strong>${esc(r.section)}</strong></span>
+          ${r.xero?`<span style="color:var(--text3);font-size:13px">← Xero: ${esc(r.xero)}</span>`:''}
+          <button onclick="deleteUserRow(${USER_ROWS.indexOf(r)})" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:15px;padding:2px 6px">🗑</button>
+        </div>`).join('');
+    } else {
+      newRowList.innerHTML='';
+    }
+  }
+}
+
+// Insert a user-defined row into the correct position in a template array (idempotent)
+function _insertRowIntoArr(arr, section, label, entity){
+  if(arr.find(r=>r.label===label&&(!entity||r.entity===entity)))return; // already exists
+  // Find the section header
+  const hIdx=arr.findIndex(r=>(r.type==='h'||r.type==='sh')&&normKey(r.g||'')===normKey(section));
+  if(hIdx<0)return;
+  // Insert before the next 't', 'gt', or 'h' row
+  let ins=arr.length;
+  for(let i=hIdx+1;i<arr.length;i++){
+    if(arr[i].type==='t'||arr[i].type==='gt'||arr[i].type==='h'){ins=i;break;}
+  }
+  const row={label,type:'i',v:Array(E.length).fill(0)};
+  if(entity)row.entity=entity;
+  arr.splice(ins,0,row);
+}
+
+// Replay all USER_ROWS into template arrays (called at startup and after adding a row)
+function applyUserRows(){
+  USER_ROWS.forEach(({entity,ftype,section,label,xero})=>{
+    const arr=ftype==='pl'?(entity==='bh'?BH_PL:BC_PL):(entity==='bh'?BH_BS:BC_BS);
+    _insertRowIntoArr(arr,section,label);
+    // Also add to CONSO with entity tag
+    const consoArr=ftype==='pl'?CONSO_PL:CONSO_BS;
+    _insertRowIntoArr(consoArr,section,label,entity.toUpperCase());
+  });
+}
+
+function addNewDashboardRow(){
+  const label=(document.getElementById('newrow-label').value||'').trim();
+  const section=(document.getElementById('newrow-section').value||'').trim();
+  const xero=(document.getElementById('newrow-xero').value||'').trim();
+  if(!label){alert('Dashboard label is required.');return;}
+  if(!section){alert('Please select a section.');return;}
+  const [ekey,ftkey]=glmKey.split('_');
+  // Check for duplicate
+  if(USER_ROWS.find(r=>r.entity===ekey&&r.ftype===ftkey&&normKey(r.label)===normKey(label))){
+    alert('A row with this label already exists.');return;
+  }
+  // Add to USER_ROWS
+  USER_ROWS.push({entity:ekey,ftype:ftkey,section,label,xero:xero||''});
+  // Insert into template arrays now
+  const arr=ftkey==='pl'?(ekey==='bh'?BH_PL:BC_PL):(ekey==='bh'?BH_BS:BC_BS);
+  _insertRowIntoArr(arr,section,label);
+  const consoArr=ftkey==='pl'?CONSO_PL:CONSO_BS;
+  _insertRowIntoArr(consoArr,section,label,ekey.toUpperCase());
+  // If Xero label given, also add GL mapping
+  if(xero){
+    if(!GL_MAPPINGS[glmKey])GL_MAPPINGS[glmKey]=[];
+    const exists=GL_MAPPINGS[glmKey].find(m=>normKey(m.xero)===normKey(xero));
+    if(exists)exists.tmpl=label; else GL_MAPPINGS[glmKey].push({xero,tmpl:label});
+  }
+  // Persist
+  try{localStorage.setItem('user_rows',JSON.stringify(USER_ROWS));}catch(e){}
+  saveGLMappings();
+  // Clear inputs
+  document.getElementById('newrow-label').value='';
+  document.getElementById('newrow-xero').value='';
+  renderGLMapTable();
+  // Re-render Financials so new row shows immediately
+  if(document.getElementById('screen-fin').classList.contains('active'))renderFin();
+}
+
+function deleteUserRow(idx){
+  if(!confirm('Remove this row from the dashboard template?'))return;
+  const r=USER_ROWS[idx];
+  // Remove from template arrays
+  const arr=r.ftype==='pl'?(r.entity==='bh'?BH_PL:BC_PL):(r.entity==='bh'?BH_BS:BC_BS);
+  const i=arr.findIndex(row=>row.label===r.label&&!row.entity);
+  if(i>=0)arr.splice(i,1);
+  const consoArr=r.ftype==='pl'?CONSO_PL:CONSO_BS;
+  const ci=consoArr.findIndex(row=>row.label===r.label&&row.entity===r.entity.toUpperCase());
+  if(ci>=0)consoArr.splice(ci,1);
+  USER_ROWS.splice(idx,1);
+  try{localStorage.setItem('user_rows',JSON.stringify(USER_ROWS));}catch(e){}
+  renderGLMapTable();
 }
 
 function addGLMapping(){
@@ -3846,6 +3982,8 @@ function submitPwd(){
 
 // ── Init ──
 // Restore any previously imported actuals from localStorage BEFORE first render
+// Apply any user-defined template rows before replaying imports
+try{applyUserRows();}catch(e){console.warn('applyUserRows:',e);}
 try{loadActuals();}catch(e){console.warn('loadActuals:',e);}
 // Run immediately (script is at bottom of body so DOM is ready)
 try{renderDash();}catch(e){}
