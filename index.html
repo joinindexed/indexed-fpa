@@ -1350,18 +1350,16 @@ function buildFcastCFGroups(isIn){
     const entity=(r.entity||'BH').toUpperCase();
     if(ent!=='conso'&&entity!==ent.toUpperCase())return;
     const contact=isIn?(r.client||'Unknown'):(r.vendor||'Unknown');
-    const mFull=normalizeCashMonth(r.cashMonth); // e.g. "Jun 2026"
-    const mKey=mFull.split(' ')[0]; // e.g. "Jun" — key used by FCST_MONTHS and drill table
-    const mYear=mFull.split(' ')[1]||FCST_YEAR;
-    if(!FCST_MONTHS.includes(mKey)||mYear!==FCST_YEAR)return;
+    const mFull=normalizeCashMonth(r.cashMonth);
+    if(!FCST_MONTHS.includes(mFull))return;
     const amt=isIn?(r.cash||0):(r.amount||0);
     if(!amt)return;
     const mapKey=contact+'||'+entity;
     const grpName=merged[mapKey]?.group||contact;
     if(!groups[grpName])groups[grpName]={group:grpName,vals:{},entities:{BH:{vals:{}},BC:{vals:{}}}};
-    groups[grpName].vals[mKey]=(groups[grpName].vals[mKey]||0)+amt;
+    groups[grpName].vals[mFull]=(groups[grpName].vals[mFull]||0)+amt;
     if(!groups[grpName].entities[entity])groups[grpName].entities[entity]={vals:{}};
-    groups[grpName].entities[entity].vals[mKey]=(groups[grpName].entities[entity].vals[mKey]||0)+amt;
+    groups[grpName].entities[entity].vals[mFull]=(groups[grpName].entities[entity].vals[mFull]||0)+amt;
   });
   return Object.values(groups)
     .sort((a,b)=>FCST_MONTHS.reduce((s,m)=>s+(b.vals[m]||0),0)-FCST_MONTHS.reduce((s,m)=>s+(a.vals[m]||0),0));
@@ -1383,7 +1381,7 @@ function renderCFTable(d){
   const fcastCellStyle='background:rgba(251,191,36,0.04)';
   let h='<thead><tr><th>Line item</th>';
   E.forEach(m=>h+=`<th><span class="ba">A</span> ${m}</th>`);
-  FCST_MONTHS.forEach(m=>h+=`<th style="opacity:.75"><span class="bf">F</span>${m}</th>`);
+  FCST_MONTHS.forEach(m=>h+=`<th style="opacity:.75"><span class="bf">F</span>${fmtFcstMonth(m)}</th>`);
   h+='<th>YTD</th></tr></thead><tbody>';
   // Opening
   h+='<tr><td style="padding-left:10px;color:var(--text2)">Opening balance</td>';
@@ -1476,7 +1474,7 @@ function togCFDrill(drId,isIn){
   let h=`<div class="dt-hd"><span>↳ ${label}</span><span class="dc" onclick="clDrill('${drId}')">✕</span></div>`;
   h+=`<table class="drt"><thead><tr><th>Display group</th><th>Entity</th>`;
   E.forEach(m=>h+=`<th><span class="ba" style="font-size:9px">A</span> ${m}</th>`);
-  FCST_MONTHS.forEach(m=>h+=`<th style="opacity:.85"><span class="bf" style="font-size:9px">F</span> ${m}</th>`);
+  FCST_MONTHS.forEach(m=>h+=`<th style="opacity:.85"><span class="bf" style="font-size:9px">F</span> ${fmtFcstMonth(m)}</th>`);
   h+=`<th>Total</th></tr></thead><tbody>`;
   allGroups.forEach((mg,gi)=>{
     const actTotal=E.reduce((s,m)=>s+(mg.actVals[m]||0),0);
@@ -2810,18 +2808,44 @@ function applyImport(entity,ftype){
 }
 
 // ── Forecast data persistence ──
-let FCST_MONTHS = ['Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const FCST_YEAR = '2026';
+let FCST_MONTHS = []; // full "Mon YYYY" strings, e.g. ['Jun 2026','Jan 2027'] — derived from AR/AP data
+const FCST_YEAR = '2026'; // default/fallback year for normalizeCashMonth
 const ALL_MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-// Recompute FCST_MONTHS and update all page subtitles whenever E changes.
+// Derive FCST_MONTHS from AR+AP pipeline data, excluding actuals months, sorted chronologically
+function recomputeFcstMonths(){
+  const actSet=new Set(E.map(m=>`${m} ${FCST_YEAR}`));
+  const seen=new Set();
+  [...AR_FCST,...AP_FCST].forEach(r=>{
+    const mf=normalizeCashMonth(r.cashMonth);
+    if(mf&&!actSet.has(mf))seen.add(mf);
+  });
+  FCST_MONTHS=[...seen].sort((a,b)=>{
+    const [am,ay]=a.split(' '),[bm,by]=b.split(' ');
+    return(parseInt(ay||FCST_YEAR)-parseInt(by||FCST_YEAR))*100+(ALL_MONTHS.indexOf(am)-ALL_MONTHS.indexOf(bm));
+  });
+  // Fallback: remaining months of current year after last actual
+  if(!FCST_MONTHS.length){
+    const lastIdx=ALL_MONTHS.indexOf(E[E.length-1]||'Dec');
+    FCST_MONTHS=ALL_MONTHS.slice(lastIdx+1).map(m=>`${m} ${FCST_YEAR}`);
+  }
+}
+
+// Display helper: "Jun 2026" → "Jun", "Jan 2027" → "Jan '27"
+function fmtFcstMonth(m){
+  const [mon,yr]=m.split(' ');
+  return yr===FCST_YEAR?mon:`${mon} '${(yr||FCST_YEAR).slice(2)}`;
+}
+
+// Recompute FCST_MONTHS and update all page subtitles whenever E or forecast data changes.
 function updateActualsLabels(){
+  recomputeFcstMonths();
   const lastAct=E[E.length-1]||'Dec';
-  const lastIdx=ALL_MONTHS.indexOf(lastAct);
-  FCST_MONTHS=ALL_MONTHS.slice(lastIdx+1); // months after last actuals
   const firstAct=E[0]||'Jan';
-  const actRange=`${firstAct}–${lastAct} 2026`;
-  const fcstRange=FCST_MONTHS.length?`${FCST_MONTHS[0]}–${FCST_MONTHS[FCST_MONTHS.length-1]} 2026`:'—';
+  const actRange=`${firstAct}–${lastAct} ${FCST_YEAR}`;
+  const f0=FCST_MONTHS[0]?FCST_MONTHS[0].split(' '):['Jan',FCST_YEAR];
+  const fL=FCST_MONTHS[FCST_MONTHS.length-1]?FCST_MONTHS[FCST_MONTHS.length-1].split(' '):['Dec',FCST_YEAR];
+  const fcstRange=FCST_MONTHS.length?`${f0[0]}–${fL[0]} ${fL[1]}`:'—';
   const s=id=>document.getElementById(id);
   if(s('sub-dash'))s('sub-dash').textContent=`${actRange} actuals · All values in USD · Toggle entity above`;
   if(s('sub-cf'))s('sub-cf').textContent=`${actRange} actuals · All values in USD`;
@@ -2829,7 +2853,7 @@ function updateActualsLabels(){
   if(s('sub-ar'))s('sub-ar').textContent=`Forecast cash collections · ${fcstRange}`;
   if(s('sub-ap'))s('sub-ap').textContent=`Forecast cash payments · ${fcstRange}`;
   if(s('sub-contacts'))s('sub-contacts').textContent=`Cash flow by contact · Map contacts to display groups · ${actRange} actuals`;
-  if(s('sidebar-actuals'))s('sidebar-actuals').textContent=`${lastAct} 2026`;
+  if(s('sidebar-actuals'))s('sidebar-actuals').textContent=`${lastAct} ${FCST_YEAR}`;
 }
 function getMonthIdx(m){const i=ALL_MONTHS.indexOf(m);return i>=0?i:99;}
 let AR_FCST = [];
@@ -3112,8 +3136,8 @@ function recalcARRow(r){
 // Auto-recalculate all existing rows on load (wrapped in try/catch so a bad row never crashes the page)
 try{AR_FCST=AR_FCST.map(recalcARRow);}catch(e){}
 
-function saveFcastAR(){ try{localStorage.setItem('ar_fcst',JSON.stringify(AR_FCST));}catch(e){} if(!_sbPulling)sbPush(); }
-function saveFcastAP(){ try{localStorage.setItem('ap_fcst',JSON.stringify(AP_FCST));}catch(e){} if(!_sbPulling)sbPush(); }
+function saveFcastAR(){ try{localStorage.setItem('ar_fcst',JSON.stringify(AR_FCST));}catch(e){} recomputeFcstMonths(); if(!_sbPulling)sbPush(); }
+function saveFcastAP(){ try{localStorage.setItem('ap_fcst',JSON.stringify(AP_FCST));}catch(e){} recomputeFcstMonths(); if(!_sbPulling)sbPush(); }
 
 // ── Row selection ──
 let AR_SELECTED=new Set();
@@ -3226,20 +3250,16 @@ function normalizeCashMonth(val,fallbackYear){
   return raw;
 }
 
-function getFcastInflow(month){ // month = 'Jun' etc from FCST_MONTHS
-  const full=`${month} ${FCST_YEAR}`;
+function getFcastInflow(month){ // month = 'Jun 2026' etc — full "Mon YYYY" from FCST_MONTHS
   return AR_FCST.filter(r=>{
-    const cm=normalizeCashMonth(r.cashMonth);
-    if(!(cm===full||cm===month)||r.status==='Paid')return false;
+    if(normalizeCashMonth(r.cashMonth)!==month||r.status==='Paid')return false;
     if(ent!=='conso'){const e=(r.entity||'BH').toUpperCase();if(e!==ent.toUpperCase())return false;}
     return true;
   }).reduce((s,r)=>s+(r.cash||0),0);
 }
-function getFcastOutflow(month){
-  const full=`${month} ${FCST_YEAR}`;
+function getFcastOutflow(month){ // month = 'Jun 2026' etc — full "Mon YYYY" from FCST_MONTHS
   return AP_FCST.filter(r=>{
-    const cm=normalizeCashMonth(r.cashMonth);
-    if(!(cm===full||cm===month))return false;
+    if(normalizeCashMonth(r.cashMonth)!==month)return false;
     if(ent!=='conso'){const e=(r.entity||'BH').toUpperCase();if(e!==ent.toUpperCase())return false;}
     return true;
   }).reduce((s,r)=>s+(r.amount||0),0);
@@ -3338,9 +3358,8 @@ function renderFcastAR(){
   const sumEl=document.getElementById('fcar-summary');
   if(sumEl){
     sumEl.innerHTML=FCST_MONTHS.map(m=>{
-      const _fm=`${m} ${FCST_YEAR}`;
-      const v=filtered.filter(r=>{const cm=normalizeCashMonth(r.cashMonth);return(cm===_fm||cm===m)&&r.status!=='Paid';}).reduce((s,r)=>s+(r.cash||0),0);
-      return `<div class="fsum-card"><div class="fsc-m">${m}</div><div class="fsc-v">${v?$f(v):'—'}</div></div>`;
+      const v=filtered.filter(r=>normalizeCashMonth(r.cashMonth)===m&&r.status!=='Paid').reduce((s,r)=>s+(r.cash||0),0);
+      return `<div class="fsum-card"><div class="fsc-m">${fmtFcstMonth(m)}</div><div class="fsc-v">${v?$f(v):'—'}</div></div>`;
     }).join('');
   }
   // Table
@@ -3469,9 +3488,8 @@ function renderFcastAP(){
   const sumEl=document.getElementById('fcap-summary');
   if(sumEl){
     sumEl.innerHTML=FCST_MONTHS.map(m=>{
-      const _fm=`${m} ${FCST_YEAR}`;
-      const v=filtered.reduce((s,r)=>{const cm=normalizeCashMonth(r.cashMonth);return(cm===_fm||cm===m)?s+(r.amount||0):s;},0);
-      return `<div class="fsum-card out"><div class="fsc-m">${m}</div><div class="fsc-v">${v?'('+$f(v)+')':'—'}</div></div>`;
+      const v=filtered.reduce((s,r)=>normalizeCashMonth(r.cashMonth)===m?s+(r.amount||0):s,0);
+      return `<div class="fsum-card out"><div class="fsc-m">${fmtFcstMonth(m)}</div><div class="fsc-v">${v?'('+$f(v)+')':'—'}</div></div>`;
     }).join('');
   }
   // Table
