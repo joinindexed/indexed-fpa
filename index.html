@@ -1496,69 +1496,17 @@ function swFin(tab,el){
   renderFin();
 }
 
-// Merge hardcoded E-month data into an imported parsed object so historical
-// months (Jan-Apr) and newly-imported months coexist in one table.
-function mergeFinData(hardRows,imported){
-  const nk=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,' ').replace(/\s+/g,' ').trim();
-  const impMonths=imported.months||[];
-  const allM=[...new Set([...E,...impMonths])].sort((a,b)=>ALL_MONTHS.indexOf(a)-ALL_MONTHS.indexOf(b));
-  // Build label → hardcoded row map (items & totals only)
-  const hardMap={};
-  hardRows.forEach(r=>{if(r.label)hardMap[nk(r.label)]=r;});
-  function findHard(label){
-    const lk=nk(label);
-    if(hardMap[lk])return hardMap[lk];
-    // partial match
-    for(const [k,v] of Object.entries(hardMap)){if(k.includes(lk)||lk.includes(k))return v;}
-    return null;
-  }
-  const mergedRows=(imported.rows||[]).map(r=>{
-    if(r.type==='h'||r.type==='sh')return r;
-    const newRow={...r,vals:{...(r.vals||{})}};
-    const hrow=findHard(r.label||'');
-    if(hrow&&hrow.v){
-      E.forEach((m,i)=>{if(newRow.vals[m]===undefined&&hrow.v[i]!==undefined)newRow.vals[m]=hrow.v[i];});
-    }
-    return newRow;
-  });
-  // Append hardcoded rows whose labels don't appear in the imported set at all
-  const impLabels=new Set((imported.rows||[]).filter(r=>r.label).map(r=>nk(r.label)));
-  hardRows.forEach(r=>{
-    if(!r.label)return; // skip section headers (they're g-keyed)
-    if(impLabels.has(nk(r.label)))return;
-    const vals={};
-    E.forEach((m,i)=>{if(r.v&&r.v[i]!==undefined)vals[m]=r.v[i];});
-    mergedRows.push({label:r.label,type:r.type==='gt'?'t':r.type,vals});
-  });
-  return{entity:imported.entity,ftype:imported.ftype,months:allM,rows:mergedRows};
-}
-
 function renderFin(){
-  const imp=window._importedFin||{};
   if(finTab==='bs'){
     const title=ent==='bc'?'Bravecore FZ LLC — Balance Sheet':ent==='bh'?'Braveheart FZ LLC — Balance Sheet':'Consolidated Balance Sheet (BH + BC)';
     document.getElementById('bs-title').textContent=title;
-    const impKey=ent==='conso'?null:(ent+'_bs');
-    const imported=impKey&&imp[impKey]&&imp[impKey].rows&&imp[impKey].rows.length?imp[impKey]:null;
-    if(imported){
-      const src=ent==='bc'?BC_BS:ent==='bh'?BH_BS:CONSO_BS;
-      renderFinFromImport('bst',mergeFinData(src,imported),false);
-    } else {
-      const src=ent==='bc'?BC_BS:ent==='bh'?BH_BS:CONSO_BS;
-      renderFinTable('bst',src,ent);
-    }
+    const src=ent==='bc'?BC_BS:ent==='bh'?BH_BS:CONSO_BS;
+    renderFinTable('bst',src,ent);
   } else {
     const title=ent==='bc'?'Bravecore FZ LLC — Income Statement':ent==='bh'?'Braveheart FZ LLC — Profit & Loss':'Consolidated Income Statement (BH + BC)';
     document.getElementById('pl-title').textContent=title;
-    const impKey=ent==='conso'?null:(ent+'_pl');
-    const imported=impKey&&imp[impKey]&&imp[impKey].rows&&imp[impKey].rows.length?imp[impKey]:null;
-    if(imported){
-      const src=ent==='bc'?BC_PL:ent==='bh'?BH_PL:CONSO_PL;
-      renderFinFromImport('plt',mergeFinData(src,imported),true);
-    } else {
-      const src=ent==='bc'?BC_PL:ent==='bh'?BH_PL:CONSO_PL;
-      renderFinTable('plt',src,ent,true);
-    }
+    const src=ent==='bc'?BC_PL:ent==='bh'?BH_PL:CONSO_PL;
+    renderFinTable('plt',src,ent,true);
   }
 }
 
@@ -2274,6 +2222,58 @@ function renderImportPreview(entity,parsed,ftype){
   </div>`;
 }
 
+// ── Total row recalculation ────────────────────────────────────────────────
+// After individual account rows are updated with imported values, recompute
+// all sub-total ('t') and grand-total ('gt') rows so May+ shows correct sums.
+
+function recalcBSTotals(arr){
+  const n=E.length;
+  let items=[], subTotals=[];
+  arr.forEach(r=>{
+    if(!r.v)return;
+    while(r.v.length<n)r.v.push(0);
+    if(r.type==='h'){items=[];subTotals=[];}
+    else if(r.type==='sh'){items=[];}
+    else if(r.type==='i'){items.push(r);}
+    else if(r.type==='t'){
+      r.v=E.map((_,i)=>items.reduce((s,it)=>s+(it.v[i]||0),0));
+      subTotals.push(r);items=[];
+    } else if(r.type==='gt'){
+      if(subTotals.length>0){
+        r.v=E.map((_,i)=>subTotals.reduce((s,t)=>s+(t.v[i]||0),0));
+      } else {
+        r.v=E.map((_,i)=>items.reduce((s,it)=>s+(it.v[i]||0),0));
+      }
+      subTotals=[];items=[];
+    }
+  });
+}
+
+function recalcPLTotals(arr){
+  const n=E.length;
+  let items=[], running=null, isSubtractive=false;
+  arr.forEach(r=>{
+    if(!r.v)return;
+    while(r.v.length<n)r.v.push(0);
+    if(r.type==='h'){
+      const lk=normKey(r.g||'');
+      isSubtractive=!(lk.includes('income')||lk.includes('revenue')||lk.includes('trading'));
+      items=[];
+    } else if(r.type==='sh'){items=[];}
+    else if(r.type==='i'){items.push(r);}
+    else if(r.type==='t'){
+      r.v=E.map((_,i)=>items.reduce((s,it)=>s+(it.v[i]||0),0));
+      if(running===null){running=r.v.slice();}
+      else if(isSubtractive){running=running.map((v,i)=>v-(r.v[i]||0));}
+      else{running=running.map((v,i)=>v+(r.v[i]||0));}
+      items=[];
+    } else if(r.type==='gt'){
+      if(running!==null)r.v=running.slice();
+    }
+  });
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 function applyImport(entity,ftype){
   ftype=ftype||(importState[entity+'-gl']?'gl':importState[entity+'-bs']?'bs':'pl');
   const parsed=importState[entity+'-'+ftype];
@@ -2357,8 +2357,15 @@ function applyImport(entity,ftype){
         }
       });
     }
-    if(ftype==='bs')rebuildConso(CONSO_BS,BH_BS,BC_BS);
-    else rebuildConso(CONSO_PL,BH_PL,BC_PL);
+    if(ftype==='bs'){
+      rebuildConso(CONSO_BS,BH_BS,BC_BS);
+      // Recalculate all totals in all BS arrays so new months show correct sums
+      [BH_BS,BC_BS,CONSO_BS].forEach(recalcBSTotals);
+    } else {
+      rebuildConso(CONSO_PL,BH_PL,BC_PL);
+      // Recalculate all totals in all PL arrays
+      [BH_PL,BC_PL,CONSO_PL].forEach(recalcPLTotals);
+    }
   }
 
   // Update sidebar actuals label
