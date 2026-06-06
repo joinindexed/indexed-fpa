@@ -1000,8 +1000,9 @@ const BC_OUT_D = {
 };
 
 // Platform fee / bank charge contacts — netted from inflow, excluded from outflow display
-const FEE_CONTACTS=new Set(['Payoneer','Stripe','Bank Fee','Bank Fees','Bank Fees ','WIO','Wio','ENBD','Paypal']);
-const isFee=c=>FEE_CONTACTS.has(c)||/^(stripe|payoneer|bank fee|bank fees|wio|enbd|paypal)$/i.test(c);
+// Only payment processors netted against client inflows — bank account fees (WIO, ENBD) show as outflow
+const FEE_CONTACTS=new Set(['Payoneer','Stripe','Bank Fee','Bank Fees','Bank Fees ','Paypal']);
+const isFee=c=>FEE_CONTACTS.has(c)||/^(stripe|payoneer|bank fee|bank fees|paypal)$/i.test(c);
 
 // Totals — net of platform fees (gross inflow minus fee outflows; operating outflows only)
 const BH_IN  = [31577.11,50750.54,41298.37,35552.71];
