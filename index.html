@@ -2297,8 +2297,8 @@ function parseXeroAccountTx(rows,entity){
     if((!isBank&&!isPlatformFee)||cDate<0)continue;
     const dateVal=rs[cDate];if(!dateVal)continue;
     const dt=parseDt(dateVal);if(!dt)continue;
-    // Skip contra/internal bank transfers — they net to zero and should not appear in cash flow
-    if(cSource>=0&&/^bank transfer$/i.test(rs[cSource]))continue;
+    // Skip non-cash entries: internal bank transfers and manual journal adjustments
+    if(cSource>=0&&/^(bank transfer|manual journal)$/i.test(rs[cSource]))continue;
     const month=MO[dt.getMonth()];
     result.months.add(month);
 
