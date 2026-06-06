@@ -2194,7 +2194,7 @@ function parseXeroAccountTx(rows,entity){
   // Expense accounts whose debits are netted against the matching customer inflow (same client, same month)
   const PLATFORM_FEE_ACCTS=['payment platform'];
   let curAcct=null,isBank=false,isPlatformFee=false;
-  let cDate=-1,cDesc=-1,cDebit=-1,cCredit=-1,cBal=-1,cClient=-1,cSource=-1;
+  let cDate=-1,cDesc=-1,cDebit=-1,cCredit=-1,cBal=-1,cClient=-1,cSource=-1,cRelated=-1;
   const result={entity,months:new Set(),inflow:{},outflow:{},bankClose:{}};
   // Staging area for platform fees: {month: {clientKey: totalFee}}
   const platformFees={};
@@ -2253,6 +2253,7 @@ function parseXeroAccountTx(rows,entity){
       if(cBal<0)cBal=rs.findIndex(c=>/^balance$/i.test(c));
       cClient=rs.findIndex(c=>/^client$/i.test(c));
       cSource=rs.findIndex(c=>/^source$/i.test(c));
+      cRelated=rs.findIndex(c=>/^related account$/i.test(c));
       continue;
     }
 
@@ -2321,8 +2322,13 @@ function parseXeroAccountTx(rows,entity){
         result.outflow[month].push({date:dayLbl,contact,entity,amt:credit,type:'Variable',account:curAcct,client});
       }
     } else if(isPlatformFee){
-      // Collect platform fee debits keyed by CLIENT (col 28) per month — client is the linking key,
-      // not the contact (which is the fee payee e.g. "Payoneer", "Bank Fees").
+      // Only net fees that were directly deducted from a bank account by the payment processor.
+      // Check: Related account (col 29) must reference a bank account (e.g. "Payoneer USD", "WIO- AED").
+      // Entries via AP/accruals (Skaud, Skuad payroll fees) have Related = "800 - AP" or "851 - Accruals"
+      // — those are separate vendor payments already captured as outflows in the bank section, skip them.
+      const related=cRelated>=0?rs[cRelated]:'';
+      const isDirectBankDeduction=BANKS.some(p=>related.toLowerCase().includes(p));
+      if(!isDirectBankDeduction)continue;
       const client=cClient>=0?rs[cClient]:'';
       const debit=parseFl(row[cDebit]);
       if(debit>0&&client){
