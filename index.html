@@ -2665,6 +2665,17 @@ function applyImport(entity,ftype){
       if(key){Object.entries(mMap).forEach(([m,v])=>{const i=E.indexOf(m);if(i>=0)BANKS[key][i]=v;});}
     });
     E.forEach((_,i)=>{CLOSE[i]=closeFn(i);});
+    // Recompute FX as the plug that makes the equation always balance:
+    // Closing = Opening + Inflow - Outflow + FX
+    // => FX = Closing - prev_Closing - Inflow + Outflow
+    const FX=isB?BH_FX:BC_FX;
+    const OPEN=isB?BH_OPEN:BC_OPEN;
+    parsed.months.forEach(m=>{
+      const idx=E.indexOf(m);
+      if(idx<0)return;
+      const prevClose=idx===0?OPEN:CLOSE[idx-1];
+      FX[idx]=Math.round((CLOSE[idx]-prevClose-IN[idx]+OUT[idx])*100)/100;
+    });
   }
 
   if(ftype==='bs'||ftype==='pl'){
