@@ -2328,7 +2328,7 @@ function parseXeroAccountTx(rows,entity){
       // 2. Contact is a payment processor (Payoneer, Stripe, Bank Fees, etc.), NOT a payroll vendor
       //    like Skaud/Skuad which may also be coded to 323 but are separate vendor payments.
       const related=cRelated>=0?rs[cRelated]:'';
-      const contact=cContact>=0?rs[cContact]:'';
+      const contact=cDesc>=0?rs[cDesc]:'';
       const desc=rs[3]||''; // Xero sometimes puts contact name as number in col2; description in col3
       const isDirectBankDeduction=BANKS.some(p=>related.toLowerCase().includes(p));
       if(!isDirectBankDeduction)continue;
