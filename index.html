@@ -1020,7 +1020,7 @@ const BC_PL = [
   {label:'Total Income',         type:'t',v:[25655,55172.5,39425,30693]},
   {g:'Cost of Goods Sold',type:'h'},
   {label:'Payment Platform',     type:'i',v:[297.74,504.29,1028.46,571.75]},
-  {label:'Team Costs – COS',     type:'i',v:[4209,7210,9440,12106]},
+  {label:'Team Costs - Contractors - COS',type:'i',v:[4209,7210,9440,6510]},
   {label:'Web Developers',       type:'i',v:[17389,12770,6650,697]},
   {label:'Total COGS',           type:'t',v:[21895.74,20484.29,17118.46,13374.75]},
   {label:'Gross Profit',         type:'gt',v:[3759.26,34688.21,22306.54,17318.25]},
@@ -1029,7 +1029,7 @@ const BC_PL = [
   {label:'Bank Fees',            type:'i',v:[64.59,64.59,68.06,27.76]},
   {label:'Bank Revaluations',    type:'i',v:[14.98,14.97,0,0]},
   {label:'Subscriptions',        type:'i',v:[28.04,28.4,109.81,109.56]},
-  {label:'Team Costs – S&M',     type:'i',v:[2000,2000,2014.98,0]},
+  {label:'Team Costs - Contractors - S&M',type:'i',v:[2000,2000,2014.98,0]},
   {label:'Total Operating Expenses',type:'t',v:[2107.61,2107.96,2519.6,137.32]},
   {label:'Net Income',           type:'gt',v:[1651.65,32580.25,19786.94,17180.93]},
 ];
@@ -1155,7 +1155,7 @@ const CONSO_PL = [
   {label:'SEO Tools',                entity:'BH',type:'i',v:[774.89,778.47,975.70,853.89]},
   {label:'Team Costs – COS',         entity:'BH',type:'i',v:[2588.71,5725.72,9500.42,9939.35]},
   {label:'Payment Platform',         entity:'BC',type:'i',v:[297.74,504.29,1028.46,571.75]},
-  {label:'Team Costs – COS',         entity:'BC',type:'i',v:[4209,7210,9440,12106]},
+  {label:'Team Costs - Contractors - COS',entity:'BC',type:'i',v:[4209,7210,9440,6510]},
   {label:'Web Developers',           entity:'BC',type:'i',v:[17389,12770,6650,697]},
   {label:'Total Cost of Sales',      type:'t',v:[29077.21,31512.74,30263.50,30982.70]},
   {label:'Gross Profit',             type:'gt',v:[37293.79,73064.76,68222.50,40845.30]},
@@ -1182,7 +1182,7 @@ const CONSO_PL = [
   {label:'Bank Fees',                entity:'BC',type:'i',v:[64.59,64.59,68.06,27.76]},
   {label:'Bank Revaluations',        entity:'BC',type:'i',v:[14.98,14.97,0,0]},
   {label:'Subscriptions',            entity:'BC',type:'i',v:[28.04,28.4,109.81,109.56]},
-  {label:'Team Costs – S&M',         entity:'BC',type:'i',v:[2000,2000,2014.98,0]},
+  {label:'Team Costs - Contractors - S&M',entity:'BC',type:'i',v:[2000,2000,2014.98,0]},
   {label:'Total Operating Expenses', type:'t',v:[29187.79,34231.51,43305.74,31545.09]},
   {label:'Net Profit / Income',      type:'gt',v:[8106.00,38859.25,24915.76,9300.21]},
 ];
@@ -1518,6 +1518,28 @@ function captureXeroTotals(parsed, key){
   window._xeroTotals[key]=snap;
 }
 
+// Xero uses different label conventions than our template abbreviations.
+// This lookup tries: exact match → contains match → known aliases.
+const _XERO_ALIASES={
+  'total cogs':['total cost of goods sold','total cost of sales'],
+  'total cost of sales':['total cost of goods sold','total cogs'],
+  'net income':['net profit','net profit income'],
+  'net profit':['net income','net profit income'],
+  'net profit income':['net income','net profit'],
+  'total trading income':['total income'],
+  'total income':['total trading income'],
+};
+function _xeroLookup(xero,label){
+  const rk=normKey(label);
+  if(xero[rk])return xero[rk];
+  // contains-based fuzzy match
+  const fk=Object.keys(xero).find(k=>k.includes(rk)||rk.includes(k));
+  if(fk)return xero[fk];
+  // explicit aliases
+  for(const alias of (_XERO_ALIASES[rk]||[])){if(xero[alias])return xero[alias];}
+  return null;
+}
+
 function runValidation(arr, key, ftype){
   const issues=[];
   const xero=(window._xeroTotals||{})[key]||{};
@@ -1527,7 +1549,7 @@ function runValidation(arr, key, ftype){
   // against what Xero reported in the file. A gap means items were missed.
   arr.forEach(r=>{
     if((r.type==='t'||r.type==='gt')&&r.label&&r.v){
-      const xv=xero[normKey(r.label)];
+      const xv=_xeroLookup(xero,r.label);
       if(!xv)return; // Xero didn't have this total — skip
       E.forEach((m,i)=>{
         const ours=r.v[i]||0, theirs=xv[m]||0;
