@@ -2666,7 +2666,10 @@ function applyImport(entity,ftype){
       const idx=E.indexOf(m);
       if(idx>=0){
         IN[idx]=IN_D[m].reduce((s,r)=>s+r.amt,0);
-        OUT[idx]=OUT_D[m].reduce((s,r)=>s+r.amt,0)-(parsed.nettedFees?.[m]||0);
+        // Subtract ALL isFee contacts from total so total always matches drill-down
+        // (nettedFees handles individual client inflow reductions; this handles the total)
+        const feeAmt=OUT_D[m].filter(tx=>isFee(tx.contact)).reduce((s,r)=>s+r.amt,0);
+        OUT[idx]=OUT_D[m].reduce((s,r)=>s+r.amt,0)-feeAmt;
       }
     });
     const closeFn=isB?bhClose:bcClose;
