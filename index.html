@@ -2334,7 +2334,7 @@ function parseXeroAccountTx(rows,entity){
       if(!isDirectBankDeduction)continue;
       // Skip Skaud/Skuad payroll fees — they appear in 323 but are vendor payments, not processor charges.
       // In Bravecore's GL format, contact (col2) may be a raw number; check description (col3) as well.
-      if(/skau?d/i.test(contact)||/skau?d/i.test(desc))continue;
+      if(/sk[ua]{2}d/i.test(contact)||/sk[ua]{2}d/i.test(desc))continue;
       const client=cClient>=0?rs[cClient]:'';
       const debit=parseFl(row[cDebit]);
       if(debit>0&&client){
