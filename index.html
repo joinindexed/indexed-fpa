@@ -1328,6 +1328,7 @@ function buildCFGroups(isIn){
       :[...(BH_OUT_D[m]||[]),...(BC_OUT_D[m]||[])];
     txList.forEach(tx=>{
       if(ent!=='conso'&&tx.entity!==ent.toUpperCase())return;
+      if(!isIn&&isFee(tx.contact))return;
       const mapKey=tx.contact+'||'+tx.entity;
       const grpName=merged[mapKey]?.group||tx.contact;
       if(!groups[grpName])groups[grpName]={group:grpName,vals:{},entities:{BH:{vals:{}},BC:{vals:{}}}};
@@ -2317,15 +2318,8 @@ function parseXeroAccountTx(rows,entity){
         result.inflow[month].push({date:dayLbl,contact,entity,amt:debit,fee:0,account:curAcct,client});
       }
       if(credit>0){
-        // Exclude payment-processor fee contacts from outflow — they are already netted
-        // against client inflows via the 323 GL section. Including them here would
-        // double-count the fee (once reducing inflow, once as an outflow line item).
-        // sectionMonthlyNet above still tracks them so the bank balance stays correct.
-        const isBankFeeContact=/^(bank fee|bank fees|payoneer|stripe|wio|enbd|paypal|alaan)$/i.test(contact);
-        if(!isBankFeeContact){
-          if(!result.outflow[month])result.outflow[month]=[];
-          result.outflow[month].push({date:dayLbl,contact,entity,amt:credit,type:'Variable',account:curAcct,client});
-        }
+        if(!result.outflow[month])result.outflow[month]=[];
+        result.outflow[month].push({date:dayLbl,contact,entity,amt:credit,type:'Variable',account:curAcct,client});
       }
     } else if(isPlatformFee){
       // Only net fees that are genuine payment processor charges deducted from a bank account.
@@ -2361,11 +2355,14 @@ function parseXeroAccountTx(rows,entity){
   // holds the customer project (e.g. "RecNation") — this is what links fees to receipts.
   // Fees are spread across inflow transactions for that client in order, largest first.
   // Fees with no matching inflow client are silently dropped (already reflected in bank balance).
+  // nettedFees[month] = total fees actually deducted from inflows this month.
+  // Used by applyImport to reduce OUT[idx] by the same amount so the fee is
+  // neither in the inflow total NOR in the outflow total — preventing double-count.
+  result.nettedFees={};
   Object.entries(platformFees).forEach(([month,clientFees])=>{
     if(!result.inflow[month])return;
     Object.entries(clientFees).forEach(([ck,fee])=>{
       let remaining=fee;
-      // Sort inflows for this client by amount desc so largest receipts absorb fees first
       const matching=result.inflow[month].filter(tx=>(tx.client||'').toLowerCase().trim()===ck);
       matching.sort((a,b)=>b.amt-a.amt);
       matching.forEach(tx=>{
@@ -2374,8 +2371,8 @@ function parseXeroAccountTx(rows,entity){
         tx.amt-=reduce;
         tx.fee=(tx.fee||0)+reduce;
         remaining-=reduce;
+        result.nettedFees[month]=(result.nettedFees[month]||0)+reduce;
       });
-      // Remove any inflow transactions fully consumed by fees
       result.inflow[month]=result.inflow[month].filter(tx=>tx.amt>0);
     });
   });
@@ -2668,7 +2665,7 @@ function applyImport(entity,ftype){
       const idx=E.indexOf(m);
       if(idx>=0){
         IN[idx]=IN_D[m].reduce((s,r)=>s+r.amt,0);
-        OUT[idx]=OUT_D[m].reduce((s,r)=>s+r.amt,0);
+        OUT[idx]=OUT_D[m].reduce((s,r)=>s+r.amt,0)-(parsed.nettedFees?.[m]||0);
       }
     });
     const closeFn=isB?bhClose:bcClose;
