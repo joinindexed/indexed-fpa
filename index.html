@@ -3228,11 +3228,21 @@ function normalizeCashMonth(val,fallbackYear){
 
 function getFcastInflow(month){ // month = 'Jun' etc from FCST_MONTHS
   const full=`${month} ${FCST_YEAR}`;
-  return AR_FCST.filter(r=>{const cm=normalizeCashMonth(r.cashMonth);return(cm===full||cm===month)&&r.status!=='Paid';}).reduce((s,r)=>s+(r.cash||0),0);
+  return AR_FCST.filter(r=>{
+    const cm=normalizeCashMonth(r.cashMonth);
+    if(!(cm===full||cm===month)||r.status==='Paid')return false;
+    if(ent!=='conso'){const e=(r.entity||'BH').toUpperCase();if(e!==ent.toUpperCase())return false;}
+    return true;
+  }).reduce((s,r)=>s+(r.cash||0),0);
 }
 function getFcastOutflow(month){
   const full=`${month} ${FCST_YEAR}`;
-  return AP_FCST.filter(r=>{const cm=normalizeCashMonth(r.cashMonth);return cm===full||cm===month;}).reduce((s,r)=>s+(r.amount||0),0);
+  return AP_FCST.filter(r=>{
+    const cm=normalizeCashMonth(r.cashMonth);
+    if(!(cm===full||cm===month))return false;
+    if(ent!=='conso'){const e=(r.entity||'BH').toUpperCase();if(e!==ent.toUpperCase())return false;}
+    return true;
+  }).reduce((s,r)=>s+(r.amount||0),0);
 }
 
 // ── Sort state ──
