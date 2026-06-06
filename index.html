@@ -1496,16 +1496,54 @@ function swFin(tab,el){
   renderFin();
 }
 
+// Merge hardcoded E-month data into an imported parsed object so historical
+// months (Jan-Apr) and newly-imported months coexist in one table.
+function mergeFinData(hardRows,imported){
+  const nk=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,' ').replace(/\s+/g,' ').trim();
+  const impMonths=imported.months||[];
+  const allM=[...new Set([...E,...impMonths])].sort((a,b)=>ALL_MONTHS.indexOf(a)-ALL_MONTHS.indexOf(b));
+  // Build label → hardcoded row map (items & totals only)
+  const hardMap={};
+  hardRows.forEach(r=>{if(r.label)hardMap[nk(r.label)]=r;});
+  function findHard(label){
+    const lk=nk(label);
+    if(hardMap[lk])return hardMap[lk];
+    // partial match
+    for(const [k,v] of Object.entries(hardMap)){if(k.includes(lk)||lk.includes(k))return v;}
+    return null;
+  }
+  const mergedRows=(imported.rows||[]).map(r=>{
+    if(r.type==='h'||r.type==='sh')return r;
+    const newRow={...r,vals:{...(r.vals||{})}};
+    const hrow=findHard(r.label||'');
+    if(hrow&&hrow.v){
+      E.forEach((m,i)=>{if(newRow.vals[m]===undefined&&hrow.v[i]!==undefined)newRow.vals[m]=hrow.v[i];});
+    }
+    return newRow;
+  });
+  // Append hardcoded rows whose labels don't appear in the imported set at all
+  const impLabels=new Set((imported.rows||[]).filter(r=>r.label).map(r=>nk(r.label)));
+  hardRows.forEach(r=>{
+    if(!r.label)return; // skip section headers (they're g-keyed)
+    if(impLabels.has(nk(r.label)))return;
+    const vals={};
+    E.forEach((m,i)=>{if(r.v&&r.v[i]!==undefined)vals[m]=r.v[i];});
+    mergedRows.push({label:r.label,type:r.type==='gt'?'t':r.type,vals});
+  });
+  return{entity:imported.entity,ftype:imported.ftype,months:allM,rows:mergedRows};
+}
+
 function renderFin(){
   const imp=window._importedFin||{};
   if(finTab==='bs'){
     const title=ent==='bc'?'Bravecore FZ LLC — Balance Sheet':ent==='bh'?'Braveheart FZ LLC — Balance Sheet':'Consolidated Balance Sheet (BH + BC)';
     document.getElementById('bs-title').textContent=title;
-    // Use imported data if available for this entity, else fall back to hardcoded
     const impKey=ent==='conso'?null:(ent+'_bs');
     const imported=impKey&&imp[impKey]&&imp[impKey].rows&&imp[impKey].rows.length?imp[impKey]:null;
-    if(imported){renderFinFromImport('bst',imported,false);}
-    else{
+    if(imported){
+      const src=ent==='bc'?BC_BS:ent==='bh'?BH_BS:CONSO_BS;
+      renderFinFromImport('bst',mergeFinData(src,imported),false);
+    } else {
       const src=ent==='bc'?BC_BS:ent==='bh'?BH_BS:CONSO_BS;
       renderFinTable('bst',src,ent);
     }
@@ -1514,8 +1552,10 @@ function renderFin(){
     document.getElementById('pl-title').textContent=title;
     const impKey=ent==='conso'?null:(ent+'_pl');
     const imported=impKey&&imp[impKey]&&imp[impKey].rows&&imp[impKey].rows.length?imp[impKey]:null;
-    if(imported){renderFinFromImport('plt',imported,true);}
-    else{
+    if(imported){
+      const src=ent==='bc'?BC_PL:ent==='bh'?BH_PL:CONSO_PL;
+      renderFinFromImport('plt',mergeFinData(src,imported),true);
+    } else {
       const src=ent==='bc'?BC_PL:ent==='bh'?BH_PL:CONSO_PL;
       renderFinTable('plt',src,ent,true);
     }
@@ -1540,9 +1580,9 @@ function renderFinFromImport(tableId,parsed,showYTD){
     allM.forEach(m=>{
       const v=(r.vals&&r.vals[m])||0;ytd+=v;
       const neg=v<0?'neg':'';
-      h+=`<td class="${neg}">${v?$f(Math.abs(v),2)+(v<0?' <span style="color:var(--red)">(neg)</span>':''):'—'}</td>`;
+      h+=`<td class="${neg}">${v?$f(v,2):'—'}</td>`;
     });
-    if(showYTD){const neg=ytd<0?'neg':'';h+=`<td class="${neg}" style="font-weight:600">${ytd?$f(Math.abs(ytd),2):'—'}</td>`;}
+    if(showYTD){const neg=ytd<0?'neg':'';h+=`<td class="${neg}" style="font-weight:600">${ytd?$f(ytd,2):'—'}</td>`;}
     h+=`</tr>`;
   });
   h+=`</tbody>`;
