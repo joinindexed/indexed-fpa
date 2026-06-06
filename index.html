@@ -2189,12 +2189,12 @@ function processImport(file,entity){
 
 function parseXeroAccountTx(rows,entity){
   const BANKS=['payoneer','wio','enbd','alaan','stripe','paypal','upwork'];
-  // Expense accounts whose debits are netted against the matching customer inflow (same contact, same month)
+  // Expense accounts whose debits are netted against the matching customer inflow (same client, same month)
   const PLATFORM_FEE_ACCTS=['payment platform'];
   let curAcct=null,isBank=false,isPlatformFee=false;
-  let cDate=-1,cDesc=-1,cDebit=-1,cCredit=-1,cBal=-1;
+  let cDate=-1,cDesc=-1,cDebit=-1,cCredit=-1,cBal=-1,cClient=-1;
   const result={entity,months:new Set(),inflow:{},outflow:{},bankClose:{}};
-  // Staging area for platform fees: {month: {contactKey: totalFee}}
+  // Staging area for platform fees: {month: {clientKey: totalFee}}
   const platformFees={};
   // Per-bank-section running balance tracking: {acct: {month: net}}
   let curOpenBal=0;
@@ -2249,6 +2249,7 @@ function parseXeroAccountTx(rows,entity){
       if(cCredit<0)cCredit=rs.findIndex(c=>/^credit$/i.test(c));
       cBal=rs.findIndex(c=>/running balance/i.test(c));
       if(cBal<0)cBal=rs.findIndex(c=>/^balance$/i.test(c));
+      cClient=rs.findIndex(c=>/^client$/i.test(c));
       continue;
     }
 
@@ -2304,21 +2305,23 @@ function parseXeroAccountTx(rows,entity){
       if(!sectionMonthlyNet[curAcct])sectionMonthlyNet[curAcct]={};
       if(!sectionMonthlyNet[curAcct][month])sectionMonthlyNet[curAcct][month]=0;
       sectionMonthlyNet[curAcct][month]+=debit-credit;
+      const client=cClient>=0?rs[cClient]:'';
       // In bank accounts: Debit = money in (inflow), Credit = money out (outflow)
       if(debit>0){
         if(!result.inflow[month])result.inflow[month]=[];
-        result.inflow[month].push({date:dayLbl,contact,entity,amt:debit,fee:0,account:curAcct});
+        result.inflow[month].push({date:dayLbl,contact,entity,amt:debit,fee:0,account:curAcct,client});
       }
       if(credit>0){
         if(!result.outflow[month])result.outflow[month]=[];
-        result.outflow[month].push({date:dayLbl,contact,entity,amt:credit,type:'Variable',account:curAcct});
+        result.outflow[month].push({date:dayLbl,contact,entity,amt:credit,type:'Variable',account:curAcct,client});
       }
     } else if(isPlatformFee){
-      // Collect platform fee debits per contact per month — will be netted against inflows below
-      const contact=cDesc>=0?rs[cDesc]:'';
+      // Collect platform fee debits keyed by CLIENT (col 28) per month — client is the linking key,
+      // not the contact (which is the fee payee e.g. "Payoneer", "Bank Fees").
+      const client=cClient>=0?rs[cClient]:'';
       const debit=parseFl(row[cDebit]);
-      if(debit>0&&contact){
-        const ck=contact.toLowerCase().trim();
+      if(debit>0&&client){
+        const ck=client.toLowerCase().trim();
         if(!platformFees[month])platformFees[month]={};
         platformFees[month][ck]=(platformFees[month][ck]||0)+debit;
       }
@@ -2329,20 +2332,24 @@ function parseXeroAccountTx(rows,entity){
     finalizeSection(curAcct,curOpenBal);
   }
 
-  // Net platform fees against customer inflows: same contact (case-insensitive), same month.
-  // Reduces the inflow amt and records the fee amount on the transaction for display.
-  // Fees with no matching inflow contact are silently dropped (they've already reduced the bank balance).
-  Object.entries(platformFees).forEach(([month,contactFees])=>{
+  // Net platform fees against customer inflows: same CLIENT (case-insensitive), same month.
+  // The fee contact is the fee payee (e.g. "Payoneer", "Bank Fees") but the Client column
+  // holds the customer project (e.g. "RecNation") — this is what links fees to receipts.
+  // Fees are spread across inflow transactions for that client in order, largest first.
+  // Fees with no matching inflow client are silently dropped (already reflected in bank balance).
+  Object.entries(platformFees).forEach(([month,clientFees])=>{
     if(!result.inflow[month])return;
-    Object.entries(contactFees).forEach(([ck,fee])=>{
+    Object.entries(clientFees).forEach(([ck,fee])=>{
       let remaining=fee;
-      result.inflow[month].forEach(tx=>{
-        if(tx.contact.toLowerCase().trim()===ck&&remaining>0){
-          const reduce=Math.min(tx.amt,remaining);
-          tx.amt-=reduce;
-          tx.fee=(tx.fee||0)+reduce;
-          remaining-=reduce;
-        }
+      // Sort inflows for this client by amount desc so largest receipts absorb fees first
+      const matching=result.inflow[month].filter(tx=>(tx.client||'').toLowerCase().trim()===ck);
+      matching.sort((a,b)=>b.amt-a.amt);
+      matching.forEach(tx=>{
+        if(remaining<=0)return;
+        const reduce=Math.min(tx.amt,remaining);
+        tx.amt-=reduce;
+        tx.fee=(tx.fee||0)+reduce;
+        remaining-=reduce;
       });
       // Remove any inflow transactions fully consumed by fees
       result.inflow[month]=result.inflow[month].filter(tx=>tx.amt>0);
