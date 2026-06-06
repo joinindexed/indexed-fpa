@@ -2614,6 +2614,15 @@ function applyImport(entity,ftype){
       rebuildConso(CONSO_BS,BH_BS,BC_BS);
       [BH_BS,BC_BS,CONSO_BS].forEach(recalcBSTotals);
       validateBS(BH_BS,'bh_bs'); validateBS(BC_BS,'bc_bs'); validateBS(CONSO_BS,'conso_bs');
+      // Sync closing cash balance from BS "Total Bank" / "Total Cash" rows
+      // so the chart and KPI show correctly even when no GL import has been done.
+      const bsArr=isB?BH_BS:BC_BS;
+      const bankLbl=isB?'Total Bank':'Total Cash';
+      const bankRow=bsArr.find(r=>r.label===bankLbl);
+      const closeArr=isB?BH_CLOSE:BC_CLOSE;
+      if(bankRow&&bankRow.v){
+        bankRow.v.forEach((v,i)=>{if(v!==0)closeArr[i]=v;});
+      }
     } else {
       rebuildConso(CONSO_PL,BH_PL,BC_PL);
       [BH_PL,BC_PL,CONSO_PL].forEach(recalcPLTotals);
