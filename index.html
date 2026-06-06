@@ -2317,8 +2317,15 @@ function parseXeroAccountTx(rows,entity){
         result.inflow[month].push({date:dayLbl,contact,entity,amt:debit,fee:0,account:curAcct,client});
       }
       if(credit>0){
-        if(!result.outflow[month])result.outflow[month]=[];
-        result.outflow[month].push({date:dayLbl,contact,entity,amt:credit,type:'Variable',account:curAcct,client});
+        // Exclude payment-processor fee contacts from outflow — they are already netted
+        // against client inflows via the 323 GL section. Including them here would
+        // double-count the fee (once reducing inflow, once as an outflow line item).
+        // sectionMonthlyNet above still tracks them so the bank balance stays correct.
+        const isBankFeeContact=/^(bank fee|bank fees|payoneer|stripe|wio|enbd|paypal|alaan)$/i.test(contact);
+        if(!isBankFeeContact){
+          if(!result.outflow[month])result.outflow[month]=[];
+          result.outflow[month].push({date:dayLbl,contact,entity,amt:credit,type:'Variable',account:curAcct,client});
+        }
       }
     } else if(isPlatformFee){
       // Only net fees that are genuine payment processor charges deducted from a bank account.
