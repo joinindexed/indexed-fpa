@@ -267,10 +267,12 @@ input,select{font-family:var(--sans)}
     </div>
     <div id="fin-bs" class="itp active">
       <div class="card"><div class="card-head"><span class="card-title" id="bs-title">Balance sheet</span></div>
+        <div id="bs-banner"></div>
         <div class="cf-wrap"><table class="fin" id="bst"></table></div></div>
     </div>
     <div id="fin-pl" class="itp">
       <div class="card"><div class="card-head"><span class="card-title" id="pl-title">Profit &amp; Loss</span></div>
+        <div id="pl-banner"></div>
         <div class="cf-wrap"><table class="fin" id="plt"></table></div></div>
     </div>
   </div>
@@ -1496,17 +1498,78 @@ function swFin(tab,el){
   renderFin();
 }
 
+// ── Data validation ───────────────────────────────────────────────────────
+// Runs after every import and stores pass/fail per entity+ftype.
+// Results surface in the Financials header so mismatches are impossible to miss.
+window._dataChecks = {};
+
+function validateBS(arr, key){
+  const nk=normKey, find=lbl=>arr.find(r=>r.label&&nk(r.label).includes(nk(lbl)));
+  const assets=find('Total Assets'), liab=find('Total Liabilities'), eq=find('Total Equity');
+  const issues=[];
+  if(assets&&liab&&eq){
+    E.forEach((m,i)=>{
+      const a=assets.v[i]||0, l=(liab.v[i]||0)+(eq.v[i]||0);
+      if(Math.abs(a-l)>1) issues.push(`${m}: Assets ${$f(a)} ≠ Liabilities+Equity ${$f(l)} (Δ ${$f(Math.abs(a-l))})`);
+    });
+  }
+  window._dataChecks[key]={pass:issues.length===0,issues};
+}
+
+function validatePL(arr, key){
+  const nk=normKey, find=lbl=>arr.find(r=>r.label&&nk(r.label).includes(nk(lbl)));
+  const income=find('Total Income')||find('Total Trading Income');
+  const cogs=find('Total Cost')||find('Total COGS');
+  const gp=find('Gross Profit');
+  const opex=find('Total Operating Expenses');
+  const net=find('Net Income')||find('Net Profit');
+  const issues=[];
+  if(income&&cogs&&gp){
+    E.forEach((m,i)=>{
+      const expected=(income.v[i]||0)-(cogs.v[i]||0);
+      const actual=gp.v[i]||0;
+      if(Math.abs(expected-actual)>1) issues.push(`${m}: Gross Profit ${$f(actual)} ≠ Income−COGS ${$f(expected)} (Δ ${$f(Math.abs(expected-actual))})`);
+    });
+  }
+  if(gp&&opex&&net){
+    E.forEach((m,i)=>{
+      const expected=(gp.v[i]||0)-(opex.v[i]||0);
+      const actual=net.v[i]||0;
+      if(Math.abs(expected-actual)>1) issues.push(`${m}: Net Income ${$f(actual)} ≠ GP−OpEx ${$f(expected)} (Δ ${$f(Math.abs(expected-actual))})`);
+    });
+  }
+  window._dataChecks[key]={pass:issues.length===0,issues};
+}
+
+function renderDataBanner(containerId, key){
+  const el=document.getElementById(containerId);
+  if(!el)return;
+  const chk=window._dataChecks[key];
+  if(!chk){el.innerHTML='';return;}
+  if(chk.pass){
+    el.innerHTML=`<div style="display:flex;align-items:center;gap:6px;padding:6px 12px;margin-bottom:8px;border-radius:6px;background:rgba(0,200,100,0.08);border:1px solid rgba(0,200,100,0.25);font-size:12px;color:var(--green)">✅ All accounting equations verified — data matches</div>`;
+  } else {
+    const list=chk.issues.map(i=>`<li style="margin:2px 0">${i}</li>`).join('');
+    el.innerHTML=`<div style="padding:8px 12px;margin-bottom:8px;border-radius:6px;background:rgba(255,80,80,0.08);border:1px solid rgba(255,80,80,0.35);font-size:12px;color:#ff6060"><strong>⚠️ ${chk.issues.length} discrepanc${chk.issues.length===1?'y':'ies'} detected — re-import or check source data:</strong><ul style="margin:4px 0 0 16px;padding:0">${list}</ul></div>`;
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 function renderFin(){
   if(finTab==='bs'){
     const title=ent==='bc'?'Bravecore FZ LLC — Balance Sheet':ent==='bh'?'Braveheart FZ LLC — Balance Sheet':'Consolidated Balance Sheet (BH + BC)';
     document.getElementById('bs-title').textContent=title;
     const src=ent==='bc'?BC_BS:ent==='bh'?BH_BS:CONSO_BS;
     renderFinTable('bst',src,ent);
+    const vkey=ent==='conso'?'conso_bs':(ent+'_bs');
+    renderDataBanner('bs-banner',vkey);
   } else {
     const title=ent==='bc'?'Bravecore FZ LLC — Income Statement':ent==='bh'?'Braveheart FZ LLC — Profit & Loss':'Consolidated Income Statement (BH + BC)';
     document.getElementById('pl-title').textContent=title;
     const src=ent==='bc'?BC_PL:ent==='bh'?BH_PL:CONSO_PL;
     renderFinTable('plt',src,ent,true);
+    const vkey=ent==='conso'?'conso_pl':(ent+'_pl');
+    renderDataBanner('pl-banner',vkey);
   }
 }
 
@@ -2364,12 +2427,13 @@ function applyImport(entity,ftype){
     }
     if(ftype==='bs'){
       rebuildConso(CONSO_BS,BH_BS,BC_BS);
-      // Recalculate all totals in all BS arrays so new months show correct sums
       [BH_BS,BC_BS,CONSO_BS].forEach(recalcBSTotals);
+      // Validate after recalc — surfaces any equation mismatches in the UI
+      validateBS(BH_BS,'bh_bs'); validateBS(BC_BS,'bc_bs'); validateBS(CONSO_BS,'conso_bs');
     } else {
       rebuildConso(CONSO_PL,BH_PL,BC_PL);
-      // Recalculate all totals in all PL arrays
       [BH_PL,BC_PL,CONSO_PL].forEach(recalcPLTotals);
+      validatePL(BH_PL,'bh_pl'); validatePL(BC_PL,'bc_pl'); validatePL(CONSO_PL,'conso_pl');
     }
   }
 
