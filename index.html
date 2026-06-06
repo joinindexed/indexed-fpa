@@ -2196,10 +2196,19 @@ function parseXeroAccountTx(rows,entity){
   const result={entity,months:new Set(),inflow:{},outflow:{},bankClose:{}};
   // Staging area for platform fees: {month: {contactKey: totalFee}}
   const platformFees={};
+  // Per-bank-section running balance tracking: {acct: {month: net}}
+  let curOpenBal=0;
+  const sectionMonthlyNet={};
 
   function parseDt(v){
     if(!v||v==='')return null;
     const s=String(v).trim();
+    // Excel serial date (e.g. 46032 = a date in 2026)
+    const num=parseFloat(s);
+    if(!isNaN(num)&&s===String(Math.round(num))&&num>40000&&num<60000){
+      const d=new Date(Math.round((num-25569)*86400000));
+      if(!isNaN(d))return d;
+    }
     const m1=s.match(/^(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})$/);
     if(m1){const d=new Date(`${m1[2]} ${m1[1]}, ${m1[3]}`);if(!isNaN(d))return d;}
     const m2=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
@@ -2212,19 +2221,54 @@ function parseXeroAccountTx(rows,entity){
   }
   function parseFl(v){return parseFloat(String(v||'').replace(/[,$\s]/g,''))||0;}
 
+  // Finalize closing balances for a completed bank section from opening + cumulative monthly net
+  function finalizeSection(acct,openBal){
+    if(!acct||!sectionMonthlyNet[acct])return;
+    let running=openBal;
+    const sorted=Object.keys(sectionMonthlyNet[acct]).sort((a,b)=>MO.indexOf(a)-MO.indexOf(b));
+    if(!result.bankClose[acct])result.bankClose[acct]={};
+    sorted.forEach(m=>{running+=sectionMonthlyNet[acct][m];result.bankClose[acct][m]=running;});
+  }
+
   for(let i=0;i<rows.length;i++){
     const row=rows[i];
     const rs=row.map(c=>String(c||'').trim());
     const ne=rs.filter(c=>c!=='');
 
-    // Detect column header row
-    if(rs.some(c=>/^date$/i.test(c))&&(rs.some(c=>/^debit$/i.test(c))||rs.some(c=>/^credit$/i.test(c)))){
+    // Detect column header row — supports both plain "Debit"/"Credit" and "Debit (USD)"/"Credit (USD)"
+    if(rs.some(c=>/^date$/i.test(c))&&(rs.some(c=>/debit/i.test(c))||rs.some(c=>/credit/i.test(c)))){
       cDate=rs.findIndex(c=>/^date$/i.test(c));
-      cDesc=rs.findIndex(c=>/description|contact/i.test(c));
+      // Prefer exact "Contact" over partial matches
+      cDesc=rs.findIndex(c=>/^contact$/i.test(c));
+      if(cDesc<0)cDesc=rs.findIndex(c=>/description|contact/i.test(c));
       if(cDesc<0)cDesc=rs.findIndex(c=>/source|name/i.test(c));
-      cDebit=rs.findIndex(c=>/^debit$/i.test(c));
-      cCredit=rs.findIndex(c=>/^credit$/i.test(c));
-      cBal=rs.findIndex(c=>/^balance$/i.test(c));
+      // Prefer USD columns over source-currency columns
+      cDebit=rs.findIndex(c=>/^debit \(usd\)$/i.test(c));
+      if(cDebit<0)cDebit=rs.findIndex(c=>/^debit$/i.test(c));
+      cCredit=rs.findIndex(c=>/^credit \(usd\)$/i.test(c));
+      if(cCredit<0)cCredit=rs.findIndex(c=>/^credit$/i.test(c));
+      cBal=rs.findIndex(c=>/running balance/i.test(c));
+      if(cBal<0)cBal=rs.findIndex(c=>/^balance$/i.test(c));
+      continue;
+    }
+
+    // Opening Balance row — capture for this bank section
+    if(isBank&&/^opening balance$/i.test(rs[0])&&cDebit>=0){
+      curOpenBal=parseFl(row[cDebit])||parseFl(row[cCredit]);
+      continue;
+    }
+    // Closing Balance row — finalize this section using the authoritative Xero total
+    if(isBank&&/^closing balance$/i.test(rs[0])&&curAcct&&cDebit>=0){
+      const cv=parseFl(row[cDebit])||parseFl(row[cCredit]);
+      if(cv){
+        // Override computed closing for the last month with Xero's reported total
+        const lastMo=Object.keys(sectionMonthlyNet[curAcct]||{}).sort((a,b)=>MO.indexOf(a)-MO.indexOf(b)).pop();
+        if(lastMo){
+          // Recompute all months first, then override last
+          finalizeSection(curAcct,curOpenBal);
+          result.bankClose[curAcct][lastMo]=cv;
+        }
+      }
       continue;
     }
 
@@ -2232,10 +2276,15 @@ function parseXeroAccountTx(rows,entity){
     if(ne.length>=1&&ne.length<=3){
       const first=ne[0];
       if(!/^total|^grand|^\d+(\.\d+)?$/.test(first)&&!parseDt(first)&&first.length>2){
+        // Finalize previous bank section if not yet closed by a Closing Balance row
+        if(isBank&&curAcct&&sectionMonthlyNet[curAcct]&&!result.bankClose[curAcct]){
+          finalizeSection(curAcct,curOpenBal);
+        }
         curAcct=first;
+        curOpenBal=0;
         isBank=BANKS.some(p=>first.toLowerCase().includes(p));
         isPlatformFee=!isBank&&PLATFORM_FEE_ACCTS.some(p=>first.toLowerCase().includes(p));
-        console.log('[GL Parser] Account section:', JSON.stringify(first), '| isBank:', isBank, '| isPlatformFee:', isPlatformFee);
+        if(isBank)sectionMonthlyNet[curAcct]={};
         continue;
       }
     }
@@ -2251,7 +2300,10 @@ function parseXeroAccountTx(rows,entity){
       const contact=cDesc>=0?rs[cDesc]:'';
       const debit=parseFl(row[cDebit]);
       const credit=parseFl(row[cCredit]);
-      const bal=cBal>=0?parseFl(row[cBal]):null;
+      // Track monthly net for closing balance computation
+      if(!sectionMonthlyNet[curAcct])sectionMonthlyNet[curAcct]={};
+      if(!sectionMonthlyNet[curAcct][month])sectionMonthlyNet[curAcct][month]=0;
+      sectionMonthlyNet[curAcct][month]+=debit-credit;
       // In bank accounts: Debit = money in (inflow), Credit = money out (outflow)
       if(debit>0){
         if(!result.inflow[month])result.inflow[month]=[];
@@ -2260,10 +2312,6 @@ function parseXeroAccountTx(rows,entity){
       if(credit>0){
         if(!result.outflow[month])result.outflow[month]=[];
         result.outflow[month].push({date:dayLbl,contact,entity,amt:credit,type:'Variable',account:curAcct});
-      }
-      if(bal!==null){
-        if(!result.bankClose[curAcct])result.bankClose[curAcct]={};
-        result.bankClose[curAcct][month]=bal;
       }
     } else if(isPlatformFee){
       // Collect platform fee debits per contact per month — will be netted against inflows below
@@ -2275,6 +2323,10 @@ function parseXeroAccountTx(rows,entity){
         platformFees[month][ck]=(platformFees[month][ck]||0)+debit;
       }
     }
+  }
+  // Finalize last bank section if not already handled
+  if(isBank&&curAcct&&sectionMonthlyNet[curAcct]&&!result.bankClose[curAcct]){
+    finalizeSection(curAcct,curOpenBal);
   }
 
   // Net platform fees against customer inflows: same contact (case-insensitive), same month.
