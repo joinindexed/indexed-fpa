@@ -1986,34 +1986,39 @@ function _impFinVal(entityKey,ftype,lastMonthOnly,...labels){
 }
 
 function getPL(){
+  // Always read from template arrays — applyImport+recalcPLTotals keeps them up to date.
+  // _impFinVal only covers the months in the last imported file (not full YTD), so using
+  // it directly would show partial figures when only one month at a time is imported.
   const src=ent==='bh'?BH_PL:ent==='bc'?BC_PL:CONSO_PL;
-  const hardGet=label=>(src.find(r=>r.label===label)||{v:Array(E.length).fill(0)}).v;
+  const get=label=>{
+    // Try exact match first, then flexible (handles BH "Total Trading Income" vs BC "Total Income")
+    const r=src.find(x=>x.label===label)||src.find(x=>x.label&&normKey(x.label).includes(normKey(label)));
+    return(r&&r.v)||Array(E.length).fill(0);
+  };
   const sum=v=>(v||[]).reduce((s,x)=>s+(x||0),0);
-  const ek=ent==='conso'?null:ent;
-  // Revenue: try imported then hardcoded
-  const ytdRev=ek?(_impFinVal(ek,'pl',false,'Total Trading Income','Total Income','Revenue','Total Revenue','Operating Revenue','Trading Income')??sum(hardGet(ent==='bh'?'Total Trading Income':'Total Income'))):sum(hardGet(ent==='bh'?'Total Trading Income':'Total Income'));
-  const ytdGP=ek?(_impFinVal(ek,'pl',false,'Gross Profit','Gross Income','Gross Margin')??sum(hardGet('Gross Profit'))):sum(hardGet('Gross Profit'));
+  const revLbl=ent==='bh'?'Total Trading Income':'Total Income';
   const netLbl=ent==='bh'?'Net Profit':ent==='bc'?'Net Income':'Net Profit / Income';
-  const ytdNet=ek?(_impFinVal(ek,'pl',false,'Net Profit','Net Income','Profit for the Period','Net Profit / Income','Profit/(Loss)')??sum(hardGet(netLbl))):sum(hardGet(netLbl));
-  const ytdWages=ent==='bc'?0:(ek?(_impFinVal(ek,'pl',false,'Wages & Salaries','Wages','Salaries','Staff Costs','Employee Costs')??sum(hardGet('Wages & Salaries'))):sum(hardGet('Wages & Salaries')));
+  const ytdRev=sum(get(revLbl));
+  const ytdGP=sum(get('Gross Profit'));
+  const ytdNet=sum(get(netLbl));
+  const ytdWages=ent==='bc'?0:sum(get('Wages & Salaries'));
   const adjNet=ytdNet+ytdWages;
   return{ytdRev,ytdGP,ytdNet,adjNet,gpPct:ytdRev?ytdGP/ytdRev:0,adjNetPct:ytdRev?adjNet/ytdRev:0};
 }
 
 function getBSMetrics(){
   const i=E.length-1;
-  const ek=ent==='conso'?null:ent;
-  function bsVal(entityKey,hardArr,...labels){
-    if(entityKey){
-      const v=_impFinVal(entityKey,'bs',true,...labels);
-      if(v!==null)return v;
+  // Read directly from template arrays — applyImport+recalcBSTotals keeps them current.
+  function bsVal(hardArr,...labels){
+    for(const lbl of labels){
+      const row=hardArr.find(r=>r.label&&(r.label===lbl||normKey(r.label)===normKey(lbl)));
+      if(row&&row.v)return row.v[i]||0;
     }
-    for(const lbl of labels){const row=hardArr.find(r=>r.label===lbl);if(row&&row.v)return row.v[i]||0;}
     return 0;
   }
-  if(ent==='bh')return{ar:bsVal('bh',BH_BS,'Accounts Receivable','Trade Debtors','Debtors'),ap:bsVal('bh',BH_BS,'Accounts Payable','Trade Creditors','Creditors'),accruals:bsVal('bh',BH_BS,'Accruals','Accrued Liabilities'),dirLoan:bsVal('bh',BH_BS,'Directors Loan Account','Director Loan','Director\'s Loan'),loanDir:0};
-  if(ent==='bc')return{ar:bsVal('bc',BC_BS,'Accounts Receivable','Trade Debtors','Debtors'),ap:bsVal('bc',BC_BS,'Accounts Payable','Trade Creditors','Creditors'),accruals:bsVal('bc',BC_BS,'Accruals','Accrued Liabilities'),dirLoan:0,loanDir:bsVal('bc',BC_BS,'Loan from Director','Director Loan')};
-  return{ar:bsVal('bh',BH_BS,'Accounts Receivable')+bsVal('bc',BC_BS,'Accounts Receivable'),ap:bsVal('bh',BH_BS,'Accounts Payable')+bsVal('bc',BC_BS,'Accounts Payable'),accruals:bsVal('bh',BH_BS,'Accruals')+bsVal('bc',BC_BS,'Accruals'),dirLoan:bsVal('bh',BH_BS,'Directors Loan Account'),loanDir:bsVal('bc',BC_BS,'Loan from Director')};
+  if(ent==='bh')return{ar:bsVal(BH_BS,'Accounts Receivable','Trade Debtors','Debtors'),ap:bsVal(BH_BS,'Accounts Payable','Trade Creditors','Creditors'),accruals:bsVal(BH_BS,'Accruals','Accrued Liabilities'),dirLoan:bsVal(BH_BS,'Directors Loan Account','Director Loan','Director\'s Loan'),loanDir:0};
+  if(ent==='bc')return{ar:bsVal(BC_BS,'Accounts Receivable','Trade Debtors','Debtors'),ap:bsVal(BC_BS,'Accounts Payable','Trade Creditors','Creditors'),accruals:bsVal(BC_BS,'Accruals','Accrued Liabilities'),dirLoan:0,loanDir:bsVal(BC_BS,'Loan from Director','Director Loan')};
+  return{ar:bsVal(BH_BS,'Accounts Receivable')+bsVal(BC_BS,'Accounts Receivable'),ap:bsVal(BH_BS,'Accounts Payable')+bsVal(BC_BS,'Accounts Payable'),accruals:bsVal(BH_BS,'Accruals')+bsVal(BC_BS,'Accruals'),dirLoan:bsVal(BH_BS,'Directors Loan Account'),loanDir:bsVal(BC_BS,'Loan from Director')};
 }
 
 function renderDash(){
