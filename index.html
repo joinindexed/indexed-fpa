@@ -1499,47 +1499,80 @@ function swFin(tab,el){
 }
 
 // ── Data validation ───────────────────────────────────────────────────────
-// Runs after every import and stores pass/fail per entity+ftype.
-// Results surface in the Financials header so mismatches are impossible to miss.
+// Two-layer check after every import:
+// 1. Totals cross-check: compare our recomputed subtotals against Xero's own
+//    total rows (ground truth from the file). Difference = missing line items.
+// 2. Accounting equations: Assets = Liabilities + Equity; GP = Income − COGS; etc.
 window._dataChecks = {};
+window._xeroTotals = {}; // raw total values straight from the imported file
 
-function validateBS(arr, key){
-  const nk=normKey, find=lbl=>arr.find(r=>r.label&&nk(r.label).includes(nk(lbl)));
-  const assets=find('Total Assets'), liab=find('Total Liabilities'), eq=find('Total Equity');
+// Called during applyImport BEFORE we recompute totals, to snapshot Xero's totals.
+function captureXeroTotals(parsed, key){
+  const snap={};
+  (parsed.rows||[]).forEach(r=>{
+    if((r.type==='t'||r.type==='gt')&&r.label){
+      snap[normKey(r.label)]=r.vals||{};
+    }
+  });
+  if(!window._xeroTotals)window._xeroTotals={};
+  window._xeroTotals[key]=snap;
+}
+
+function runValidation(arr, key, ftype){
   const issues=[];
-  if(assets&&liab&&eq){
-    E.forEach((m,i)=>{
-      const a=assets.v[i]||0, l=(liab.v[i]||0)+(eq.v[i]||0);
-      if(Math.abs(a-l)>1) issues.push(`${m}: Assets ${$f(a)} ≠ Liabilities+Equity ${$f(l)} (Δ ${$f(Math.abs(a-l))})`);
-    });
+  const xero=(window._xeroTotals||{})[key]||{};
+
+  // ── Layer 1: totals cross-check ──────────────────────────────────────────
+  // For every subtotal/total row in our template, compare our recomputed value
+  // against what Xero reported in the file. A gap means items were missed.
+  arr.forEach(r=>{
+    if((r.type==='t'||r.type==='gt')&&r.label&&r.v){
+      const xv=xero[normKey(r.label)];
+      if(!xv)return; // Xero didn't have this total — skip
+      E.forEach((m,i)=>{
+        const ours=r.v[i]||0, theirs=xv[m]||0;
+        if(theirs!==0&&Math.abs(ours-theirs)>1){
+          issues.push(`<strong>${m} · ${r.label}</strong>: our sum ${$f(ours)} vs Xero ${$f(theirs)} — Δ ${$f(Math.abs(ours-theirs))} (likely a missing line item)`);
+        }
+      });
+    }
+  });
+
+  // ── Layer 2: accounting equations ────────────────────────────────────────
+  const nk=normKey, find=lbl=>arr.find(r=>r.label&&nk(r.label).includes(nk(lbl)));
+  if(ftype==='bs'){
+    const assets=find('Total Assets'), liab=find('Total Liabilities'), eq=find('Total Equity');
+    if(assets&&liab&&eq){
+      E.forEach((m,i)=>{
+        const a=assets.v[i]||0, l=(liab.v[i]||0)+(eq.v[i]||0);
+        if(Math.abs(a-l)>1) issues.push(`<strong>${m} · Balance Sheet</strong>: Assets ${$f(a)} ≠ Liabilities+Equity ${$f(l)}`);
+      });
+    }
+  } else {
+    const income=find('Total Income')||find('Total Trading Income');
+    const cogs=find('Total Cost')||find('Total COGS');
+    const gp=find('Gross Profit');
+    const opex=find('Total Operating Expenses');
+    const net=find('Net Income')||find('Net Profit');
+    if(income&&cogs&&gp){
+      E.forEach((m,i)=>{
+        const exp=(income.v[i]||0)-(cogs.v[i]||0), act=gp.v[i]||0;
+        if(Math.abs(exp-act)>1) issues.push(`<strong>${m} · Gross Profit</strong>: ${$f(act)} ≠ Income−COGS ${$f(exp)}`);
+      });
+    }
+    if(gp&&opex&&net){
+      E.forEach((m,i)=>{
+        const exp=(gp.v[i]||0)-(opex.v[i]||0), act=net.v[i]||0;
+        if(Math.abs(exp-act)>1) issues.push(`<strong>${m} · Net Income</strong>: ${$f(act)} ≠ GP−OpEx ${$f(exp)}`);
+      });
+    }
   }
+
   window._dataChecks[key]={pass:issues.length===0,issues};
 }
 
-function validatePL(arr, key){
-  const nk=normKey, find=lbl=>arr.find(r=>r.label&&nk(r.label).includes(nk(lbl)));
-  const income=find('Total Income')||find('Total Trading Income');
-  const cogs=find('Total Cost')||find('Total COGS');
-  const gp=find('Gross Profit');
-  const opex=find('Total Operating Expenses');
-  const net=find('Net Income')||find('Net Profit');
-  const issues=[];
-  if(income&&cogs&&gp){
-    E.forEach((m,i)=>{
-      const expected=(income.v[i]||0)-(cogs.v[i]||0);
-      const actual=gp.v[i]||0;
-      if(Math.abs(expected-actual)>1) issues.push(`${m}: Gross Profit ${$f(actual)} ≠ Income−COGS ${$f(expected)} (Δ ${$f(Math.abs(expected-actual))})`);
-    });
-  }
-  if(gp&&opex&&net){
-    E.forEach((m,i)=>{
-      const expected=(gp.v[i]||0)-(opex.v[i]||0);
-      const actual=net.v[i]||0;
-      if(Math.abs(expected-actual)>1) issues.push(`${m}: Net Income ${$f(actual)} ≠ GP−OpEx ${$f(expected)} (Δ ${$f(Math.abs(expected-actual))})`);
-    });
-  }
-  window._dataChecks[key]={pass:issues.length===0,issues};
-}
+function validateBS(arr,key){runValidation(arr,key,'bs');}
+function validatePL(arr,key){runValidation(arr,key,'pl');}
 
 function renderDataBanner(containerId, key){
   const el=document.getElementById(containerId);
@@ -1547,10 +1580,10 @@ function renderDataBanner(containerId, key){
   const chk=window._dataChecks[key];
   if(!chk){el.innerHTML='';return;}
   if(chk.pass){
-    el.innerHTML=`<div style="display:flex;align-items:center;gap:6px;padding:6px 12px;margin-bottom:8px;border-radius:6px;background:rgba(0,200,100,0.08);border:1px solid rgba(0,200,100,0.25);font-size:12px;color:var(--green)">✅ All accounting equations verified — data matches</div>`;
+    el.innerHTML=`<div style="display:flex;align-items:center;gap:6px;padding:6px 12px;margin-bottom:8px;border-radius:6px;background:rgba(0,200,100,0.08);border:1px solid rgba(0,200,100,0.25);font-size:12px;color:var(--green)">✅ Verified — all totals match Xero source and accounting equations balance</div>`;
   } else {
-    const list=chk.issues.map(i=>`<li style="margin:2px 0">${i}</li>`).join('');
-    el.innerHTML=`<div style="padding:8px 12px;margin-bottom:8px;border-radius:6px;background:rgba(255,80,80,0.08);border:1px solid rgba(255,80,80,0.35);font-size:12px;color:#ff6060"><strong>⚠️ ${chk.issues.length} discrepanc${chk.issues.length===1?'y':'ies'} detected — re-import or check source data:</strong><ul style="margin:4px 0 0 16px;padding:0">${list}</ul></div>`;
+    const list=chk.issues.map(i=>`<li style="margin:3px 0">${i}</li>`).join('');
+    el.innerHTML=`<div style="padding:8px 14px;margin-bottom:8px;border-radius:6px;background:rgba(255,80,80,0.08);border:1px solid rgba(255,80,80,0.35);font-size:12px;color:#ff6060"><strong>⚠️ ${chk.issues.length} issue${chk.issues.length===1?'':'s'} — re-import or check source file:</strong><ul style="margin:4px 0 0 16px;padding:0">${list}</ul></div>`;
   }
 }
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2425,10 +2458,11 @@ function applyImport(entity,ftype){
         }
       });
     }
+    // Snapshot Xero's own total rows BEFORE we recompute (they're the ground truth)
+    captureXeroTotals(parsed, entity+'_'+ftype);
     if(ftype==='bs'){
       rebuildConso(CONSO_BS,BH_BS,BC_BS);
       [BH_BS,BC_BS,CONSO_BS].forEach(recalcBSTotals);
-      // Validate after recalc — surfaces any equation mismatches in the UI
       validateBS(BH_BS,'bh_bs'); validateBS(BC_BS,'bc_bs'); validateBS(CONSO_BS,'conso_bs');
     } else {
       rebuildConso(CONSO_PL,BH_PL,BC_PL);
@@ -2474,8 +2508,8 @@ function saveActuals(){
           snap[`actuals_${e}_${ft}`]=window._actualsSnap[e+'-'+ft];
       });
     });
-    // Also save imported fin data (BS/PL direct render)
     if(window._importedFin)snap._importedFin=window._importedFin;
+    if(window._xeroTotals)snap._xeroTotals=window._xeroTotals;
     localStorage.setItem('actuals_snap',JSON.stringify(snap));
   }catch(e){}
 }
@@ -2486,6 +2520,7 @@ function loadActuals(){
     if(!snap)return;
     // Restore imported fin data first (so renderFin works immediately)
     if(snap._importedFin){window._importedFin=snap._importedFin;}
+    if(snap._xeroTotals){window._xeroTotals=snap._xeroTotals;}
     // Replay GL imports through applyImport (updates Dashboard/CF)
     ['bh','bc'].forEach(e=>{
       ['gl','bs','pl'].forEach(ft=>{
