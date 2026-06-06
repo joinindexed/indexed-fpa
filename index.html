@@ -1913,12 +1913,19 @@ function processImport(file,entity){
       try{
         const wb=window.XLSX.read(buf,{type:'array',cellDates:true,raw:false});
         const ws=wb.Sheets[wb.SheetNames[0]];
-        // Convert Date objects in header rows to "DD Mon YYYY" strings before parsing
-        const rawRows=window.XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});
+        // raw:true so date cells come as JS Date objects (cellDates:true in read options);
+        // raw:false would format them as locale strings we can't reliably parse.
+        const rawRows=window.XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:true,cellDates:true});
+        const MO3C=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
         const rows=rawRows.map(row=>row.map(c=>{
+          // Convert JS Date objects → "DD Mon YYYY" string
           if(c instanceof Date&&!isNaN(c)){
-            const mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-            return `${c.getDate()} ${mo[c.getMonth()]} ${c.getFullYear()}`;
+            return `${c.getDate()} ${MO3C[c.getMonth()]} ${c.getFullYear()}`;
+          }
+          // Convert Excel date serial numbers (large integers, >40000) → "DD Mon YYYY"
+          if(typeof c==='number'&&c>40000&&c<60000&&Number.isInteger(c)){
+            const d=new Date(Math.round((c-25569)*86400*1000));
+            if(!isNaN(d))return `${d.getUTCDate()} ${MO3C[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
           }
           return c;
         }));
@@ -2037,19 +2044,32 @@ function parseXeroBS(rows,entity){
   function extractMonth(c){
     const s=String(c||'').trim();
     if(!s)return null;
-    // "Apr 2026" or "April 2026" or "30 April 2026" or "As at 30 April 2026"
+    // "Apr 2026", "April 2026", "30 April 2026", "As at 30 April 2026", "30 Apr 2026"
     const m1=s.match(/([A-Za-z]{3,9})\s+\d{4}/i);
     if(m1){const abbr=m1[1].substring(0,3);const idx=MO3.findIndex(x=>x.toLowerCase()===abbr.toLowerCase());return idx>=0?MO3[idx]:null;}
-    // "30/04/2026" or "04/30/2026" — try both DD/MM/YYYY and MM/DD/YYYY
+    // "April 30, 2026" (US long format)
+    const m1b=s.match(/([A-Za-z]{3,9})\s+\d{1,2},?\s+\d{4}/i);
+    if(m1b){const abbr=m1b[1].substring(0,3);const idx=MO3.findIndex(x=>x.toLowerCase()===abbr.toLowerCase());return idx>=0?MO3[idx]:null;}
+    // "30-Apr-2026" or "30-April-2026"
+    const m1c=s.match(/\d{1,2}-([A-Za-z]{3,9})-\d{4}/i);
+    if(m1c){const abbr=m1c[1].substring(0,3);const idx=MO3.findIndex(x=>x.toLowerCase()===abbr.toLowerCase());return idx>=0?MO3[idx]:null;}
+    // "30/04/2026" DD/MM/YYYY
     const m2=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if(m2){
-      const mm=parseInt(m2[2]),dd=parseInt(m2[1]);
-      // Xero uses DD/MM/YYYY
-      if(mm>=1&&mm<=12)return MO3[mm-1];
+      const d1=parseInt(m2[1]),d2=parseInt(m2[2]);
+      // If first part > 12 it must be DD, second is MM
+      if(d1>12&&d2>=1&&d2<=12)return MO3[d2-1];
+      // If second part > 12 it must be DD, first is MM
+      if(d2>12&&d1>=1&&d1<=12)return MO3[d1-1];
+      // Xero uses DD/MM/YYYY by default
+      if(d2>=1&&d2<=12)return MO3[d2-1];
     }
     // "2026-04-30"
     const m3=s.match(/^\d{4}-(\d{2})-\d{2}/);
     if(m3){const mm=parseInt(m3[1]);if(mm>=1&&mm<=12)return MO3[mm-1];}
+    // "Apr-26" short year
+    const m4=s.match(/^([A-Za-z]{3})-(\d{2})$/);
+    if(m4){const idx=MO3.findIndex(x=>x.toLowerCase()===m4[1].toLowerCase());return idx>=0?MO3[idx]:null;}
     return null;
   }
 
