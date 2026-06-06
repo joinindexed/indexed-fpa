@@ -2185,13 +2185,19 @@ function _parseFinancialReport(rows,entity,ftype){
     return isNaN(n)?0:(neg?-n:n);
   }
 
-  // Return 3-letter month abbr if cell looks like a date, else null
+  // Return 3-letter month abbr if cell looks like a date, else null.
+  // IMPORTANT: only match EXACT 3-letter abbreviations (Jan/Feb/Mar…) or full
+  // month names (January/February/March…).  Never take a prefix of a longer
+  // word — that would misfire on "Marketing"→Mar, "Depreciation"→Dec, etc.
   function monthOf(v){
     const s=String(v===null||v===undefined?'':v).trim();
     if(!s)return null;
-    const words=s.match(/[A-Za-z]{3,9}/g)||[];
+    const mFull=['January','February','March','April','May','June','July',
+                 'August','September','October','November','December'];
+    const words=s.match(/[A-Za-z]+/g)||[];
     for(const w of words){
-      const idx=MO3X.findIndex(m=>m.toLowerCase()===w.toLowerCase().substring(0,3));
+      const wl=w.toLowerCase();
+      const idx=MO3X.findIndex((m,i)=>m.toLowerCase()===wl||mFull[i].toLowerCase()===wl);
       if(idx>=0)return MO3X[idx];
     }
     const sl=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
