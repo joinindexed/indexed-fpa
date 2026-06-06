@@ -552,7 +552,7 @@ input,select{font-family:var(--sans)}
 
 <script>
 const E = ['Jan','Feb','Mar','Apr'];
-let ent='conso', finTab='bs', openDrill=null;
+let ent='conso', finTab='bs', openDrill=new Set();
 
 // ── GL ACTUALS (net of platform fees GL 323 / GL 404 Spend Money) ──
 const BH_IN_D = {
@@ -1367,7 +1367,7 @@ function buildFcastCFGroups(isIn){
 }
 
 function renderCFTable(d){
-  openDrill=null;
+  openDrill=new Set();
   _cfInGroups=buildCFGroups(true);
   _cfOutGroups=buildCFGroups(false);
   _cfInFcstGroups=buildFcastCFGroups(true);
@@ -1450,9 +1450,8 @@ const ENT_SHORT={BH:'Braveheart',BC:'Bravecore'};
 function togCFDrill(drId,isIn){
   const row=document.getElementById('dr-'+drId);
   if(!row)return;
-  if(openDrill===drId){row.classList.remove('open');openDrill=null;return;}
-  if(openDrill){const p=document.getElementById('dr-'+openDrill);if(p)p.classList.remove('open');}
-  openDrill=drId; row.classList.add('open');
+  if(openDrill.has(drId)){row.classList.remove('open');openDrill.delete(drId);return;}
+  openDrill.add(drId); row.classList.add('open');
   const actGroups=isIn?_cfInGroups:_cfOutGroups;
   const fcstGroups=isIn?_cfInFcstGroups:_cfOutFcstGroups;
   const cls=isIn?'pos':'neg';
@@ -1473,7 +1472,7 @@ function togCFDrill(drId,isIn){
     return bt-at;
   });
   const label=isIn?'Cash inflow by group':'Cash outflow by group';
-  let h=`<div class="dt-hd"><span>↳ ${label}</span><span class="dc" onclick="clDrill()">✕</span></div>`;
+  let h=`<div class="dt-hd"><span>↳ ${label}</span><span class="dc" onclick="clDrill('${drId}')">✕</span></div>`;
   h+=`<table class="drt"><thead><tr><th>Display group</th><th>Entity</th>`;
   E.forEach(m=>h+=`<th><span class="ba" style="font-size:9px">A</span> ${m}</th>`);
   FCST_MONTHS.forEach(m=>h+=`<th style="opacity:.85"><span class="bf" style="font-size:9px">F</span> ${m}</th>`);
@@ -1526,7 +1525,10 @@ function togEntDrill(id){
     if(el)el.style.display=el.style.display==='none'?'table-row':'none';
   });
 }
-function clDrill(){if(openDrill){const r=document.getElementById('dr-'+openDrill);if(r)r.classList.remove('open');openDrill=null;}}
+function clDrill(drId){
+  if(drId){const r=document.getElementById('dr-'+drId);if(r)r.classList.remove('open');openDrill.delete(drId);}
+  else{openDrill.forEach(id=>{const r=document.getElementById('dr-'+id);if(r)r.classList.remove('open');});openDrill.clear();}
+}
 
 function renderBnk(){
   let h='<thead><tr><th>Account</th>';
