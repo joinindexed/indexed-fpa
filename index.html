@@ -2085,19 +2085,27 @@ function parseXeroBS(rows,entity){
     const hits=rs.map((c,ci)=>{if(ci===0)return null;const m=extractMonth(c);return m?{ci,month:m}:null;}).filter(Boolean);
     if(hits.length>=1){colMonths=hits;headerRow=i;break;}
   }
-  // Second pass: if no col>=1 date found, try col 0 title (single-col edge case)
+  // Second pass: single-period BS — "As at 30 April 2026" is in col 0 as a title.
+  // We need to find the actual data column by scanning the first real data rows.
   if(colMonths.length===0){
     for(let i=0;i<Math.min(rows.length,25);i++){
       const rs=rows[i].map(c=>String(c||'').trim());
-      // Only use col 0 if row has only 1-2 non-empty cells (pure title row, last col = data)
-      const nonEmpty=rs.filter(Boolean);
-      if(nonEmpty.length<=2){
-        const m=extractMonth(rs[0]);
-        if(m){
-          // Use last non-empty column index as data column
-          const lastCi=rs.map((v,ci)=>v?ci:-1).filter(x=>x>=0).pop()||1;
-          colMonths=[{ci:lastCi,month:m}];headerRow=i;break;
+      const m=extractMonth(rs[0]);
+      if(m){
+        // Dynamically find data column: scan next 20 rows for first col>=1 with a non-zero number
+        let dataCi=1;
+        outer:for(let di=i+1;di<Math.min(rows.length,i+20);di++){
+          const dr=rows[di];
+          const lbl=String(dr&&dr[0]||'').trim();
+          if(!lbl||/^total|^grand|^assets|^liabilities|^equity/i.test(lbl)||extractMonth(lbl))continue;
+          const maxCols=Math.max((dr?dr.length:0),6);
+          for(let ci=1;ci<maxCols;ci++){
+            const raw=dr?dr[ci]:undefined;
+            const v=parseFl(String(raw===undefined||raw===null?'':raw).trim());
+            if(v!==0){dataCi=ci;break outer;}
+          }
         }
+        colMonths=[{ci:dataCi,month:m}];headerRow=i;break;
       }
     }
   }
@@ -2284,7 +2292,11 @@ function applyImport(entity,ftype){
   if(prev)prev.innerHTML=`<div class="es" style="border-color:var(--accent-border);background:var(--accent-light);margin-top:10px"><span style="color:var(--green)">✓</span> &nbsp;${ftLabel}: ${parsed.months.length} month(s) applied — ${parsed.months.join(', ')}</div>`;
 
   renderDash();renderCF();renderFin();
+  // Snapshot before deleting, so saveActuals can persist it
+  if(!window._actualsSnap)window._actualsSnap={};
+  window._actualsSnap[entity+'-'+ftype]=JSON.parse(JSON.stringify(parsed));
   delete importState[entity+'-'+ftype];
+  saveActuals();
 }
 
 // ── Forecast data persistence ──
@@ -2296,6 +2308,40 @@ let AR_FCST = [];
 let AP_FCST = [];
 try { AR_FCST = JSON.parse(localStorage.getItem('ar_fcst')||'[]'); } catch(e){}
 try { AP_FCST = JSON.parse(localStorage.getItem('ap_fcst')||'[]'); } catch(e){}
+
+// ── Actuals persistence (GL / BS / PL imported from Xero) ──
+// Note: loadActuals() is called at bottom of script after all helpers are defined.
+function saveActuals(){
+  try{
+    const snap={};
+    ['bh','bc'].forEach(e=>{
+      ['gl','bs','pl'].forEach(ft=>{
+        const k=`actuals_${e}_${ft}`;
+        // Save whatever is in importState for this key (populated by processImport before applyImport deletes it)
+        if(window._actualsSnap&&window._actualsSnap[e+'-'+ft]){
+          snap[k]=window._actualsSnap[e+'-'+ft];
+        }
+      });
+    });
+    localStorage.setItem('actuals_snap',JSON.stringify(snap));
+  }catch(e){}
+}
+
+function loadActuals(){
+  try{
+    const snap=JSON.parse(localStorage.getItem('actuals_snap')||'null');
+    if(!snap)return;
+    // Replay each saved parsed object through applyImport
+    ['bh','bc'].forEach(e=>{
+      ['gl','bs','pl'].forEach(ft=>{
+        const saved=snap[`actuals_${e}_${ft}`];
+        if(!saved||!saved.months||!saved.months.length)return;
+        importState[e+'-'+ft]=saved;
+        applyImport(e,ft);
+      });
+    });
+  }catch(e){console.warn('loadActuals failed',e);}
+}
 
 function normalizeToISO(v){
   // Returns YYYY-MM-DD string or original value if not parseable
@@ -3417,6 +3463,8 @@ function submitPwd(){
 }
 
 // ── Init ──
+// Restore any previously imported actuals from localStorage BEFORE first render
+try{loadActuals();}catch(e){console.warn('loadActuals:',e);}
 // Run immediately (script is at bottom of body so DOM is ready)
 try{renderDash();}catch(e){}
 try{renderCF();}catch(e){}
