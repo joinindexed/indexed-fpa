@@ -2336,22 +2336,29 @@ function applyImport(entity,ftype){
         parsed.months.forEach(m=>{const i=E.indexOf(m);if(i>=0)hit.v[i]=r.vals[m]||0;});
       }
     });
-    // Rebuild consolidated
-    if(ftype==='bs'){
-      CONSO_BS.forEach(cr=>{
+    // Rebuild consolidated — entity-aware:
+    // rows tagged BH/BC get only their own entity's values;
+    // total/summary rows (no entity) get BH+BC sum.
+    function rebuildConso(consoArr,bhArr,bcArr){
+      consoArr.forEach(cr=>{
         if(!cr.v||!cr.label)return;
-        const bhr=BH_BS.find(r=>r.label&&normKey(r.label)===normKey(cr.label));
-        const bcr=BC_BS.find(r=>r.label&&normKey(r.label)===normKey(cr.label));
-        if(bhr||bcr)cr.v=E.map((_,i)=>((bhr&&bhr.v?bhr.v[i]:0)||0)+((bcr&&bcr.v?bcr.v[i]:0)||0));
-      });
-    } else {
-      CONSO_PL.forEach(cr=>{
-        if(!cr.v||!cr.label)return;
-        const bhr=BH_PL.find(r=>r.label&&normKey(r.label)===normKey(cr.label));
-        const bcr=BC_PL.find(r=>r.label&&normKey(r.label)===normKey(cr.label));
-        if(bhr||bcr)cr.v=E.map((_,i)=>((bhr&&bhr.v?bhr.v[i]:0)||0)+((bcr&&bcr.v?bcr.v[i]:0)||0));
+        const ek=(cr.entity||'').toUpperCase();
+        if(ek==='BH'){
+          const bhr=bhArr.find(r=>r.label&&normKey(r.label)===normKey(cr.label));
+          if(bhr&&bhr.v)cr.v=bhr.v.slice();
+        } else if(ek==='BC'){
+          const bcr=bcArr.find(r=>r.label&&normKey(r.label)===normKey(cr.label));
+          if(bcr&&bcr.v)cr.v=bcr.v.slice();
+        } else {
+          // total / grand-total rows → sum both entities
+          const bhr=bhArr.find(r=>r.label&&normKey(r.label)===normKey(cr.label));
+          const bcr=bcArr.find(r=>r.label&&normKey(r.label)===normKey(cr.label));
+          if(bhr||bcr)cr.v=E.map((_,i)=>((bhr&&bhr.v?bhr.v[i]:0)||0)+((bcr&&bcr.v?bcr.v[i]:0)||0));
+        }
       });
     }
+    if(ftype==='bs')rebuildConso(CONSO_BS,BH_BS,BC_BS);
+    else rebuildConso(CONSO_PL,BH_PL,BC_PL);
   }
 
   // Update sidebar actuals label
