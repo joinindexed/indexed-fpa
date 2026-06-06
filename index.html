@@ -2189,9 +2189,13 @@ function processImport(file,entity){
 
 function parseXeroAccountTx(rows,entity){
   const BANKS=['payoneer','wio','enbd','alaan','stripe','paypal','upwork'];
-  let curAcct=null,isBank=false;
+  // Expense accounts whose debits are netted against the matching customer inflow (same contact, same month)
+  const PLATFORM_FEE_ACCTS=['payment platform'];
+  let curAcct=null,isBank=false,isPlatformFee=false;
   let cDate=-1,cDesc=-1,cDebit=-1,cCredit=-1,cBal=-1;
   const result={entity,months:new Set(),inflow:{},outflow:{},bankClose:{}};
+  // Staging area for platform fees: {month: {contactKey: totalFee}}
+  const platformFees={};
 
   function parseDt(v){
     if(!v||v==='')return null;
@@ -2230,35 +2234,67 @@ function parseXeroAccountTx(rows,entity){
       if(!/^total|^grand|^\d+(\.\d+)?$/.test(first)&&!parseDt(first)&&first.length>2){
         curAcct=first;
         isBank=BANKS.some(p=>first.toLowerCase().includes(p));
+        isPlatformFee=!isBank&&PLATFORM_FEE_ACCTS.some(p=>first.toLowerCase().includes(p));
         continue;
       }
     }
 
-    if(!isBank||cDate<0)continue;
+    if((!isBank&&!isPlatformFee)||cDate<0)continue;
     const dateVal=rs[cDate];if(!dateVal)continue;
     const dt=parseDt(dateVal);if(!dt)continue;
     const month=MO[dt.getMonth()];
     result.months.add(month);
-    const dayLbl=`${dt.getDate()}-${month}`;
-    const contact=cDesc>=0?rs[cDesc]:'';
-    const debit=parseFl(row[cDebit]);
-    const credit=parseFl(row[cCredit]);
-    const bal=cBal>=0?parseFl(row[cBal]):null;
 
-    // In bank accounts: Debit = money in (inflow), Credit = money out (outflow)
-    if(debit>0){
-      if(!result.inflow[month])result.inflow[month]=[];
-      result.inflow[month].push({date:dayLbl,contact,entity,amt:debit,fee:0,account:curAcct});
-    }
-    if(credit>0){
-      if(!result.outflow[month])result.outflow[month]=[];
-      result.outflow[month].push({date:dayLbl,contact,entity,amt:credit,type:'Variable',account:curAcct});
-    }
-    if(bal!==null){
-      if(!result.bankClose[curAcct])result.bankClose[curAcct]={};
-      result.bankClose[curAcct][month]=bal;
+    if(isBank){
+      const dayLbl=`${dt.getDate()}-${month}`;
+      const contact=cDesc>=0?rs[cDesc]:'';
+      const debit=parseFl(row[cDebit]);
+      const credit=parseFl(row[cCredit]);
+      const bal=cBal>=0?parseFl(row[cBal]):null;
+      // In bank accounts: Debit = money in (inflow), Credit = money out (outflow)
+      if(debit>0){
+        if(!result.inflow[month])result.inflow[month]=[];
+        result.inflow[month].push({date:dayLbl,contact,entity,amt:debit,fee:0,account:curAcct});
+      }
+      if(credit>0){
+        if(!result.outflow[month])result.outflow[month]=[];
+        result.outflow[month].push({date:dayLbl,contact,entity,amt:credit,type:'Variable',account:curAcct});
+      }
+      if(bal!==null){
+        if(!result.bankClose[curAcct])result.bankClose[curAcct]={};
+        result.bankClose[curAcct][month]=bal;
+      }
+    } else if(isPlatformFee){
+      // Collect platform fee debits per contact per month — will be netted against inflows below
+      const contact=cDesc>=0?rs[cDesc]:'';
+      const debit=parseFl(row[cDebit]);
+      if(debit>0&&contact){
+        const ck=contact.toLowerCase().trim();
+        if(!platformFees[month])platformFees[month]={};
+        platformFees[month][ck]=(platformFees[month][ck]||0)+debit;
+      }
     }
   }
+
+  // Net platform fees against customer inflows: same contact (case-insensitive), same month.
+  // Reduces the inflow amt and records the fee amount on the transaction for display.
+  // Fees with no matching inflow contact are silently dropped (they've already reduced the bank balance).
+  Object.entries(platformFees).forEach(([month,contactFees])=>{
+    if(!result.inflow[month])return;
+    Object.entries(contactFees).forEach(([ck,fee])=>{
+      let remaining=fee;
+      result.inflow[month].forEach(tx=>{
+        if(tx.contact.toLowerCase().trim()===ck&&remaining>0){
+          const reduce=Math.min(tx.amt,remaining);
+          tx.amt-=reduce;
+          tx.fee=(tx.fee||0)+reduce;
+          remaining-=reduce;
+        }
+      });
+      // Remove any inflow transactions fully consumed by fees
+      result.inflow[month]=result.inflow[month].filter(tx=>tx.amt>0);
+    });
+  });
 
   result.months=Array.from(result.months).sort((a,b)=>MO.indexOf(a)-MO.indexOf(b));
   return result;
