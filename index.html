@@ -1920,7 +1920,8 @@ function detectFileTypeFromContent(rows){
   }
   return null;
 }
-function normKey(s){return String(s||'').toLowerCase().replace(/\s+/g,' ').trim();}
+// Strip all non-alphanumeric chars so "WIO-AED" matches "WIO- AED", etc.
+function normKey(s){return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').replace(/\s+/g,' ').trim();}
 
 function initImport(){
   const savedToken=localStorage.getItem('gh_token');
@@ -2230,20 +2231,21 @@ function recalcBSTotals(arr){
   const n=E.length;
   let items=[], subTotals=[];
   arr.forEach(r=>{
+    // Process h/sh for section tracking even if they have no v
+    if(r.type==='h'){items=[];subTotals=[];return;}
+    if(r.type==='sh'){items=[];return;}
     if(!r.v)return;
     while(r.v.length<n)r.v.push(0);
-    if(r.type==='h'){items=[];subTotals=[];}
-    else if(r.type==='sh'){items=[];}
-    else if(r.type==='i'){items.push(r);}
+    if(r.type==='i'){items.push(r);}
     else if(r.type==='t'){
       r.v=E.map((_,i)=>items.reduce((s,it)=>s+(it.v[i]||0),0));
       subTotals.push(r);items=[];
     } else if(r.type==='gt'){
-      if(subTotals.length>0){
-        r.v=E.map((_,i)=>subTotals.reduce((s,t)=>s+(t.v[i]||0),0));
-      } else {
-        r.v=E.map((_,i)=>items.reduce((s,it)=>s+(it.v[i]||0),0));
-      }
+      // Sum sub-totals PLUS any bare items that came after the last 't'
+      // (e.g. Accounts Receivable sits between Total Cash and Total Current Assets)
+      const fromT=E.map((_,i)=>subTotals.reduce((s,t)=>s+(t.v[i]||0),0));
+      const fromI=E.map((_,i)=>items.reduce((s,it)=>s+(it.v[i]||0),0));
+      r.v=E.map((_,i)=>fromT[i]+fromI[i]);
       subTotals=[];items=[];
     }
   });
@@ -2253,14 +2255,17 @@ function recalcPLTotals(arr){
   const n=E.length;
   let items=[], running=null, isSubtractive=false;
   arr.forEach(r=>{
-    if(!r.v)return;
-    while(r.v.length<n)r.v.push(0);
+    // Process h/sh for section tracking even if they have no v
     if(r.type==='h'){
       const lk=normKey(r.g||'');
       isSubtractive=!(lk.includes('income')||lk.includes('revenue')||lk.includes('trading'));
       items=[];
-    } else if(r.type==='sh'){items=[];}
-    else if(r.type==='i'){items.push(r);}
+      return;
+    }
+    if(r.type==='sh'){items=[];return;}
+    if(!r.v)return;
+    while(r.v.length<n)r.v.push(0);
+    if(r.type==='i'){items.push(r);}
     else if(r.type==='t'){
       r.v=E.map((_,i)=>items.reduce((s,it)=>s+(it.v[i]||0),0));
       if(running===null){running=r.v.slice();}
