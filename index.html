@@ -197,8 +197,6 @@ input,select{font-family:var(--sans)}
     <div class="nav-section">Mapping</div>
     <div class="nav-item" onclick="go('contacts',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Contacts</div>
-    <div class="nav-item" onclick="go('glmap',this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 7h12M8 12h12M8 17h12M4 7h.01M4 12h.01M4 17h.01"/></svg>GL Accounts</div>
     <div class="nav-section">Settings</div>
     <div class="nav-item" onclick="go('import',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M16 12l-4 4m0 0l-4-4m4 4V4"/></svg>Import data</div>
@@ -392,6 +390,7 @@ input,select{font-family:var(--sans)}
     <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:14px">
       <div class="itab active" onclick="swCtMain('summary',this)" style="padding:9px 16px">Summary</div>
       <div class="itab" onclick="swCtMain('mapping',this)" style="padding:9px 16px">Contact mapping ✎</div>
+      <div class="itab" onclick="swCtMain('glmap',this)" style="padding:9px 16px">GL Accounts ✎</div>
     </div>
     <div id="ct-summary">
       <div class="card">
@@ -417,52 +416,39 @@ input,select{font-family:var(--sans)}
         <strong style="color:var(--accent)">How it works:</strong> Assign the same group name to multiple contacts and they'll be merged into one row in the Summary. Click any group row to expand and see the underlying contacts. Changes apply immediately when you click Save.
       </div>
     </div>
-  </div>
-</div>
-
-<div id="screen-glmap" class="screen">
-  <div class="page-header">
-    <div><div class="page-title">GL Account Mapping</div><div class="page-sub">Map Xero account names to dashboard labels · Prevents import mismatches automatically</div></div>
-    <div><button class="save-btn-glmap" onclick="saveGLMappings()" style="padding:7px 14px;border-radius:6px;font-size:16.0px;font-weight:500;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">Save mappings</button></div>
-  </div>
-  <div class="content">
-    <div id="glmap-tabs" style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:14px">
-      <div class="itab active" data-key="bc_pl" onclick="switchGLMapTab('bc_pl',this)" style="padding:9px 16px">BC P&amp;L</div>
-      <div class="itab" data-key="bh_pl" onclick="switchGLMapTab('bh_pl',this)" style="padding:9px 16px">BH P&amp;L</div>
-      <div class="itab" data-key="bc_bs" onclick="switchGLMapTab('bc_bs',this)" style="padding:9px 16px">BC Balance Sheet</div>
-      <div class="itab" data-key="bh_bs" onclick="switchGLMapTab('bh_bs',this)" style="padding:9px 16px">BH Balance Sheet</div>
-    </div>
-    <div class="card">
-      <div class="card-head">
-        <span class="card-title">Xero account → Dashboard label</span>
-        <span class="card-hint">Add a row to fix any label that doesn't match automatically</span>
+    <div id="ct-glmap" style="display:none">
+      <div id="glmap-tabs" style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:14px">
+        <div class="itab active" data-key="bc_pl" onclick="switchGLMapTab('bc_pl',this)" style="padding:7px 14px">BC P&amp;L</div>
+        <div class="itab" data-key="bh_pl" onclick="switchGLMapTab('bh_pl',this)" style="padding:7px 14px">BH P&amp;L</div>
+        <div class="itab" data-key="bc_bs" onclick="switchGLMapTab('bc_bs',this)" style="padding:7px 14px">BC Balance Sheet</div>
+        <div class="itab" data-key="bh_bs" onclick="switchGLMapTab('bh_bs',this)" style="padding:7px 14px">BH Balance Sheet</div>
       </div>
-      <div style="overflow-x:auto">
-        <table class="dt" style="width:100%">
-          <thead><tr>
-            <th style="text-align:left">Xero Account Name</th>
-            <th style="text-align:center;width:40px"></th>
-            <th style="text-align:left">Dashboard Label</th>
-            <th style="width:60px"></th>
-          </tr></thead>
-          <tbody id="glmap-table-body"></tbody>
-          <tfoot><tr>
-            <td style="padding:8px 10px">
-              <input id="glmap-xero-input" type="text" placeholder="Exact Xero account name…" style="width:100%;padding:6px 10px;border:1px solid var(--border2);border-radius:5px;font-size:14px;background:var(--surface2);color:var(--text);font-family:var(--sans)">
-            </td>
-            <td style="text-align:center;padding:8px 4px;color:var(--text3)">→</td>
-            <td style="padding:8px 10px">
-              <select id="glmap-tmpl-select" style="width:100%;padding:6px 10px;border:1px solid var(--border2);border-radius:5px;font-size:14px;background:var(--surface2);color:var(--text);font-family:var(--sans)"></select>
-            </td>
-            <td style="padding:8px 10px">
-              <button onclick="addGLMapping()" style="padding:6px 12px;border-radius:5px;border:1px solid var(--accent);background:var(--accent);color:#fff;font-size:13px;cursor:pointer;font-family:var(--sans);white-space:nowrap">+ Add</button>
-            </td>
-          </tr></tfoot>
-        </table>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">Xero account → Dashboard label</span>
+          <span class="card-hint">Add a row to fix any label that doesn't match automatically</span>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="dt" style="width:100%">
+            <thead><tr>
+              <th style="text-align:left">Xero Account Name</th>
+              <th style="text-align:center;width:40px"></th>
+              <th style="text-align:left">Dashboard Label</th>
+              <th style="width:60px"></th>
+            </tr></thead>
+            <tbody id="glmap-table-body"></tbody>
+            <tfoot><tr>
+              <td style="padding:8px 10px"><input id="glmap-xero-input" type="text" placeholder="Exact Xero account name…" style="width:100%;padding:6px 10px;border:1px solid var(--border2);border-radius:5px;font-size:14px;background:var(--surface2);color:var(--text);font-family:var(--sans)"></td>
+              <td style="text-align:center;padding:8px 4px;color:var(--text3)">→</td>
+              <td style="padding:8px 10px"><select id="glmap-tmpl-select" style="width:100%;padding:6px 10px;border:1px solid var(--border2);border-radius:5px;font-size:14px;background:var(--surface2);color:var(--text);font-family:var(--sans)"></select></td>
+              <td style="padding:8px 10px"><button onclick="addGLMapping()" style="padding:6px 12px;border-radius:5px;border:1px solid var(--accent);background:var(--accent);color:#fff;font-size:13px;cursor:pointer;font-family:var(--sans);white-space:nowrap">+ Add</button></td>
+            </tr></tfoot>
+          </table>
+        </div>
       </div>
-    </div>
-    <div style="background:var(--accent-light);border:1px solid var(--border);border-radius:8px;padding:12px 16px;font-size:15.0px;color:var(--text2);margin-top:4px">
-      <strong style="color:var(--accent)">How it works:</strong> During import, if a Xero account name doesn't match any dashboard label automatically, the mapping table above is checked. Add a row here and it will be applied on every future import — no more manual fixes needed. You can also click <strong>"Map this →"</strong> in the import preview to jump here with the label pre-filled.
+      <div style="background:var(--accent-light);border:1px solid var(--border);border-radius:8px;padding:12px 16px;font-size:15.0px;color:var(--text2);margin-top:4px">
+        <strong style="color:var(--accent)">How it works:</strong> During import, if a Xero account name doesn't match any dashboard label automatically, this table is checked first. Click <strong>"Map this →"</strong> in the import preview to jump here with the label pre-filled. Mappings apply on every future import automatically.
+      </div>
     </div>
   </div>
 </div>
@@ -1274,7 +1260,6 @@ function go(id,el){
   if(id==='cf')renderCF();
   if(id==='fin')renderFin();
   if(id==='contacts')renderContacts();
-  if(id==='glmap')renderGLMapTable();
   if(id==='import')initImport();
   if(id==='fcast-ar')renderFcastAR();
   if(id==='fcast-ap')renderFcastAP();
@@ -1933,12 +1918,13 @@ function saveMappings(){
 }
 
 function swCtMain(tab,el){
-  document.querySelectorAll('#screen-contacts > .content > div[style*="display:flex"]~div, #screen-contacts > .content > div').forEach(d=>{
-    if(d.id==='ct-summary') d.style.display=tab==='summary'?'block':'none';
-    if(d.id==='ct-mapping') d.style.display=tab==='mapping'?'block':'none';
+  ['ct-summary','ct-mapping','ct-glmap'].forEach(id=>{
+    const d=document.getElementById(id);
+    if(d)d.style.display=(id==='ct-'+tab)?'block':'none';
   });
   document.querySelectorAll('#screen-contacts > .content > div:first-child .itab').forEach(t=>t.classList.remove('active'));
-  el.classList.add('active');
+  if(el)el.classList.add('active');
+  if(tab==='glmap')renderGLMapTable();
 }
 
 function swCtSub(tab,el){
@@ -1951,7 +1937,8 @@ function swCtSub(tab,el){
 // Helper: find value from imported fin data by flexible label matching
 function _impFinVal(entityKey,ftype,lastMonthOnly,...labels){
   const imp=(window._importedFin||{})[entityKey+'_'+ftype];
-  if(!imp||!imp.rows)return null;
+  // Guard: if import exists but has no months (failed parse), fall through to hardcoded values
+  if(!imp||!imp.rows||!imp.months||!imp.months.length)return null;
   const nk=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,' ').replace(/\s+/g,' ').trim();
   for(const lbl of labels){
     const lk=nk(lbl);
@@ -2722,7 +2709,9 @@ function switchGLMapTab(key,el){
 function openGLMapForUnmatched(entity,ftype,xeroLabel){
   const key=entity+'_'+ftype;
   glmKey=key;
-  go('glmap',document.querySelector('.nav-item[onclick*="glmap"]'));
+  // Navigate to Contacts screen → GL Accounts tab
+  go('contacts',document.querySelector('.nav-item[onclick*="contacts"]'));
+  swCtMain('glmap',document.querySelector('#screen-contacts .itab[onclick*="glmap"]'));
   document.querySelectorAll('#glmap-tabs .itab').forEach(t=>{
     if(t.dataset.key===key)t.classList.add('active'); else t.classList.remove('active');
   });
