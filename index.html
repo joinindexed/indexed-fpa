@@ -1911,9 +1911,17 @@ function processImport(file,entity){
   loadSheetJS(()=>{
     file.arrayBuffer().then(buf=>{
       try{
-        const wb=window.XLSX.read(buf,{type:'array',cellDates:false,raw:false});
+        const wb=window.XLSX.read(buf,{type:'array',cellDates:true,raw:false});
         const ws=wb.Sheets[wb.SheetNames[0]];
-        const rows=window.XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});
+        // Convert Date objects in header rows to "DD Mon YYYY" strings before parsing
+        const rawRows=window.XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});
+        const rows=rawRows.map(row=>row.map(c=>{
+          if(c instanceof Date&&!isNaN(c)){
+            const mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            return `${c.getDate()} ${mo[c.getMonth()]} ${c.getFullYear()}`;
+          }
+          return c;
+        }));
         // Content-based type detection overrides filename if filename was ambiguous
         if(ftype==='gl'){
           const detected=detectFileTypeFromContent(rows);
@@ -2045,25 +2053,49 @@ function parseXeroBS(rows,entity){
     return null;
   }
 
-  // Find month columns — search up to 25 rows
+  // Find month columns — search up to 25 rows.
+  // IMPORTANT: col 0 is always the account label column in Xero BS exports.
+  // "As at 30 April 2026" appears in col 0 as a title — we must NOT use that as a data column.
+  // The real date header is in col 1+ (either as "30 Apr 2026" or a date serial).
+  // Strategy: prefer a row where date hits are in col>=1; fall back to col 0 only as last resort.
   let colMonths=[], headerRow=-1;
+  // First pass: look for dates in col 1+ (real header row)
   for(let i=0;i<Math.min(rows.length,25);i++){
     const rs=rows[i].map(c=>String(c||'').trim());
-    const hits=rs.map((c,ci)=>{const m=extractMonth(c);return m?{ci,month:m}:null;}).filter(Boolean);
+    const hits=rs.map((c,ci)=>{if(ci===0)return null;const m=extractMonth(c);return m?{ci,month:m}:null;}).filter(Boolean);
     if(hits.length>=1){colMonths=hits;headerRow=i;break;}
+  }
+  // Second pass: if no col>=1 date found, try col 0 title (single-col edge case)
+  if(colMonths.length===0){
+    for(let i=0;i<Math.min(rows.length,25);i++){
+      const rs=rows[i].map(c=>String(c||'').trim());
+      // Only use col 0 if row has only 1-2 non-empty cells (pure title row, last col = data)
+      const nonEmpty=rs.filter(Boolean);
+      if(nonEmpty.length<=2){
+        const m=extractMonth(rs[0]);
+        if(m){
+          // Use last non-empty column index as data column
+          const lastCi=rs.map((v,ci)=>v?ci:-1).filter(x=>x>=0).pop()||1;
+          colMonths=[{ci:lastCi,month:m}];headerRow=i;break;
+        }
+      }
+    }
   }
 
   if(colMonths.length===0)return result;
   colMonths.forEach(({month})=>{if(!result.months.includes(month))result.months.push(month);});
 
-  // Parse account rows after header
+  // Parse account rows after header — look for rows with a label in col 0 and a number in data col
   for(let i=headerRow+1;i<rows.length;i++){
     const rs=rows[i].map(c=>String(c||'').trim());
     const label=rs[0];
     if(!label||/^total|^grand/i.test(label))continue;
+    // Skip rows where col 0 looks like a date (section title misread as data)
+    if(extractMonth(label))continue;
     const vals={};
     colMonths.forEach(({ci,month})=>{vals[month]=parseFl(rs[ci]);});
-    result.rows.push({label,vals});
+    // Only include rows that have at least one non-zero value
+    if(Object.values(vals).some(v=>v!==0))result.rows.push({label,vals});
   }
   return result;
 }
