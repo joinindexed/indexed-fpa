@@ -2235,6 +2235,7 @@ function parseXeroAccountTx(rows,entity){
         curAcct=first;
         isBank=BANKS.some(p=>first.toLowerCase().includes(p));
         isPlatformFee=!isBank&&PLATFORM_FEE_ACCTS.some(p=>first.toLowerCase().includes(p));
+        console.log('[GL Parser] Account section:', JSON.stringify(first), '| isBank:', isBank, '| isPlatformFee:', isPlatformFee);
         continue;
       }
     }
