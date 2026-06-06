@@ -220,7 +220,7 @@ input,select{font-family:var(--sans)}
 <div id="screen-dash" class="screen active">
   <div class="page-header">
     <div><div class="page-title">Dashboard <em id="dash-el"></em></div>
-    <div class="page-sub">Jan–Apr 2026 actuals · All values in USD · Toggle entity above</div></div>
+    <div class="page-sub" id="sub-dash">Jan–Apr 2026 actuals · All values in USD · Toggle entity above</div></div>
   </div>
   <div class="content">
     <div class="metrics" id="dash-kpis" style="grid-template-columns:repeat(5,1fr)"></div>
@@ -240,7 +240,7 @@ input,select{font-family:var(--sans)}
 <div id="screen-cf" class="screen">
   <div class="page-header">
     <div><div class="page-title">Cash flow <em id="cf-el"></em></div>
-    <div class="page-sub">Jan–Apr 2026 actuals · All values in USD</div></div>
+    <div class="page-sub" id="sub-cf">Jan–Apr 2026 actuals · All values in USD</div></div>
   </div>
   <div class="content">
     <div class="card">
@@ -258,7 +258,7 @@ input,select{font-family:var(--sans)}
 <div id="screen-fin" class="screen">
   <div class="page-header">
     <div><div class="page-title">Financials <em id="fin-el">· Consolidated</em></div>
-    <div class="page-sub">Jan–Apr 2026 · Exact from Xero · Toggle entity above</div></div>
+    <div class="page-sub" id="sub-fin">Jan–Apr 2026 · Exact from Xero · Toggle entity above</div></div>
   </div>
   <div class="content">
     <div class="itabs" style="background:transparent;padding:0;margin-bottom:14px;border-bottom:1px solid var(--border)">
@@ -281,7 +281,7 @@ input,select{font-family:var(--sans)}
 <!-- FCAST AR -->
 <div id="screen-fcast-ar" class="screen">
   <div class="page-header">
-    <div><div class="page-title">AR Pipeline</div><div class="page-sub">Forecast cash collections · May–Dec 2026</div></div>
+    <div><div class="page-title">AR Pipeline</div><div class="page-sub" id="sub-ar">Forecast cash collections · Jun–Dec 2026</div></div>
     <div style="display:flex;gap:8px;align-items:center">
       <button onclick="exportARCSV()" style="padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:var(--sans)">↓ Export CSV</button>
       <label style="padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:var(--sans);white-space:nowrap">↑ Import
@@ -332,7 +332,7 @@ input,select{font-family:var(--sans)}
 <!-- FCAST AP -->
 <div id="screen-fcast-ap" class="screen">
   <div class="page-header">
-    <div><div class="page-title">AP Schedule</div><div class="page-sub">Forecast cash payments · May–Dec 2026</div></div>
+    <div><div class="page-title">AP Schedule</div><div class="page-sub" id="sub-ap">Forecast cash payments · Jun–Dec 2026</div></div>
     <div style="display:flex;gap:8px;align-items:center">
       <button onclick="exportAPCSV()" style="padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:var(--sans)">↓ Export CSV</button>
       <label style="padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:var(--sans);white-space:nowrap">↑ Import
@@ -383,7 +383,7 @@ input,select{font-family:var(--sans)}
 <!-- CONTACTS -->
 <div id="screen-contacts" class="screen">
   <div class="page-header">
-    <div><div class="page-title">Contacts</div><div class="page-sub">Cash flow by contact · Map contacts to display groups · Jan–Apr actuals</div></div>
+    <div><div class="page-title">Contacts</div><div class="page-sub" id="sub-contacts">Cash flow by contact · Map contacts to display groups · Jan–Apr actuals</div></div>
     <div><button onclick="saveMappings()" style="padding:7px 14px;border-radius:6px;font-size:16.0px;font-weight:500;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">Save mappings</button></div>
   </div>
   <div class="content">
@@ -2630,9 +2630,8 @@ function applyImport(entity,ftype){
     }
   }
 
-  // Update sidebar actuals label
-  const sa=document.getElementById('sidebar-actuals');
-  if(sa)sa.textContent=`${E[E.length-1]} 2026`;
+  // Update all actuals-range labels and recompute FCST_MONTHS
+  updateActualsLabels();
 
   const prev=document.getElementById('import-preview-'+entity);
   const ftLabel={gl:'Account Transactions',bs:'Balance Sheet',pl:'P&L'}[ftype]||ftype;
@@ -2647,9 +2646,27 @@ function applyImport(entity,ftype){
 }
 
 // ── Forecast data persistence ──
-const FCST_MONTHS = ['May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+let FCST_MONTHS = ['Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const FCST_YEAR = '2026';
 const ALL_MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+// Recompute FCST_MONTHS and update all page subtitles whenever E changes.
+function updateActualsLabels(){
+  const lastAct=E[E.length-1]||'Dec';
+  const lastIdx=ALL_MONTHS.indexOf(lastAct);
+  FCST_MONTHS=ALL_MONTHS.slice(lastIdx+1); // months after last actuals
+  const firstAct=E[0]||'Jan';
+  const actRange=`${firstAct}–${lastAct} 2026`;
+  const fcstRange=FCST_MONTHS.length?`${FCST_MONTHS[0]}–${FCST_MONTHS[FCST_MONTHS.length-1]} 2026`:'—';
+  const s=id=>document.getElementById(id);
+  if(s('sub-dash'))s('sub-dash').textContent=`${actRange} actuals · All values in USD · Toggle entity above`;
+  if(s('sub-cf'))s('sub-cf').textContent=`${actRange} actuals · All values in USD`;
+  if(s('sub-fin'))s('sub-fin').textContent=`${actRange} · Exact from Xero · Toggle entity above`;
+  if(s('sub-ar'))s('sub-ar').textContent=`Forecast cash collections · ${fcstRange}`;
+  if(s('sub-ap'))s('sub-ap').textContent=`Forecast cash payments · ${fcstRange}`;
+  if(s('sub-contacts'))s('sub-contacts').textContent=`Cash flow by contact · Map contacts to display groups · ${actRange} actuals`;
+  if(s('sidebar-actuals'))s('sidebar-actuals').textContent=`${lastAct} 2026`;
+}
 function getMonthIdx(m){const i=ALL_MONTHS.indexOf(m);return i>=0?i:99;}
 let AR_FCST = [];
 let AP_FCST = [];
@@ -3999,6 +4016,8 @@ function submitPwd(){
 // Apply any user-defined template rows before replaying imports
 try{applyUserRows();}catch(e){console.warn('applyUserRows:',e);}
 try{loadActuals();}catch(e){console.warn('loadActuals:',e);}
+// Sync all date labels after actuals are loaded
+try{updateActualsLabels();}catch(e){}
 // Run immediately (script is at bottom of body so DOM is ready)
 try{renderDash();}catch(e){}
 try{renderCF();}catch(e){}
