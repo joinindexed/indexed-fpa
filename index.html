@@ -1328,7 +1328,6 @@ function buildCFGroups(isIn){
       :[...(BH_OUT_D[m]||[]),...(BC_OUT_D[m]||[])];
     txList.forEach(tx=>{
       if(ent!=='conso'&&tx.entity!==ent.toUpperCase())return;
-      if(!isIn&&isFee(tx.contact))return;
       const mapKey=tx.contact+'||'+tx.entity;
       const grpName=merged[mapKey]?.group||tx.contact;
       if(!groups[grpName])groups[grpName]={group:grpName,vals:{},entities:{BH:{vals:{}},BC:{vals:{}}}};
@@ -2322,13 +2321,20 @@ function parseXeroAccountTx(rows,entity){
         result.outflow[month].push({date:dayLbl,contact,entity,amt:credit,type:'Variable',account:curAcct,client});
       }
     } else if(isPlatformFee){
-      // Only net fees that were directly deducted from a bank account by the payment processor.
-      // Check: Related account (col 29) must reference a bank account (e.g. "Payoneer USD", "WIO- AED").
-      // Entries via AP/accruals (Skaud, Skuad payroll fees) have Related = "800 - AP" or "851 - Accruals"
-      // — those are separate vendor payments already captured as outflows in the bank section, skip them.
+      // Only net fees that are genuine payment processor charges deducted from a bank account.
+      // Two conditions must BOTH hold:
+      // 1. Related account contains a bank name (e.g. "Payoneer USD", "WIO- AED") — ensures the fee
+      //    was directly deducted from our bank, not via AP/accruals.
+      // 2. Contact is a payment processor (Payoneer, Stripe, Bank Fees, etc.), NOT a payroll vendor
+      //    like Skaud/Skuad which may also be coded to 323 but are separate vendor payments.
       const related=cRelated>=0?rs[cRelated]:'';
+      const contact=cContact>=0?rs[cContact]:'';
+      const desc=rs[3]||''; // Xero sometimes puts contact name as number in col2; description in col3
       const isDirectBankDeduction=BANKS.some(p=>related.toLowerCase().includes(p));
       if(!isDirectBankDeduction)continue;
+      // Skip Skaud/Skuad payroll fees — they appear in 323 but are vendor payments, not processor charges.
+      // In Bravecore's GL format, contact (col2) may be a raw number; check description (col3) as well.
+      if(/skau?d/i.test(contact)||/skau?d/i.test(desc))continue;
       const client=cClient>=0?rs[cClient]:'';
       const debit=parseFl(row[cDebit]);
       if(debit>0&&client){
