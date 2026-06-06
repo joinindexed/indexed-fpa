@@ -197,6 +197,8 @@ input,select{font-family:var(--sans)}
     <div class="nav-section">Mapping</div>
     <div class="nav-item" onclick="go('contacts',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Contacts</div>
+    <div class="nav-item" onclick="go('glmap',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 7h12M8 12h12M8 17h12M4 7h.01M4 12h.01M4 17h.01"/></svg>GL Accounts</div>
     <div class="nav-section">Settings</div>
     <div class="nav-item" onclick="go('import',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M16 12l-4 4m0 0l-4-4m4 4V4"/></svg>Import data</div>
@@ -414,6 +416,53 @@ input,select{font-family:var(--sans)}
       <div style="background:var(--accent-light);border:1px solid var(--border);border-radius:8px;padding:12px 16px;font-size:15.0px;color:var(--text2);margin-top:4px">
         <strong style="color:var(--accent)">How it works:</strong> Assign the same group name to multiple contacts and they'll be merged into one row in the Summary. Click any group row to expand and see the underlying contacts. Changes apply immediately when you click Save.
       </div>
+    </div>
+  </div>
+</div>
+
+<div id="screen-glmap" class="screen">
+  <div class="page-header">
+    <div><div class="page-title">GL Account Mapping</div><div class="page-sub">Map Xero account names to dashboard labels · Prevents import mismatches automatically</div></div>
+    <div><button class="save-btn-glmap" onclick="saveGLMappings()" style="padding:7px 14px;border-radius:6px;font-size:16.0px;font-weight:500;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">Save mappings</button></div>
+  </div>
+  <div class="content">
+    <div id="glmap-tabs" style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:14px">
+      <div class="itab active" data-key="bc_pl" onclick="switchGLMapTab('bc_pl',this)" style="padding:9px 16px">BC P&amp;L</div>
+      <div class="itab" data-key="bh_pl" onclick="switchGLMapTab('bh_pl',this)" style="padding:9px 16px">BH P&amp;L</div>
+      <div class="itab" data-key="bc_bs" onclick="switchGLMapTab('bc_bs',this)" style="padding:9px 16px">BC Balance Sheet</div>
+      <div class="itab" data-key="bh_bs" onclick="switchGLMapTab('bh_bs',this)" style="padding:9px 16px">BH Balance Sheet</div>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">Xero account → Dashboard label</span>
+        <span class="card-hint">Add a row to fix any label that doesn't match automatically</span>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="dt" style="width:100%">
+          <thead><tr>
+            <th style="text-align:left">Xero Account Name</th>
+            <th style="text-align:center;width:40px"></th>
+            <th style="text-align:left">Dashboard Label</th>
+            <th style="width:60px"></th>
+          </tr></thead>
+          <tbody id="glmap-table-body"></tbody>
+          <tfoot><tr>
+            <td style="padding:8px 10px">
+              <input id="glmap-xero-input" type="text" placeholder="Exact Xero account name…" style="width:100%;padding:6px 10px;border:1px solid var(--border2);border-radius:5px;font-size:14px;background:var(--surface2);color:var(--text);font-family:var(--sans)">
+            </td>
+            <td style="text-align:center;padding:8px 4px;color:var(--text3)">→</td>
+            <td style="padding:8px 10px">
+              <select id="glmap-tmpl-select" style="width:100%;padding:6px 10px;border:1px solid var(--border2);border-radius:5px;font-size:14px;background:var(--surface2);color:var(--text);font-family:var(--sans)"></select>
+            </td>
+            <td style="padding:8px 10px">
+              <button onclick="addGLMapping()" style="padding:6px 12px;border-radius:5px;border:1px solid var(--accent);background:var(--accent);color:#fff;font-size:13px;cursor:pointer;font-family:var(--sans);white-space:nowrap">+ Add</button>
+            </td>
+          </tr></tfoot>
+        </table>
+      </div>
+    </div>
+    <div style="background:var(--accent-light);border:1px solid var(--border);border-radius:8px;padding:12px 16px;font-size:15.0px;color:var(--text2);margin-top:4px">
+      <strong style="color:var(--accent)">How it works:</strong> During import, if a Xero account name doesn't match any dashboard label automatically, the mapping table above is checked. Add a row here and it will be applied on every future import — no more manual fixes needed. You can also click <strong>"Map this →"</strong> in the import preview to jump here with the label pre-filled.
     </div>
   </div>
 </div>
@@ -1225,6 +1274,7 @@ function go(id,el){
   if(id==='cf')renderCF();
   if(id==='fin')renderFin();
   if(id==='contacts')renderContacts();
+  if(id==='glmap')renderGLMapTable();
   if(id==='import')initImport();
   if(id==='fcast-ar')renderFcastAR();
   if(id==='fcast-ap')renderFcastAP();
@@ -1680,6 +1730,10 @@ function renderFinTable(id,rows,curEnt,showYTD){
 // Persisted in localStorage key 'ct_map'
 let CT_MAP = {};
 try { CT_MAP = JSON.parse(localStorage.getItem('ct_map')||'{}'); } catch(e){}
+
+let GL_MAPPINGS={};
+try{GL_MAPPINGS=JSON.parse(localStorage.getItem('gl_mappings')||'{}');}catch(e){}
+var glmKey='bc_pl';
 
 // No pre-seeded groups — you define everything in the mapping tab
 // getMergedMap returns only what the user has explicitly set
@@ -2353,7 +2407,8 @@ function renderImportPreview(entity,parsed,ftype){
       const uid='diag-'+entity+'-'+ftype;
       const rows=unmatched.map(u=>{
         const cells=months.map(m=>`<td style="text-align:right;padding:3px 8px;color:var(--amber)">${$f(u.vals[m]||0)}</td>`).join('');
-        return `<tr><td style="padding:3px 8px;color:var(--amber);font-size:13px">${u.xero}</td>${cells}</tr>`;
+        const mapBtn=`<button onclick="openGLMapForUnmatched('${entity}','${ftype}',${JSON.stringify(u.xero)})" style="font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--amber);background:none;color:var(--amber);cursor:pointer;white-space:nowrap;font-family:var(--sans)">Map this →</button>`;
+        return `<tr><td style="padding:3px 8px;color:var(--amber);font-size:13px">${u.xero} ${mapBtn}</td>${cells}</tr>`;
       }).join('');
       matchHtml=`<details id="${uid}" style="margin-top:10px;border:1px solid var(--amber);border-radius:6px;padding:8px 12px">
         <summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.07em">
@@ -2365,7 +2420,7 @@ function renderImportPreview(entity,parsed,ftype){
             ${months.map(m=>`<th style="text-align:right;padding:3px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">${m}</th>`).join('')}
           </tr></thead><tbody>${rows}</tbody>
         </table>
-        <div style="font-size:12px;color:var(--text3);margin-top:8px">To fix: add the exact Xero label to the template array, or adjust the existing label to match.</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:8px">Click "Map this →" to permanently fix the mismatch. The mapping is saved and applied automatically on every future import.</div>
       </details>`;
     } else if(matched.length){
       matchHtml=`<div style="margin-top:8px;font-size:12px;color:var(--green);font-weight:600">✓ All ${matched.length} rows matched to template</div>`;
@@ -2497,11 +2552,17 @@ function applyImport(entity,ftype){
     const dataRows=parsed.rows.filter(r=>r.type==='i'||r.type==='t');
     dataRows.forEach(r=>{
       const rk=normKey(r.label);
-      const hit=kpiTarget.find(t=>{
+      let hit=kpiTarget.find(t=>{
         if(!t.label)return false;
         const tk=normKey(t.label);
         return tk===rk||tk.includes(rk)||rk.includes(tk);
       });
+      // GL mapping fallback: if no direct match, check user-defined mappings
+      if(!hit){
+        const maps=(GL_MAPPINGS[entity+'_'+ftype])||[];
+        const map=maps.find(m=>normKey(m.xero)===rk);
+        if(map)hit=kpiTarget.find(t=>t.label&&normKey(t.label)===normKey(map.tmpl));
+      }
       if(hit&&hit.v){
         parsed.months.forEach(m=>{const i=E.indexOf(m);if(i>=0)hit.v[i]=r.vals[m]||0;});
       }
@@ -2579,6 +2640,7 @@ function saveActuals(){
     });
     if(window._importedFin)snap._importedFin=window._importedFin;
     if(window._xeroTotals)snap._xeroTotals=window._xeroTotals;
+    if(GL_MAPPINGS&&Object.keys(GL_MAPPINGS).length)snap._glMappings=GL_MAPPINGS;
     localStorage.setItem('actuals_snap',JSON.stringify(snap));
   }catch(e){}
 }
@@ -2590,6 +2652,7 @@ function loadActuals(){
     // Restore imported fin data first (so renderFin works immediately)
     if(snap._importedFin){window._importedFin=snap._importedFin;}
     if(snap._xeroTotals){window._xeroTotals=snap._xeroTotals;}
+    if(snap._glMappings){GL_MAPPINGS=snap._glMappings;try{localStorage.setItem('gl_mappings',JSON.stringify(GL_MAPPINGS));}catch(e){}}
     // Replay GL imports through applyImport (updates Dashboard/CF)
     ['bh','bc'].forEach(e=>{
       ['gl','bs','pl'].forEach(ft=>{
@@ -2600,6 +2663,74 @@ function loadActuals(){
       });
     });
   }catch(e){console.warn('loadActuals failed',e);}
+}
+
+// ── GL Account Mapping functions ──
+function renderGLMapTable(){
+  const [ent,ft]=glmKey.split('_');
+  const tmplArr=ft==='pl'?(ent==='bh'?BH_PL:BC_PL):(ent==='bh'?BH_BS:BC_BS);
+  const tmplLabels=tmplArr.filter(r=>r.type==='i'&&r.label).map(r=>r.label);
+  const maps=GL_MAPPINGS[glmKey]||[];
+  const rows=maps.length?maps.map((m,i)=>`
+    <tr>
+      <td style="padding:7px 10px;font-size:14px">${esc(m.xero)}</td>
+      <td style="padding:7px 10px;color:var(--text3);text-align:center">→</td>
+      <td style="padding:7px 10px;font-size:14px;color:var(--accent)">${esc(m.tmpl)}</td>
+      <td style="padding:7px 10px;text-align:right"><button onclick="deleteGLMapping(${i})" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:16px;padding:2px 6px">🗑</button></td>
+    </tr>`).join('')
+    :`<tr><td colspan="4" style="padding:16px;text-align:center;color:var(--text3);font-size:14px">No mappings yet — add one below</td></tr>`;
+  const opts=tmplLabels.map(l=>`<option value="${esc(l)}">${esc(l)}</option>`).join('');
+  const tb=document.getElementById('glmap-table-body');
+  const sel=document.getElementById('glmap-tmpl-select');
+  if(tb)tb.innerHTML=rows;
+  if(sel)sel.innerHTML=opts;
+}
+
+function addGLMapping(){
+  const xeroInput=document.getElementById('glmap-xero-input');
+  const tmplSelect=document.getElementById('glmap-tmpl-select');
+  const xero=(xeroInput.value||'').trim();
+  const tmpl=(tmplSelect.value||'').trim();
+  if(!xero||!tmpl){alert('Both fields are required.');return;}
+  if(!GL_MAPPINGS[glmKey])GL_MAPPINGS[glmKey]=[];
+  const exists=GL_MAPPINGS[glmKey].find(m=>normKey(m.xero)===normKey(xero));
+  if(exists){exists.tmpl=tmpl;}else{GL_MAPPINGS[glmKey].push({xero,tmpl});}
+  xeroInput.value='';
+  renderGLMapTable();
+}
+
+function deleteGLMapping(idx){
+  if(!GL_MAPPINGS[glmKey])return;
+  GL_MAPPINGS[glmKey].splice(idx,1);
+  renderGLMapTable();
+}
+
+function saveGLMappings(){
+  try{localStorage.setItem('gl_mappings',JSON.stringify(GL_MAPPINGS));}catch(e){}
+  const btn=document.querySelector('#screen-glmap .save-btn-glmap');
+  if(btn){btn.textContent='Saved ✓';setTimeout(()=>btn.textContent='Save mappings',1500);}
+  if(!_sbPulling)sbPush();
+}
+
+function switchGLMapTab(key,el){
+  glmKey=key;
+  document.querySelectorAll('#glmap-tabs .itab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  renderGLMapTable();
+}
+
+function openGLMapForUnmatched(entity,ftype,xeroLabel){
+  const key=entity+'_'+ftype;
+  glmKey=key;
+  go('glmap',document.querySelector('.nav-item[onclick*="glmap"]'));
+  document.querySelectorAll('#glmap-tabs .itab').forEach(t=>{
+    if(t.dataset.key===key)t.classList.add('active'); else t.classList.remove('active');
+  });
+  renderGLMapTable();
+  setTimeout(()=>{
+    const inp=document.getElementById('glmap-xero-input');
+    if(inp){inp.value=xeroLabel;inp.focus();}
+  },50);
 }
 
 function normalizeToISO(v){
@@ -3644,6 +3775,7 @@ function sbPush(){
     sbStatus('Syncing…');
     try{
       const payload={ar_fcst:AR_FCST,ap_fcst:AP_FCST,ct_map:CT_MAP,updated_at:new Date().toISOString(),updated_by:'karan'};
+      if(GL_MAPPINGS&&Object.keys(GL_MAPPINGS).length)payload.gl_mappings=GL_MAPPINGS;
       const r=await fetch(`${SB_URL}/rest/v1/forecast_data?id=eq.1`,{
         method:'PATCH',headers:SB_HDR,body:JSON.stringify(payload)
       });
@@ -3666,6 +3798,7 @@ async function sbPull(){
     if(d.ar_fcst&&d.ar_fcst.length){AR_FCST=d.ar_fcst.map(recalcARRow);try{localStorage.setItem('ar_fcst',JSON.stringify(AR_FCST));}catch(e){}changed=true;}
     if(d.ap_fcst&&d.ap_fcst.length){AP_FCST=d.ap_fcst;try{localStorage.setItem('ap_fcst',JSON.stringify(AP_FCST));}catch(e){}changed=true;}
     if(d.ct_map&&Object.keys(d.ct_map).length){CT_MAP=d.ct_map;try{localStorage.setItem('ct_map',JSON.stringify(CT_MAP));}catch(e){}}
+    if(d.gl_mappings&&Object.keys(d.gl_mappings).length){GL_MAPPINGS=d.gl_mappings;try{localStorage.setItem('gl_mappings',JSON.stringify(GL_MAPPINGS));}catch(e){}}
     _sbPulling=false;
     if(changed){renderDash();renderCF();renderFcastAR();renderFcastAP();renderContacts();}
     const ts=d.updated_at?new Date(d.updated_at).toLocaleString():'—';
@@ -3686,6 +3819,7 @@ async function sbPull(){
     if(d.ar_fcst&&d.ar_fcst.length){AR_FCST=d.ar_fcst.map(recalcARRow);try{localStorage.setItem('ar_fcst',JSON.stringify(AR_FCST));}catch(e){}changed=true;}
     if(d.ap_fcst&&d.ap_fcst.length){AP_FCST=d.ap_fcst;try{localStorage.setItem('ap_fcst',JSON.stringify(AP_FCST));}catch(e){}changed=true;}
     if(d.ct_map&&Object.keys(d.ct_map).length){CT_MAP=d.ct_map;try{localStorage.setItem('ct_map',JSON.stringify(CT_MAP));}catch(e){}}
+    if(d.gl_mappings&&Object.keys(d.gl_mappings).length){GL_MAPPINGS=d.gl_mappings;try{localStorage.setItem('gl_mappings',JSON.stringify(GL_MAPPINGS));}catch(e){}}
     _sbPulling=false;
     if(changed){renderDash();renderCF();renderFcastAR();renderFcastAP();}
     const ts=d.updated_at?new Date(d.updated_at).toLocaleString():'—';
