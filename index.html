@@ -2310,6 +2310,46 @@ function renderImportPreview(entity,parsed,ftype){
     if(!rowsHtml)rowsHtml=`<tr><td colspan="${months.length+2}" style="padding:8px;color:var(--text3);text-align:center">No rows detected</td></tr>`;
   }
 
+  // ── Match diagnostics (BS / PL only) ────────────────────────────────────
+  let matchHtml='';
+  if(ftype==='bs'||ftype==='pl'){
+    const isB=entity==='bh';
+    const kpiTarget=ftype==='bs'?(isB?BH_BS:BC_BS):(isB?BH_PL:BC_PL);
+    const dataRows=(parsed.rows||[]).filter(r=>(r.type==='i'||r.type==='t')&&months.some(m=>r.vals[m]!==0));
+    const unmatched=[], matched=[];
+    dataRows.forEach(r=>{
+      const rk=normKey(r.label);
+      const hit=kpiTarget.find(t=>{
+        if(!t.label)return false;
+        const tk=normKey(t.label);
+        return tk===rk||tk.includes(rk)||rk.includes(tk);
+      });
+      if(hit){matched.push({xero:r.label,tmpl:hit.label,vals:r.vals});}
+      else{unmatched.push({xero:r.label,vals:r.vals});}
+    });
+    if(unmatched.length){
+      const uid='diag-'+entity+'-'+ftype;
+      const rows=unmatched.map(u=>{
+        const cells=months.map(m=>`<td style="text-align:right;padding:3px 8px;color:var(--amber)">${$f(u.vals[m]||0)}</td>`).join('');
+        return `<tr><td style="padding:3px 8px;color:var(--amber);font-size:13px">${u.xero}</td>${cells}</tr>`;
+      }).join('');
+      matchHtml=`<details id="${uid}" style="margin-top:10px;border:1px solid var(--amber);border-radius:6px;padding:8px 12px">
+        <summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.07em">
+          ⚠ ${unmatched.length} unmatched row${unmatched.length>1?'s':''} — these won't appear on the dashboard
+        </summary>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:8px">
+          <thead><tr>
+            <th style="text-align:left;padding:3px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">Xero label (not found in template)</th>
+            ${months.map(m=>`<th style="text-align:right;padding:3px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">${m}</th>`).join('')}
+          </tr></thead><tbody>${rows}</tbody>
+        </table>
+        <div style="font-size:12px;color:var(--text3);margin-top:8px">To fix: add the exact Xero label to the template array, or adjust the existing label to match.</div>
+      </details>`;
+    } else if(matched.length){
+      matchHtml=`<div style="margin-top:8px;font-size:12px;color:var(--green);font-weight:600">✓ All ${matched.length} rows matched to template</div>`;
+    }
+  }
+
   const ftLabel={gl:'Account Transactions',bs:'Balance Sheet',pl:'Profit & Loss'}[ftype]||ftype.toUpperCase();
   el.innerHTML=`<div style="margin-top:12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px">
     <div style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">${ftLabel} Preview — ${months.join(', ')}</div>
@@ -2319,6 +2359,7 @@ function renderImportPreview(entity,parsed,ftype){
         ${months.map(m=>`<th style="text-align:right;padding:4px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">${m}</th>`).join('')}
         <th style="text-align:right;padding:4px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">${ftype==='bs'?'':'YTD'}</th>
       </tr></thead><tbody>${rowsHtml}</tbody></table>
+    ${matchHtml}
     <div style="text-align:right;margin-top:12px">
       <button onclick="applyImport('${entity}','${ftype}')" style="padding:6px 16px;border-radius:6px;font-size:15px;font-weight:600;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">Apply import →</button>
     </div>
