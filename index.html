@@ -2192,7 +2192,7 @@ function parseXeroAccountTx(rows,entity){
   // Expense accounts whose debits are netted against the matching customer inflow (same client, same month)
   const PLATFORM_FEE_ACCTS=['payment platform'];
   let curAcct=null,isBank=false,isPlatformFee=false;
-  let cDate=-1,cDesc=-1,cDebit=-1,cCredit=-1,cBal=-1,cClient=-1;
+  let cDate=-1,cDesc=-1,cDebit=-1,cCredit=-1,cBal=-1,cClient=-1,cSource=-1;
   const result={entity,months:new Set(),inflow:{},outflow:{},bankClose:{}};
   // Staging area for platform fees: {month: {clientKey: totalFee}}
   const platformFees={};
@@ -2250,6 +2250,7 @@ function parseXeroAccountTx(rows,entity){
       cBal=rs.findIndex(c=>/running balance/i.test(c));
       if(cBal<0)cBal=rs.findIndex(c=>/^balance$/i.test(c));
       cClient=rs.findIndex(c=>/^client$/i.test(c));
+      cSource=rs.findIndex(c=>/^source$/i.test(c));
       continue;
     }
 
@@ -2293,6 +2294,8 @@ function parseXeroAccountTx(rows,entity){
     if((!isBank&&!isPlatformFee)||cDate<0)continue;
     const dateVal=rs[cDate];if(!dateVal)continue;
     const dt=parseDt(dateVal);if(!dt)continue;
+    // Skip contra/internal bank transfers — they net to zero and should not appear in cash flow
+    if(cSource>=0&&/^bank transfer$/i.test(rs[cSource]))continue;
     const month=MO[dt.getMonth()];
     result.months.add(month);
 
