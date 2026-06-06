@@ -2034,131 +2034,124 @@ function parseXeroAccountTx(rows,entity){
   return result;
 }
 
-function parseXeroBS(rows,entity){
-  // Supports "As at DD Month YYYY", "30 April 2026", "Apr 2026", "30/04/2026" headers
-  const result={entity,ftype:'bs',months:[],rows:[]};
-  const parseFl=v=>parseFloat(String(v||'').replace(/[,$\s]/g,''))||0;
-  const MONTH_NAMES=['january','february','march','april','may','june','july','august','september','october','november','december'];
-  const MO3=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+// ── Shared smart parser for BS and PL ──
+// Works regardless of column layout, indentation, date format, or number of periods.
+function _parseFinancialReport(rows,entity,ftype){
+  const result={entity,ftype,months:[],rows:[]};
+  const MO3X=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-  function extractMonth(c){
-    const s=String(c||'').trim();
+  // Parse any number to float, including parenthetical negatives like (1,234.56)
+  function pf(v){
+    if(typeof v==='number')return v;
+    const s=String(v===null||v===undefined?'':v).trim();
+    if(!s)return 0;
+    const neg=s.startsWith('(')||s.startsWith('-');
+    const n=parseFloat(s.replace(/[^0-9.]/g,''));
+    return isNaN(n)?0:(neg?-n:n);
+  }
+
+  // Recognise any date-like cell and return its 3-letter month abbr or null
+  function monthOf(v){
+    const s=String(v===null||v===undefined?'':v).trim();
     if(!s)return null;
-    // "Apr 2026", "April 2026", "30 April 2026", "As at 30 April 2026", "30 Apr 2026"
-    const m1=s.match(/([A-Za-z]{3,9})\s+\d{4}/i);
-    if(m1){const abbr=m1[1].substring(0,3);const idx=MO3.findIndex(x=>x.toLowerCase()===abbr.toLowerCase());return idx>=0?MO3[idx]:null;}
-    // "April 30, 2026" (US long format)
-    const m1b=s.match(/([A-Za-z]{3,9})\s+\d{1,2},?\s+\d{4}/i);
-    if(m1b){const abbr=m1b[1].substring(0,3);const idx=MO3.findIndex(x=>x.toLowerCase()===abbr.toLowerCase());return idx>=0?MO3[idx]:null;}
-    // "30-Apr-2026" or "30-April-2026"
-    const m1c=s.match(/\d{1,2}-([A-Za-z]{3,9})-\d{4}/i);
-    if(m1c){const abbr=m1c[1].substring(0,3);const idx=MO3.findIndex(x=>x.toLowerCase()===abbr.toLowerCase());return idx>=0?MO3[idx]:null;}
-    // "30/04/2026" DD/MM/YYYY
-    const m2=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if(m2){
-      const d1=parseInt(m2[1]),d2=parseInt(m2[2]);
-      // If first part > 12 it must be DD, second is MM
-      if(d1>12&&d2>=1&&d2<=12)return MO3[d2-1];
-      // If second part > 12 it must be DD, first is MM
-      if(d2>12&&d1>=1&&d1<=12)return MO3[d1-1];
-      // Xero uses DD/MM/YYYY by default
-      if(d2>=1&&d2<=12)return MO3[d2-1];
+    // Month name present: "Apr", "April", "Apr 2026", "April 2026",
+    // "30 Apr 2026", "30 April 2026", "As at 30 April 2026", "April 30, 2026", "30-Apr-2026"
+    const nm=s.match(/([A-Za-z]{3,9})/g)||[];
+    for(const w of nm){
+      const idx=MO3X.findIndex(m=>m.toLowerCase()===w.toLowerCase().substring(0,3));
+      if(idx>=0)return MO3X[idx];
     }
-    // "2026-04-30"
-    const m3=s.match(/^\d{4}-(\d{2})-\d{2}/);
-    if(m3){const mm=parseInt(m3[1]);if(mm>=1&&mm<=12)return MO3[mm-1];}
-    // "Apr-26" short year
-    const m4=s.match(/^([A-Za-z]{3})-(\d{2})$/);
-    if(m4){const idx=MO3.findIndex(x=>x.toLowerCase()===m4[1].toLowerCase());return idx>=0?MO3[idx]:null;}
+    // Numeric date: DD/MM/YYYY or MM/DD/YYYY or YYYY-MM-DD
+    const slash=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+    if(slash){
+      const a=parseInt(slash[1]),b=parseInt(slash[2]),c=parseInt(slash[3]);
+      // If c is 4-digit year: a/b/YYYY or YYYY
+      if(c>31){const mm=a>12?b:b>12?a:b;if(mm>=1&&mm<=12)return MO3X[mm-1];}
+      else if(a>31){const mm=b>=1&&b<=12?b:null;if(mm)return MO3X[mm-1];}
+    }
+    const iso=s.match(/^(\d{4})-(\d{2})-\d{2}/);
+    if(iso){const mm=parseInt(iso[2]);if(mm>=1&&mm<=12)return MO3X[mm-1];}
     return null;
   }
 
-  // Find month columns — search up to 25 rows.
-  // IMPORTANT: col 0 is always the account label column in Xero BS exports.
-  // "As at 30 April 2026" appears in col 0 as a title — we must NOT use that as a data column.
-  // The real date header is in col 1+ (either as "30 Apr 2026" or a date serial).
-  // Strategy: prefer a row where date hits are in col>=1; fall back to col 0 only as last resort.
-  let colMonths=[], headerRow=-1;
-  // First pass: look for dates in col 1+ (real header row)
-  for(let i=0;i<Math.min(rows.length,25);i++){
-    const rs=rows[i].map(c=>String(c||'').trim());
-    const hits=rs.map((c,ci)=>{if(ci===0)return null;const m=extractMonth(c);return m?{ci,month:m}:null;}).filter(Boolean);
-    if(hits.length>=1){colMonths=hits;headerRow=i;break;}
+  function isSkipLabel(s){
+    return !s||/^(total|grand|subtotal|net\s+assets|equity|assets|liabilities)/i.test(s);
   }
-  // Second pass: single-period BS — "As at 30 April 2026" is in col 0 as a title.
-  // We need to find the actual data column by scanning the first real data rows.
-  if(colMonths.length===0){
-    for(let i=0;i<Math.min(rows.length,25);i++){
-      const rs=rows[i].map(c=>String(c||'').trim());
-      const m=extractMonth(rs[0]);
-      if(m){
-        // Dynamically find data column: scan next 20 rows for first col>=1 with a non-zero number
-        let dataCi=1;
-        outer:for(let di=i+1;di<Math.min(rows.length,i+20);di++){
-          const dr=rows[di];
-          const lbl=String(dr&&dr[0]||'').trim();
-          if(!lbl||/^total|^grand|^assets|^liabilities|^equity/i.test(lbl)||extractMonth(lbl))continue;
-          const maxCols=Math.max((dr?dr.length:0),6);
-          for(let ci=1;ci<maxCols;ci++){
-            const raw=dr?dr[ci]:undefined;
-            const v=parseFl(String(raw===undefined||raw===null?'':raw).trim());
-            if(v!==0){dataCi=ci;break outer;}
-          }
-        }
-        colMonths=[{ci:dataCi,month:m}];headerRow=i;break;
-      }
+
+  // ── Step 1: Find all date cells in first 30 rows ──
+  const dateCells=[];
+  for(let r=0;r<Math.min(rows.length,30);r++){
+    const row=rows[r]||[];
+    for(let c=0;c<row.length;c++){
+      const m=monthOf(row[c]);
+      if(m)dateCells.push({r,c,month:m});
     }
   }
+  if(!dateCells.length)return result;
 
-  if(colMonths.length===0)return result;
+  // ── Step 2: Identify header row and data columns ──
+  // Prefer a row where 2+ dates appear in cols>=1 (explicit column headers)
+  // Fall back to a single date anywhere (title row / single-period)
+  let colMonths=[], headerRow=-1;
+
+  // Group date cells by row, looking only at col>=1
+  const byRow={};
+  dateCells.filter(d=>d.c>=1).forEach(d=>{
+    if(!byRow[d.r])byRow[d.r]=[];
+    byRow[d.r].push(d);
+  });
+  // Row with most date cells in col>=1 wins
+  const bestRow=Object.entries(byRow).sort((a,b)=>b[1].length-a[1].length)[0];
+  if(bestRow){
+    headerRow=parseInt(bestRow[0]);
+    colMonths=bestRow[1].map(d=>({ci:d.c,month:d.month}));
+  }
+
+  if(!colMonths.length){
+    // Single date somewhere — treat its row as title row, find data column dynamically
+    const titleDate=dateCells[0];
+    headerRow=titleDate.r;
+    // Scan up to 25 data rows to find first column (ci>=1) with a non-zero number
+    let dataCi=1;
+    outer:for(let ri=headerRow+1;ri<Math.min(rows.length,headerRow+25);ri++){
+      const row=rows[ri]||[];
+      const lbl=String(row[0]||'').trim();
+      if(isSkipLabel(lbl)||monthOf(lbl))continue;
+      if(!lbl)continue;
+      for(let ci=1;ci<Math.max(row.length,6);ci++){
+        if(pf(row[ci])!==0){dataCi=ci;break outer;}
+      }
+    }
+    colMonths=[{ci:dataCi,month:titleDate.month}];
+  }
+
   colMonths.forEach(({month})=>{if(!result.months.includes(month))result.months.push(month);});
 
-  // Parse account rows after header — look for rows with a label in col 0 and a number in data col
-  for(let i=headerRow+1;i<rows.length;i++){
-    const rs=rows[i].map(c=>String(c||'').trim());
-    const label=rs[0];
-    if(!label||/^total|^grand/i.test(label))continue;
-    // Skip rows where col 0 looks like a date (section title misread as data)
-    if(extractMonth(label))continue;
+  // ── Step 3: Parse data rows ──
+  for(let ri=headerRow+1;ri<rows.length;ri++){
+    const row=rows[ri]||[];
+    // Find label: first non-empty string in the row
+    let label='',labelCi=0;
+    for(let ci=0;ci<Math.min(row.length,4);ci++){
+      const s=String(row[ci]||'').trim();
+      if(s){label=s;labelCi=ci;break;}
+    }
+    if(!label||isSkipLabel(label)||monthOf(label))continue;
+
     const vals={};
-    colMonths.forEach(({ci,month})=>{vals[month]=parseFl(rs[ci]);});
-    // Only include rows that have at least one non-zero value
+    colMonths.forEach(({ci,month})=>{
+      // If data column is left of or at label column, try label+1 onward
+      const effectiveCi=ci>labelCi?ci:labelCi+1;
+      vals[month]=(vals[month]||0)+pf(row[effectiveCi]);
+    });
     if(Object.values(vals).some(v=>v!==0))result.rows.push({label,vals});
   }
+
   return result;
 }
 
-function parseXeroPL(rows,entity){
-  // P&L: column header row has month names; account rows follow
-  const result={entity,ftype:'pl',months:[],rows:[]};
-  const parseFl=v=>parseFloat(String(v||'').replace(/[,$\s]/g,''))||0;
-
-  let colMonths=[], headerRow=-1;
-  for(let i=0;i<Math.min(rows.length,25);i++){
-    const rs=rows[i].map(c=>String(c||'').trim());
-    const hits=rs.map((c,ci)=>{
-      // "Jan", "Jan 2026", "January", "January 2026"
-      const m=c.match(/^([A-Za-z]{3,9})(?:\s+\d{4})?$/);
-      if(!m)return null;
-      const idx=MO.findIndex(mo=>mo.toLowerCase()===m[1].toLowerCase().substring(0,3));
-      return idx>=0?{ci,month:MO[idx]}:null;
-    }).filter(Boolean);
-    if(hits.length>=2){colMonths=hits;headerRow=i;break;}
-  }
-
-  if(colMonths.length===0)return result;
-  colMonths.forEach(({month})=>{if(!result.months.includes(month))result.months.push(month);});
-
-  for(let i=headerRow+1;i<rows.length;i++){
-    const rs=rows[i].map(c=>String(c||'').trim());
-    const label=rs[0];
-    if(!label||/^total|^grand/i.test(label))continue;
-    const vals={};
-    colMonths.forEach(({ci,month})=>{vals[month]=parseFl(rs[ci]);});
-    result.rows.push({label,vals});
-  }
-  return result;
-}
+function parseXeroBS(rows,entity){return _parseFinancialReport(rows,entity,'bs');}
+function parseXeroPL(rows,entity){return _parseFinancialReport(rows,entity,'pl');}
 
 function renderImportPreview(entity,parsed,ftype){
   const el=document.getElementById('import-preview-'+entity);
