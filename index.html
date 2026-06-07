@@ -2158,13 +2158,11 @@ function processImport(file,entity){
         const MO3C=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
         const rows=rawRows.map(row=>row.map(c=>{
           // Convert JS Date objects → "DD Mon YYYY" string
+          // (SheetJS cellDates:true handles all date-formatted cells; no need for a manual
+          //  serial-number fallback — that fallback incorrectly converts large financial
+          //  values like $52,759 that happen to fall in the Excel date serial range.)
           if(c instanceof Date&&!isNaN(c)){
             return `${c.getDate()} ${MO3C[c.getMonth()]} ${c.getFullYear()}`;
-          }
-          // Convert Excel date serial numbers (large integers, >40000) → "DD Mon YYYY"
-          if(typeof c==='number'&&c>40000&&c<60000&&Number.isInteger(c)){
-            const d=new Date(Math.round((c-25569)*86400*1000));
-            if(!isNaN(d))return `${d.getUTCDate()} ${MO3C[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
           }
           return c;
         }));
