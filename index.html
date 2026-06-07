@@ -7,10 +7,33 @@
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#0A0A0A;--surface:#141414;--surface2:#181818;--surface3:#1e1e1e;--border:rgba(255,255,255,0.08);--border2:rgba(255,255,255,0.12);--accent:#57D7E2;--accent-light:rgba(87,215,226,0.06);--accent-mid:#85E2E9;--accent-dark:#20B0BC;--accent-glow:rgba(87,215,226,0.25);--accent-border:rgba(87,215,226,0.20);--text:#F2F2F2;--text2:rgba(255,255,255,0.55);--text3:rgba(255,255,255,0.25);--red:#F87171;--green:#34D399;--green-dim:rgba(52,211,153,0.10);--blue:#57D7E2;--blue-dim:rgba(87,215,226,0.06);--amber:#FBBF24;--amber-dim:rgba(251,191,36,0.10);--sans:'Barlow',sans-serif}
-body.light{--bg:#F0F2F5;--surface:#FFFFFF;--surface2:#F5F7FA;--surface3:#E8ECF0;--border:rgba(0,0,0,0.08);--border2:rgba(0,0,0,0.14);--accent:#0BA5B4;--accent-light:rgba(11,165,180,0.07);--accent-mid:#0BA5B4;--accent-dark:#087A87;--accent-glow:rgba(11,165,180,0.20);--accent-border:rgba(11,165,180,0.25);--text:#111827;--text2:rgba(0,0,0,0.55);--text3:rgba(0,0,0,0.35);--red:#DC2626;--green:#059669;--green-dim:rgba(5,150,105,0.08);--blue:#0BA5B4;--blue-dim:rgba(11,165,180,0.07);--amber:#D97706;--amber-dim:rgba(217,119,6,0.08)}
-body.light table.cf tr.sr td{color:rgba(0,0,0,0.40)}
+body.light{--bg:#ECEEF2;--surface:#FFFFFF;--surface2:#F3F5F8;--surface3:#E5E8ED;--border:rgba(0,0,0,0.09);--border2:rgba(0,0,0,0.15);--accent:#0BA5B4;--accent-light:rgba(11,165,180,0.08);--accent-mid:#0BA5B4;--accent-dark:#087A87;--accent-glow:rgba(11,165,180,0.20);--accent-border:rgba(11,165,180,0.28);--text:#0F172A;--text2:rgba(0,0,0,0.58);--text3:rgba(0,0,0,0.38);--red:#C41F1F;--green:#047857;--green-dim:rgba(4,120,87,0.09);--blue:#0BA5B4;--blue-dim:rgba(11,165,180,0.08);--amber:#B45309;--amber-dim:rgba(180,83,9,0.09)}
+/* Light mode: sidebar and page-header get a subtle off-white tint */
+body.light .sidebar{background:#F7F9FB;border-right:1px solid rgba(0,0,0,0.10)}
+body.light .page-header{background:#F7F9FB;border-bottom:1px solid rgba(0,0,0,0.10)}
+/* Light mode: cards get a soft shadow for depth */
+body.light .card,body.light .mc,body.light .ie,body.light .cw{box-shadow:0 1px 3px rgba(0,0,0,0.06),0 2px 8px rgba(0,0,0,0.04);border-color:rgba(0,0,0,0.08)}
+/* Light mode: table section-header rows (↑ CASH INFLOW, Bank/Cash, etc.) */
+body.light table.cf tr.sr td{background:rgba(11,165,180,0.07);color:rgba(0,0,0,0.52);letter-spacing:.10em}
+body.light table.fin tr.fh td{background:rgba(11,165,180,0.07);color:rgba(0,0,0,0.52)}
+body.light table.fin tr.fsh td{background:rgba(0,0,0,0.025)}
+/* Light mode: stronger table th background */
+body.light table.cf th,body.light table.fin th,body.light table.drt th{background:#ECEEF2}
+body.light table.dt th{background:#ECEEF2}
+/* Light mode: fix accent link colour */
 body.light .ba{color:var(--accent)}
-body.light input,body.light select,body.light textarea{color-scheme:light}
+/* Light mode: inputs and selects get a proper border */
+body.light input,body.light select,body.light textarea{color-scheme:light;border-color:rgba(0,0,0,0.18)!important}
+/* Light mode: nav active item */
+body.light .nav-item.active{background:rgba(11,165,180,0.10);color:var(--accent)}
+/* Light mode: logo text */
+body.light .logo-title{color:var(--accent)}
+/* Light mode: KPI metric cards */
+body.light .mc{background:#FFFFFF}
+/* Light mode: itabs background */
+body.light .itabs{background:#F7F9FB}
+/* Light mode: drop zone */
+body.light .drop-zone{border-color:rgba(0,0,0,0.18)}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:17.0px;min-height:100vh}
 .shell{display:flex;height:100vh;overflow:hidden}
