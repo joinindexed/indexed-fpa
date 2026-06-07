@@ -4847,6 +4847,11 @@ async function sbPull(){
     if(changed){renderDash();renderCF();renderFcastAR();renderFcastAP();}
     const ts=d.updated_at?new Date(d.updated_at).toLocaleString():'—';
     sbStatus(`✓ Live · last saved ${ts}${d.updated_by?' by '+d.updated_by:''}`,true);
+    // If cloud has no actuals but we have local data, push ours up so other users can get it
+    if(!d.actuals_snap){
+      const localSnap=localStorage.getItem('actuals_snap');
+      if(localSnap&&localSnap!=='null')sbPush();
+    }
   }catch(e){_sbPulling=false;sbStatus('Offline — using local data',false);}
 })();
 
