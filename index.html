@@ -1114,7 +1114,7 @@ const BH_BS = [
   {label:'Total Current Assets',     type:'t',v:[30593.63,23680.61,40542.41,43698.41]},
   {g:'Fixed Assets',type:'sh'},
   {label:'Office Equipment',         entity:'BH',type:'i',v:[3848.60,3848.60,3848.60,3848.60]},
-  {label:'Less Accum. Depreciation', entity:'BH',type:'i',v:[-967.53,-1065.56,-1174.07,-1279.09]},
+  {label:'Less Accumulated Depreciation on Office Equipment', entity:'BH',type:'i',v:[-967.53,-1065.56,-1174.07,-1279.09]},
   {label:'Total Fixed Assets',       type:'t',v:[2881.07,2783.04,2674.53,2569.51]},
   {label:'Total Assets',             type:'gt',v:[94770.71,122035.28,146370.55,161131.02]},
   {g:'Liabilities',type:'h'},
@@ -1174,7 +1174,7 @@ const CONSO_BS = [
   {label:'Total Current Assets',     type:'t',v:[227987.63,233418.11,194458.41,178732.41]},
   {g:'Fixed Assets',type:'sh'},
   {label:'Office Equipment',         entity:'BH',type:'i',v:[3848.60,3848.60,3848.60,3848.60]},
-  {label:'Less Accum. Depreciation', entity:'BH',type:'i',v:[-967.53,-1065.56,-1174.07,-1279.09]},
+  {label:'Less Accumulated Depreciation on Office Equipment', entity:'BH',type:'i',v:[-967.53,-1065.56,-1174.07,-1279.09]},
   {label:'Total Fixed Assets',       type:'t',v:[2881.07,2783.04,2674.53,2569.51]},
   {label:'Total Assets',             type:'gt',v:[331214.43,389457.02,430014.59,458324.51]},
   {g:'Liabilities',type:'h'},
@@ -2541,22 +2541,28 @@ function renderImportPreview(entity,parsed,ftype){
     });
     if(unmatched.length){
       const uid='diag-'+entity+'-'+ftype;
-      const rows=unmatched.map(u=>{
+      const tmplLabels=kpiTarget.filter(r=>r.type==='i'&&r.label).map(r=>r.label);
+      const mapOpts='<option value="">— pick dashboard label —</option>'+tmplLabels.map(l=>`<option value="${esc(l)}">${esc(l)}</option>`).join('');
+      const rows=unmatched.map((u,ui)=>{
         const cells=months.map(m=>`<td style="text-align:right;padding:3px 8px;color:var(--amber)">${$f(u.vals[m]||0)}</td>`).join('');
-        const mapBtn=`<button onclick="openGLMapForUnmatched('${entity}','${ftype}',${JSON.stringify(u.xero)})" style="font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--amber);background:none;color:var(--amber);cursor:pointer;white-space:nowrap;font-family:var(--sans)">Map this →</button>`;
-        return `<tr><td style="padding:3px 8px;color:var(--amber);font-size:13px">${u.xero} ${mapBtn}</td>${cells}</tr>`;
+        const selId=`mapsel-${entity}-${ftype}-${ui}`;
+        const mapCtrl=`<span style="display:inline-flex;align-items:center;gap:4px;margin-left:6px;vertical-align:middle">
+          <select id="${selId}" style="font-size:11px;padding:2px 4px;border-radius:4px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-family:var(--sans)">${mapOpts}</select>
+          <button onclick="saveInlineMapping('${entity}','${ftype}',${JSON.stringify(u.xero)},document.getElementById('${selId}').value)" style="font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--green);background:none;color:var(--green);cursor:pointer;white-space:nowrap;font-family:var(--sans);font-weight:600">✓ Map</button>
+        </span>`;
+        return `<tr><td style="padding:3px 8px;color:var(--amber);font-size:13px">${esc(u.xero)}${mapCtrl}</td>${cells}</tr>`;
       }).join('');
-      matchHtml=`<details id="${uid}" style="margin-top:10px;border:1px solid var(--amber);border-radius:6px;padding:8px 12px">
+      matchHtml=`<details id="${uid}" open style="margin-top:10px;border:1px solid var(--amber);border-radius:6px;padding:8px 12px">
         <summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.07em">
           ⚠ ${unmatched.length} unmatched row${unmatched.length>1?'s':''} — these won't appear on the dashboard
         </summary>
         <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:8px">
           <thead><tr>
-            <th style="text-align:left;padding:3px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">Xero label (not found in template)</th>
+            <th style="text-align:left;padding:3px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">Xero label → pick dashboard label → ✓ Map</th>
             ${months.map(m=>`<th style="text-align:right;padding:3px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">${m}</th>`).join('')}
           </tr></thead><tbody>${rows}</tbody>
         </table>
-        <div style="font-size:12px;color:var(--text3);margin-top:8px">Click "Map this →" to permanently fix the mismatch. The mapping is saved and applied automatically on every future import.</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:8px">Select the matching dashboard label and click ✓ Map — saved permanently and applied instantly.</div>
       </details>`;
     } else if(matched.length){
       matchHtml=`<div style="margin-top:8px;font-size:12px;color:var(--green);font-weight:600">✓ All ${matched.length} rows matched to template</div>`;
@@ -3075,6 +3081,22 @@ function openGLMapForUnmatched(entity,ftype,xeroLabel){
     const inp=document.getElementById('glmap-xero-input');
     if(inp){inp.value=xeroLabel;inp.focus();}
   },50);
+}
+
+// Inline mapping: called directly from import preview — no navigation needed.
+// Saves the Xero→template mapping and immediately re-renders the preview.
+function saveInlineMapping(entity,ftype,xeroLabel,tmplLabel){
+  if(!tmplLabel){alert('Please select a dashboard label first.');return;}
+  const key=entity+'_'+ftype;
+  if(!GL_MAPPINGS[key])GL_MAPPINGS[key]=[];
+  const exists=GL_MAPPINGS[key].find(m=>normKey(m.xero)===normKey(xeroLabel));
+  if(exists)exists.tmpl=tmplLabel; else GL_MAPPINGS[key].push({xero:xeroLabel,tmpl:tmplLabel});
+  try{localStorage.setItem('gl_mappings',JSON.stringify(GL_MAPPINGS));}catch(e){}
+  // Re-render preview with new mapping applied
+  const parsed=importState[entity+'-'+ftype];
+  if(parsed)renderImportPreview(entity,parsed,ftype);
+  // Re-open the details panel so the user sees it's now matched
+  setTimeout(()=>{const d=document.getElementById('diag-'+entity+'-'+ftype);if(d)d.open=true;},30);
 }
 
 function normalizeToISO(v){
