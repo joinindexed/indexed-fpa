@@ -544,11 +544,7 @@ input,select{font-family:var(--sans)}
 <!-- CF WORKING -->
 <div id="screen-cfworking" class="screen">
   <div class="page-header">
-    <div><div class="page-title">CF Working</div><div class="page-sub">All cash flow transactions · Override display group per transaction</div></div>
-    <div style="display:flex;gap:8px;align-items:center">
-      <button onclick="cfwClearOverrides()" style="padding:6px 12px;border-radius:6px;font-size:13px;cursor:pointer;border:1px solid var(--border2);background:var(--surface2);color:var(--text2);font-family:var(--sans)">Clear all overrides</button>
-      <button onclick="exportCFWorking()" style="padding:6px 12px;border-radius:6px;font-size:13px;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">Export this sheet</button>
-    </div>
+    <div><div class="page-title">CF Working</div><div class="page-sub">All cash flow transactions · Override display group or net outflows against inflows</div></div>
   </div>
   <div class="content">
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px" id="cfw-filters">
@@ -560,7 +556,11 @@ input,select{font-family:var(--sans)}
         <option value="all">All types</option><option value="inflow">Inflows</option><option value="outflow">Outflows</option>
       </select>
       <select id="cfw-f-account" onchange="renderCFWorking()" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;font-family:var(--sans)"><option value="all">All accounts</option></select>
-      <input id="cfw-f-search" oninput="renderCFWorking()" placeholder="Search contact…" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;font-family:var(--sans);min-width:160px">
+      <select id="cfw-f-contact" onchange="renderCFWorking()" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;font-family:var(--sans)"><option value="all">All contacts</option></select>
+      <select id="cfw-f-client" onchange="renderCFWorking()" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;font-family:var(--sans)"><option value="all">All clients</option></select>
+      <select id="cfw-f-fee" onchange="renderCFWorking()" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;font-family:var(--sans)">
+        <option value="all">All (fee/no fee)</option><option value="hasfee">Has fee deducted</option><option value="nofee">No fee</option>
+      </select>
       <span id="cfw-count" style="font-size:12px;color:var(--text3);margin-left:4px"></span>
     </div>
     <div style="overflow-x:auto">
@@ -1351,11 +1351,34 @@ function setEnt(e,el){
 }
 
 // ── CF ──
+// Compute how much per entity/month is being netted off (manual fee overrides)
+function computeNetAdjustments(){
+  const adj={BH:E.map(()=>0),BC:E.map(()=>0)};
+  const keys=Object.keys(CF_NET_OVERRIDES);
+  if(!keys.length)return adj;
+  E.forEach((m,i)=>{
+    [...(BH_OUT_D[m]||[])].forEach(tx=>{
+      const k=`${tx.date||''}||${tx.contact}||${tx.entity}||${tx.account||''}`;
+      if(CF_NET_OVERRIDES[k])adj.BH[i]+=tx.amt;
+    });
+    [...(BC_OUT_D[m]||[])].forEach(tx=>{
+      const k=`${tx.date||''}||${tx.contact}||${tx.entity}||${tx.account||''}`;
+      if(CF_NET_OVERRIDES[k])adj.BC[i]+=tx.amt;
+    });
+  });
+  return adj;
+}
+
 function getD(){
-  if(ent==='bh') return {in:BH_IN,out:BH_OUT,close:BH_CLOSE,open:BH_OPEN,fx:BH_FX};
-  if(ent==='bc') return {in:BC_IN,out:BC_OUT,close:BC_CLOSE,open:BC_OPEN,fx:BC_FX};
-  const cin=E.map((_,i)=>BH_IN[i]+BC_IN[i]);
-  const cout=E.map((_,i)=>BH_OUT[i]+BC_OUT[i]);
+  const na=computeNetAdjustments();
+  if(ent==='bh'){
+    return {in:BH_IN.map((v,i)=>v-na.BH[i]),out:BH_OUT.map((v,i)=>v-na.BH[i]),close:BH_CLOSE,open:BH_OPEN,fx:BH_FX};
+  }
+  if(ent==='bc'){
+    return {in:BC_IN.map((v,i)=>v-na.BC[i]),out:BC_OUT.map((v,i)=>v-na.BC[i]),close:BC_CLOSE,open:BC_OPEN,fx:BC_FX};
+  }
+  const cin=E.map((_,i)=>BH_IN[i]+BC_IN[i]-na.BH[i]-na.BC[i]);
+  const cout=E.map((_,i)=>BH_OUT[i]+BC_OUT[i]-na.BH[i]-na.BC[i]);
   const cc=E.map((_,i)=>BH_CLOSE[i]+BC_CLOSE[i]);
   const cfx=E.map((_,i)=>BH_FX[i]+BC_FX[i]);
   return {in:cin,out:cout,close:cc,open:BH_OPEN+BC_OPEN,fx:cfx};
@@ -1380,6 +1403,8 @@ function buildCFGroups(isIn){
       if(ent!=='conso'&&tx.entity!==ent.toUpperCase())return;
       if(!isIn&&isFee(tx.contact))return;
       const txOvKey=`${tx.date||''}||${tx.contact}||${tx.entity}||${tx.account||''}`;
+      // Skip outflows that the user has marked to net against inflows
+      if(!isIn&&CF_NET_OVERRIDES[txOvKey])return;
       const mapKey=tx.contact+'||'+tx.entity;
       const grpName=CF_TX_OVERRIDES[txOvKey]||merged[mapKey]?.group||tx.contact;
       if(!groups[grpName])groups[grpName]={group:grpName,vals:{},entities:{BH:{vals:{}},BC:{vals:{}}}};
@@ -1388,6 +1413,27 @@ function buildCFGroups(isIn){
       groups[grpName].entities[entKey].vals[m]=(groups[grpName].entities[entKey].vals[m]||0)+tx.amt;
     });
   });
+  // For inflows: add a "Fee adjustments" line for any outflows netted against inflow
+  if(isIn){
+    const na=computeNetAdjustments();
+    const hasAdj=E.some((m,i)=>{
+      if(ent==='bh')return na.BH[i]>0;
+      if(ent==='bc')return na.BC[i]>0;
+      return na.BH[i]>0||na.BC[i]>0;
+    });
+    if(hasAdj){
+      const feeAdj={group:'Fee adjustments (netted)',vals:{},entities:{BH:{vals:{}},BC:{vals:{}}}};
+      E.forEach((m,i)=>{
+        const bhAmt=ent!=='bc'?-na.BH[i]:0;
+        const bcAmt=ent!=='bh'?-na.BC[i]:0;
+        const total=bhAmt+bcAmt;
+        if(total!==0){feeAdj.vals[m]=total;}
+        if(na.BH[i]&&ent!=='bc')feeAdj.entities.BH.vals[m]=-na.BH[i];
+        if(na.BC[i]&&ent!=='bh')feeAdj.entities.BC.vals[m]=-na.BC[i];
+      });
+      groups['__fee_adj__']=feeAdj;
+    }
+  }
   return Object.values(groups)
     .sort((a,b)=>E.reduce((s,m)=>s+(b.vals[m]||0),0)-E.reduce((s,m)=>s+(a.vals[m]||0),0));
 }
@@ -1795,6 +1841,9 @@ try { CT_MAP = JSON.parse(localStorage.getItem('ct_map')||'{}'); } catch(e){}
 // Per-transaction display-group overrides: key = "date||contact||entity||account"
 let CF_TX_OVERRIDES = {};
 try { CF_TX_OVERRIDES = JSON.parse(localStorage.getItem('cf_tx_overrides')||'{}'); } catch(e){}
+// Outflow txKeys the user wants netted against inflows (treated as fee reduction)
+let CF_NET_OVERRIDES = {};
+try { CF_NET_OVERRIDES = JSON.parse(localStorage.getItem('cf_net_overrides')||'{}'); } catch(e){}
 
 let GL_MAPPINGS={};
 try{GL_MAPPINGS=JSON.parse(localStorage.getItem('gl_mappings')||'{}');}catch(e){}
@@ -2981,9 +3030,10 @@ function buildCFWorkingRows(){
       const gross=(tx.amt||0)+(tx.fee||0);
       const fee=tx.fee||0;
       const net=tx.amt||0;
+      const netAsFee=type==='outflow'&&!!CF_NET_OVERRIDES[txKey];
       rows.push({txKey,month:mo,date:tx.date||m,entity:tx.entity,type,
         account:tx.account||'',contact:tx.contact,client:tx.client||'',
-        gross,fee,net,autoGroup,override,finalGroup});
+        gross,fee,net,autoGroup,override,finalGroup,netAsFee});
     };
     (BH_IN_D[m]||[]).forEach(tx=>push(tx,'inflow'));
     (BC_IN_D[m]||[]).forEach(tx=>push(tx,'inflow'));
@@ -2996,45 +3046,61 @@ function buildCFWorkingRows(){
 function renderCFWorking(){
   const allRows=buildCFWorkingRows();
 
-  // Populate month and account filters from data
-  const mSel=document.getElementById('cfw-f-month');
-  const aSel=document.getElementById('cfw-f-account');
-  if(mSel&&mSel.options.length<=1){
-    [...new Set(allRows.map(r=>r.month))].forEach(m=>{const o=document.createElement('option');o.value=m;o.textContent=m;mSel.appendChild(o);});
+  // Populate month, account, contact, client dropdowns from data
+  function repopSel(id,vals,current){
+    const sel=document.getElementById(id);if(!sel)return;
+    const prev=current||sel.value;
+    while(sel.options.length>1)sel.remove(1);
+    vals.forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;sel.appendChild(o);});
+    if([...sel.options].some(o=>o.value===prev))sel.value=prev;
   }
-  if(aSel&&aSel.options.length<=1){
-    [...new Set(allRows.map(r=>r.account).filter(Boolean))].sort().forEach(a=>{const o=document.createElement('option');o.value=a;o.textContent=a;aSel.appendChild(o);});
-  }
+  repopSel('cfw-f-month',[...new Set(allRows.map(r=>r.month))]);
+  repopSel('cfw-f-account',[...new Set(allRows.map(r=>r.account).filter(Boolean))].sort());
+  repopSel('cfw-f-contact',[...new Set(allRows.map(r=>r.contact).filter(Boolean))].sort());
+  repopSel('cfw-f-client',[...new Set(allRows.map(r=>r.client).filter(Boolean))].sort());
 
   const fMonth=(document.getElementById('cfw-f-month')||{}).value||'all';
   const fEntity=(document.getElementById('cfw-f-entity')||{}).value||'all';
   const fType=(document.getElementById('cfw-f-type')||{}).value||'all';
   const fAcct=(document.getElementById('cfw-f-account')||{}).value||'all';
-  const fSearch=((document.getElementById('cfw-f-search')||{}).value||'').toLowerCase().trim();
+  const fContact=(document.getElementById('cfw-f-contact')||{}).value||'all';
+  const fClient=(document.getElementById('cfw-f-client')||{}).value||'all';
+  const fFee=(document.getElementById('cfw-f-fee')||{}).value||'all';
 
   let rows=allRows;
   if(fMonth!=='all')rows=rows.filter(r=>r.month===fMonth);
   if(fEntity!=='all')rows=rows.filter(r=>r.entity===fEntity);
   if(fType!=='all')rows=rows.filter(r=>r.type===fType);
   if(fAcct!=='all')rows=rows.filter(r=>r.account===fAcct);
-  if(fSearch)rows=rows.filter(r=>r.contact.toLowerCase().includes(fSearch)||r.client.toLowerCase().includes(fSearch)||r.finalGroup.toLowerCase().includes(fSearch));
+  if(fContact!=='all')rows=rows.filter(r=>r.contact===fContact);
+  if(fClient!=='all')rows=rows.filter(r=>r.client===fClient);
+  if(fFee==='hasfee')rows=rows.filter(r=>r.fee>0);
+  if(fFee==='nofee')rows=rows.filter(r=>!r.fee);
 
   const el=document.getElementById('cfw-count');
   if(el)el.textContent=rows.length+' rows';
 
-  const COLS=['Month','Date','Entity','Type','Account','Contact','Client','Gross','Fee','Net','Auto Mapping','Override (editable)','Final Display Group'];
+  const COLS=['Month','Date','Entity','Type','Account','Contact','Client','Gross','Fee','Net','Auto Mapping','Override (editable)','Final Display Group','Net off inflow'];
   let h=`<thead><tr>${COLS.map(c=>`<th style="white-space:nowrap;font-size:12px">${c}</th>`).join('')}</tr></thead><tbody>`;
 
-  rows.forEach((r,i)=>{
+  rows.forEach(r=>{
     const isIn=r.type==='inflow';
-    const tc=isIn?'var(--green)':'var(--red)';
+    const tc=isIn?'var(--green)':r.netAsFee?'var(--text3)':'var(--red)';
+    const rowStyle=r.netAsFee?'opacity:0.55;text-decoration:line-through':'';
     const hasOv=!!r.override;
     const ovStyle=hasOv?'background:var(--accent-light);border-color:var(--accent-mid)':'background:var(--surface2);border-color:var(--border2)';
-    h+=`<tr>
+    const chk=r.netAsFee?'checked':'';
+    const chkCell=isIn
+      ?'<td style="text-align:center;color:var(--text3);font-size:11px">—</td>'
+      :`<td style="text-align:center"><input type="checkbox" ${chk} data-txkey="${esc(r.txKey)}"
+          title="Net this outflow against inflows (removes from outflows, reduces inflow total)"
+          onchange="saveNetOverride(this.dataset.txkey,this.checked)"
+          style="cursor:pointer;width:15px;height:15px;accent-color:var(--accent)"></td>`;
+    h+=`<tr style="${rowStyle}">
       <td style="white-space:nowrap;color:var(--text2)">${r.month}</td>
       <td style="white-space:nowrap">${r.date}</td>
       <td>${eb(r.entity)}</td>
-      <td><span style="font-size:12px;font-weight:600;color:${tc}">${r.type}</span></td>
+      <td><span style="font-size:12px;font-weight:600;color:${tc}">${r.netAsFee?'netted':''+r.type}</span></td>
       <td style="color:var(--text2);font-size:12px">${r.account}</td>
       <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.contact)}">${esc(r.contact)}</td>
       <td style="color:var(--text3);font-size:12px">${esc(r.client)}</td>
@@ -3046,6 +3112,7 @@ function renderCFWorking(){
         style="width:100%;padding:4px 6px;font-size:12px;border-radius:4px;border:1px solid;${ovStyle};color:var(--text);font-family:var(--sans)"
         oninput="saveCFTxOverride(this.dataset.txkey,this.value);this.style.background='var(--accent-light)';this.style.borderColor='var(--accent-mid)'"></td>
       <td style="font-weight:600;color:var(--accent);font-size:12px">${esc(r.finalGroup)}</td>
+      ${chkCell}
     </tr>`;
   });
   const tbl=document.getElementById('cfw-table');
@@ -3060,6 +3127,14 @@ function saveCFTxOverride(txKey,val){
   // Update Final Display Group cell inline
   const row=document.querySelector(`#cfw-table input[data-txkey="${CSS.escape(txKey)}"]`)?.closest('tr');
   if(row){const cells=row.querySelectorAll('td');if(cells[12])cells[12].textContent=val.trim()||cells[10].textContent;}
+}
+
+function saveNetOverride(txKey,checked){
+  if(checked)CF_NET_OVERRIDES[txKey]=true;
+  else delete CF_NET_OVERRIDES[txKey];
+  try{localStorage.setItem('cf_net_overrides',JSON.stringify(CF_NET_OVERRIDES));}catch(e){}
+  renderCFWorking();
+  renderCF();
 }
 
 function cfwClearOverrides(){
