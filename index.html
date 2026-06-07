@@ -2471,6 +2471,21 @@ function parseXeroAccountTx(rows,entity){
     finalizeSection(curAcct,curOpenBal);
   }
 
+  // Guard: remove bank-section outflows that duplicate a platformFee already captured above.
+  // Happens when a payment processor fee appears as BOTH a bank-section CREDIT (labelled with
+  // the client contact, e.g. "Duo Strategy LLC") AND a Payment Platform DEBIT fee expense.
+  // Since the contact isn't a known fee name it bypasses isFee() and lands in outflows — double-count.
+  // Strip any outflow whose client+amount exactly matches a platformFees entry for that month.
+  Object.entries(platformFees).forEach(([month,clientFees])=>{
+    if(!result.outflow[month])return;
+    Object.entries(clientFees).forEach(([ck,feeAmt])=>{
+      result.outflow[month]=result.outflow[month].filter(tx=>{
+        const txCk=(tx.client||'').toLowerCase().trim();
+        return !(txCk===ck&&Math.abs(tx.amt-feeAmt)<0.01);
+      });
+    });
+  });
+
   // Net platform fees against customer inflows: same CLIENT (case-insensitive), same month.
   // The fee contact is the fee payee (e.g. "Payoneer", "Bank Fees") but the Client column
   // holds the customer project (e.g. "RecNation") — this is what links fees to receipts.
