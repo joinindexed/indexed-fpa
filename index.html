@@ -2203,6 +2203,8 @@ function parseXeroAccountTx(rows,entity){
   const result={entity,months:new Set(),inflow:{},outflow:{},bankClose:{}};
   // Staging area for platform fees: {month: {clientKey: totalFee}}
   const platformFees={};
+  // Staging area for bank-section fee credits (isFee contacts): [{month,date,amt,client,account}]
+  const bankFeeCredits=[];
   // Per-bank-section running balance tracking: {acct: {month: net}}
   let curOpenBal=0;
   const sectionMonthlyNet={};
@@ -2323,8 +2325,13 @@ function parseXeroAccountTx(rows,entity){
         result.inflow[month].push({date:dayLbl,contact,entity,amt:debit,fee:0,account:curAcct,client});
       }
       if(credit>0){
-        if(!result.outflow[month])result.outflow[month]=[];
-        result.outflow[month].push({date:dayLbl,contact,entity,amt:credit,type:'Variable',account:curAcct,client});
+        if(isFee(contact)){
+          // Stage for netting against the matching inflow rather than recording as outflow
+          bankFeeCredits.push({month,date:dayLbl,amt:credit,client,account:curAcct});
+        } else {
+          if(!result.outflow[month])result.outflow[month]=[];
+          result.outflow[month].push({date:dayLbl,contact,entity,amt:credit,type:'Variable',account:curAcct,client});
+        }
       }
     } else if(isPlatformFee){
       // Only net fees that are genuine payment processor charges deducted from a bank account.
@@ -2364,6 +2371,24 @@ function parseXeroAccountTx(rows,entity){
   // Used by applyImport to reduce OUT[idx] by the same amount so the fee is
   // neither in the inflow total NOR in the outflow total — preventing double-count.
   result.nettedFees={};
+
+  // Net bank-section fee credits against inflows: client match first, then same-date same-account fallback.
+  bankFeeCredits.forEach(fee=>{
+    const {month,date,amt,client,account}=fee;
+    if(!result.inflow[month])return;
+    const ck=(client||'').toLowerCase().trim();
+    let matching=ck?result.inflow[month].filter(tx=>(tx.client||'').toLowerCase().trim()===ck):[];
+    if(!matching.length)matching=result.inflow[month].filter(tx=>tx.date===date&&tx.account===account);
+    matching.sort((a,b)=>b.amt-a.amt);
+    let remaining=amt;
+    matching.forEach(tx=>{
+      if(remaining<=0)return;
+      const reduce=Math.min(tx.amt,remaining);
+      tx.amt-=reduce;tx.fee=(tx.fee||0)+reduce;remaining-=reduce;
+    });
+    result.inflow[month]=result.inflow[month].filter(tx=>tx.amt>0);
+  });
+
   Object.entries(platformFees).forEach(([month,clientFees])=>{
     if(!result.inflow[month])return;
     Object.entries(clientFees).forEach(([ck,fee])=>{
