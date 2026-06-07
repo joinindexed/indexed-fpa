@@ -3523,6 +3523,8 @@ function saveActuals(){
     if(USER_ROWS&&USER_ROWS.length)snap._userRows=USER_ROWS;
     localStorage.setItem('actuals_snap',JSON.stringify(snap));
   }catch(e){}
+  // Sync to Supabase so all users see the latest Xero data
+  if(!_sbPulling)sbPush();
 }
 
 function loadActuals(){
@@ -4783,12 +4785,18 @@ function sbPush(){
   _sbTimer=setTimeout(async()=>{
     sbStatus('Syncing…');
     try{
-      const payload={ar_fcst:AR_FCST,ap_fcst:AP_FCST,ct_map:CT_MAP,updated_at:new Date().toISOString(),updated_by:'karan'};
-      if(GL_MAPPINGS&&Object.keys(GL_MAPPINGS).length)payload.gl_mappings=GL_MAPPINGS;
-      const r=await fetch(`${SB_URL}/rest/v1/forecast_data?id=eq.1`,{
-        method:'PATCH',headers:SB_HDR,body:JSON.stringify(payload)
-      });
-      if(!r.ok){const e=await r.text();sbStatus('Sync error: '+e,false);return;}
+      const basePayload={ar_fcst:AR_FCST,ap_fcst:AP_FCST,ct_map:CT_MAP,updated_at:new Date().toISOString(),updated_by:'karan'};
+      if(GL_MAPPINGS&&Object.keys(GL_MAPPINGS).length)basePayload.gl_mappings=GL_MAPPINGS;
+      // Extended payload — includes Xero actuals + overrides (requires Supabase migration)
+      const fullPayload={...basePayload,cf_tx_overrides:CF_TX_OVERRIDES,cf_net_overrides:CF_NET_OVERRIDES};
+      try{const snap=JSON.parse(localStorage.getItem('actuals_snap')||'null');if(snap)fullPayload.actuals_snap=snap;}catch(e){}
+      let r=await fetch(`${SB_URL}/rest/v1/forecast_data?id=eq.1`,{method:'PATCH',headers:SB_HDR,body:JSON.stringify(fullPayload)});
+      if(!r.ok){
+        // Columns not yet added — fall back to base payload so existing sync still works
+        r=await fetch(`${SB_URL}/rest/v1/forecast_data?id=eq.1`,{method:'PATCH',headers:SB_HDR,body:JSON.stringify(basePayload)});
+        if(!r.ok){const e=await r.text();sbStatus('Sync error: '+e,false);return;}
+        sbStatus('⚠ Synced (partial — Supabase migration needed for Xero data sync)',null);return;
+      }
       sbStatus('✓ Synced '+new Date().toLocaleTimeString(),true);
     }catch(e){sbStatus('Sync failed: '+e.message,false);}
   },800);
@@ -4808,6 +4816,9 @@ async function sbPull(){
     if(d.ap_fcst&&d.ap_fcst.length){AP_FCST=d.ap_fcst;try{localStorage.setItem('ap_fcst',JSON.stringify(AP_FCST));}catch(e){}changed=true;}
     if(d.ct_map&&Object.keys(d.ct_map).length){CT_MAP={...d.ct_map,...CT_MAP};try{localStorage.setItem('ct_map',JSON.stringify(CT_MAP));}catch(e){}}
     if(d.gl_mappings&&Object.keys(d.gl_mappings).length){GL_MAPPINGS={...d.gl_mappings,...GL_MAPPINGS};try{localStorage.setItem('gl_mappings',JSON.stringify(GL_MAPPINGS));}catch(e){}}
+    if(d.cf_tx_overrides){CF_TX_OVERRIDES={...d.cf_tx_overrides,...CF_TX_OVERRIDES};try{localStorage.setItem('cf_tx_overrides',JSON.stringify(CF_TX_OVERRIDES));}catch(e){}}
+    if(d.cf_net_overrides){CF_NET_OVERRIDES={...d.cf_net_overrides,...CF_NET_OVERRIDES};try{localStorage.setItem('cf_net_overrides',JSON.stringify(CF_NET_OVERRIDES));}catch(e){}}
+    if(d.actuals_snap){try{localStorage.setItem('actuals_snap',JSON.stringify(d.actuals_snap));}catch(e){}loadActuals();changed=true;}
     _sbPulling=false;
     if(changed){renderDash();renderCF();renderFcastAR();renderFcastAP();renderContacts();}
     const ts=d.updated_at?new Date(d.updated_at).toLocaleString():'—';
@@ -4829,6 +4840,9 @@ async function sbPull(){
     if(d.ap_fcst&&d.ap_fcst.length){AP_FCST=d.ap_fcst;try{localStorage.setItem('ap_fcst',JSON.stringify(AP_FCST));}catch(e){}changed=true;}
     if(d.ct_map&&Object.keys(d.ct_map).length){CT_MAP={...d.ct_map,...CT_MAP};try{localStorage.setItem('ct_map',JSON.stringify(CT_MAP));}catch(e){}}
     if(d.gl_mappings&&Object.keys(d.gl_mappings).length){GL_MAPPINGS={...d.gl_mappings,...GL_MAPPINGS};try{localStorage.setItem('gl_mappings',JSON.stringify(GL_MAPPINGS));}catch(e){}}
+    if(d.cf_tx_overrides){CF_TX_OVERRIDES={...d.cf_tx_overrides,...CF_TX_OVERRIDES};try{localStorage.setItem('cf_tx_overrides',JSON.stringify(CF_TX_OVERRIDES));}catch(e){}}
+    if(d.cf_net_overrides){CF_NET_OVERRIDES={...d.cf_net_overrides,...CF_NET_OVERRIDES};try{localStorage.setItem('cf_net_overrides',JSON.stringify(CF_NET_OVERRIDES));}catch(e){}}
+    if(d.actuals_snap){try{localStorage.setItem('actuals_snap',JSON.stringify(d.actuals_snap));}catch(e){}loadActuals();changed=true;}
     _sbPulling=false;
     if(changed){renderDash();renderCF();renderFcastAR();renderFcastAP();}
     const ts=d.updated_at?new Date(d.updated_at).toLocaleString():'—';
