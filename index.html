@@ -2373,10 +2373,13 @@ function parseXeroAccountTx(rows,entity){
   result.nettedFees={};
 
   // Net bank-section fee credits against inflows: client match first, then same-date same-account fallback.
+  // Skip if platformFees already covers this client+month — avoids double-deduction for clients
+  // (e.g. Cloud Web Solutions, Veriheal) whose fees appear in both the bank section AND Payment Platform.
   bankFeeCredits.forEach(fee=>{
     const {month,date,amt,client,account}=fee;
     if(!result.inflow[month])return;
     const ck=(client||'').toLowerCase().trim();
+    if(ck&&platformFees[month]&&platformFees[month][ck])return;
     let matching=ck?result.inflow[month].filter(tx=>(tx.client||'').toLowerCase().trim()===ck):[];
     if(!matching.length)matching=result.inflow[month].filter(tx=>tx.date===date&&tx.account===account);
     matching.sort((a,b)=>b.amt-a.amt);
