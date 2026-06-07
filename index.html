@@ -1049,7 +1049,8 @@ const BH_PL = [
   {label:'SEO – Others',           type:'i',v:[353.85,0,0,0]},
   {label:'SEO – Writers',          type:'i',v:[1460,1710,0,0]},
   {label:'SEO Tools',              type:'i',v:[774.89,778.47,975.70,853.89]},
-  {label:'Team Costs – COS',       type:'i',v:[2588.71,5725.72,9500.42,9939.35]},
+  {label:'Team Costs - Contractors - COS',type:'i',v:[2588.71,5725.72,9500.42,9939.35]},
+  {label:'Web - Developers',       type:'i',v:[0,0,0,0]},
   {label:'Total Cost of Sales',    type:'t',v:[7181.47,11028.45,13145.04,17607.95]},
   {label:'Gross Profit',           type:'gt',v:[33534.53,38376.55,45915.96,23527.05]},
   {g:'Operating Expenses',type:'h'},
@@ -1066,11 +1067,12 @@ const BH_PL = [
   {label:'Staff Entertainment',    type:'i',v:[90.17,0,107.88,0]},
   {label:'Subscriptions',          type:'i',v:[1870.39,2788.79,3866.11,3787.79]},
   {label:'Team Costs – Contractors',type:'i',v:[2890.41,4838.44,2110,1644.97]},
-  {label:'Team Costs – S&M',       type:'i',v:[1126.79,250,1148.19,3668.59]},
+  {label:'Team Costs - Contractors - S&M',type:'i',v:[1126.79,250,1148.19,3668.59]},
+  {label:'Team Costs - Employees - S&M', type:'i',v:[0,0,0,0]},
   {label:'Telephone & Internet',   type:'i',v:[82.19,82.99,82,91.72]},
   {label:'Travel – International', type:'i',v:[0,0,12466.47,0]},
-  {label:'Unrealised FX',          type:'i',v:[0.01,0.01,4.29,13.08]},
-  {label:'Wages & Salaries',       type:'i',v:[19054,19054,19060.58,19060.58]},
+  {label:'Unrealised Currency Gains',type:'i',v:[0.01,0.01,4.29,13.08]},
+  {label:'Wages and Salaries',     type:'i',v:[19054,19054,19060.58,19060.58]},
   {label:'Total Operating Expenses',type:'t',v:[27080.18,32123.55,40786.14,31407.77]},
   {label:'Net Profit',             type:'gt',v:[6454.35,6279,5128.82,-7880.72]},
 ];
@@ -1215,7 +1217,8 @@ const CONSO_PL = [
   {label:'SEO – Others',             entity:'BH',type:'i',v:[353.85,0,0,0]},
   {label:'SEO – Writers',            entity:'BH',type:'i',v:[1460,1710,0,0]},
   {label:'SEO Tools',                entity:'BH',type:'i',v:[774.89,778.47,975.70,853.89]},
-  {label:'Team Costs – COS',         entity:'BH',type:'i',v:[2588.71,5725.72,9500.42,9939.35]},
+  {label:'Team Costs - Contractors - COS',entity:'BH',type:'i',v:[2588.71,5725.72,9500.42,9939.35]},
+  {label:'Web - Developers',          entity:'BH',type:'i',v:[0,0,0,0]},
   {label:'Payment Platform',         entity:'BC',type:'i',v:[297.74,504.29,1028.46,571.75]},
   {label:'Team Costs - Contractors - COS',entity:'BC',type:'i',v:[4209,7210,9440,6510]},
   {label:'Web Developers',           entity:'BC',type:'i',v:[17389,12770,6650,697]},
@@ -1235,11 +1238,12 @@ const CONSO_PL = [
   {label:'Staff Entertainment',      entity:'BH',type:'i',v:[90.17,0,107.88,0]},
   {label:'Subscriptions',            entity:'BH',type:'i',v:[1870.39,2788.79,3866.11,3787.79]},
   {label:'Team Costs – Contractors', entity:'BH',type:'i',v:[2890.41,4838.44,2110,1644.97]},
-  {label:'Team Costs – S&M',         entity:'BH',type:'i',v:[1126.79,250,1148.19,3668.59]},
+  {label:'Team Costs - Contractors - S&M',entity:'BH',type:'i',v:[1126.79,250,1148.19,3668.59]},
+  {label:'Team Costs - Employees - S&M', entity:'BH',type:'i',v:[0,0,0,0]},
   {label:'Telephone & Internet',     entity:'BH',type:'i',v:[82.19,82.99,82,91.72]},
   {label:'Travel – International',   entity:'BH',type:'i',v:[0,0,12466.47,0]},
-  {label:'Unrealised FX',            entity:'BH',type:'i',v:[0.01,0.01,4.29,13.08]},
-  {label:'Wages & Salaries',         entity:'BH',type:'i',v:[19054,19054,19060.58,19060.58]},
+  {label:'Unrealised Currency Gains',entity:'BH',type:'i',v:[0.01,0.01,4.29,13.08]},
+  {label:'Wages and Salaries',       entity:'BH',type:'i',v:[19054,19054,19060.58,19060.58]},
   {label:'Accounting & Bookkeeping', entity:'BC',type:'i',v:[0,0,326.75,0]},
   {label:'Bank Fees',                entity:'BC',type:'i',v:[64.59,64.59,68.06,27.76]},
   {label:'Bank Revaluations',        entity:'BC',type:'i',v:[14.98,14.97,0,0]},
@@ -1971,7 +1975,7 @@ function _impFinVal(entityKey,ftype,lastMonthOnly,...labels){
   const nk=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,' ').replace(/\s+/g,' ').trim();
   for(const lbl of labels){
     const lk=nk(lbl);
-    const row=imp.rows.find(r=>{const rk=nk(r.label);return rk===lk||rk.includes(lk)||lk.includes(rk);});
+    const row=imp.rows.find(r=>{const rk=nk(r.label);return rk===lk||rk.includes(lk);});
     if(!row)continue;
     if(lastMonthOnly){
       // For BS: use value of the most recent imported month
@@ -2002,7 +2006,7 @@ function getPL(){
   const ytdRev=sum(get(revLbl));
   const ytdGP=sum(get('Gross Profit'));
   const ytdNet=sum(get(netLbl));
-  const ytdWages=ent==='bc'?0:sum(get('Wages & Salaries'));
+  const ytdWages=ent==='bc'?0:sum(get('Wages and Salaries'));
   const adjNet=ytdNet+ytdWages;
   return{ytdRev,ytdGP,ytdNet,adjNet,gpPct:ytdRev?ytdGP/ytdRev:0,adjNetPct:ytdRev?adjNet/ytdRev:0};
 }
@@ -2534,7 +2538,7 @@ function renderImportPreview(entity,parsed,ftype){
       const hit=kpiTarget.find(t=>{
         if(!t.label)return false;
         const tk=normKey(t.label);
-        return tk===rk||tk.includes(rk)||rk.includes(tk);
+        return tk===rk||rk.includes(tk);
       });
       if(hit){matched.push({xero:r.label,tmpl:hit.label,vals:r.vals});}
       else{unmatched.push({xero:r.label,vals:r.vals});}
@@ -2728,7 +2732,7 @@ function applyImport(entity,ftype){
       let hit=kpiTarget.find(t=>{
         if(!t.label)return false;
         const tk=normKey(t.label);
-        return tk===rk||tk.includes(rk)||rk.includes(tk);
+        return tk===rk||rk.includes(tk);
       });
       // GL mapping fallback: if no direct match, check user-defined mappings
       if(!hit){
