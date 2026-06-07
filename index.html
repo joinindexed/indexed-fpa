@@ -200,6 +200,8 @@ input,select{font-family:var(--sans)}
     <div class="nav-section">Settings</div>
     <div class="nav-item" onclick="go('import',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M16 12l-4 4m0 0l-4-4m4 4V4"/></svg>Import data</div>
+    <div class="nav-item" onclick="go('cfworking',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 10h18M3 14h18M10 3v18M14 3v18"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg>CF Working</div>
     <div class="nav-item" onclick="exportToExcel()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>Export to Excel</div>
   </nav>
@@ -537,6 +539,34 @@ input,select{font-family:var(--sans)}
     </div>
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 16px;font-size:14.5px;color:var(--text3)">
       <strong style="color:var(--text2)">How to export from Xero:</strong> Go to <em>Accounting → Reports</em>, export <em>Account Transactions</em>, <em>Balance Sheet</em>, and <em>Profit &amp; Loss</em> as Excel (.xlsx). Drop each file above — the type is detected automatically from the filename.
+    </div>
+  </div>
+</div>
+
+<!-- CF WORKING -->
+<div id="screen-cfworking" class="screen">
+  <div class="page-header">
+    <div><div class="page-title">CF Working</div><div class="page-sub">All cash flow transactions · Override display group per transaction</div></div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button onclick="cfwClearOverrides()" style="padding:6px 12px;border-radius:6px;font-size:13px;cursor:pointer;border:1px solid var(--border2);background:var(--surface2);color:var(--text2);font-family:var(--sans)">Clear all overrides</button>
+      <button onclick="exportCFWorking()" style="padding:6px 12px;border-radius:6px;font-size:13px;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">Export this sheet</button>
+    </div>
+  </div>
+  <div class="content">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px" id="cfw-filters">
+      <select id="cfw-f-month" onchange="renderCFWorking()" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;font-family:var(--sans)"><option value="all">All months</option></select>
+      <select id="cfw-f-entity" onchange="renderCFWorking()" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;font-family:var(--sans)">
+        <option value="all">All entities</option><option value="BH">BH</option><option value="BC">BC</option>
+      </select>
+      <select id="cfw-f-type" onchange="renderCFWorking()" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;font-family:var(--sans)">
+        <option value="all">All types</option><option value="inflow">Inflows</option><option value="outflow">Outflows</option>
+      </select>
+      <select id="cfw-f-account" onchange="renderCFWorking()" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;font-family:var(--sans)"><option value="all">All accounts</option></select>
+      <input id="cfw-f-search" oninput="renderCFWorking()" placeholder="Search contact…" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;font-family:var(--sans);min-width:160px">
+      <span id="cfw-count" style="font-size:12px;color:var(--text3);margin-left:4px"></span>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="dt" id="cfw-table" style="font-size:13px;min-width:1100px"></table>
     </div>
   </div>
 </div>
@@ -1308,6 +1338,7 @@ function go(id,el){
   if(id==='fin')renderFin();
   if(id==='contacts')renderContacts();
   if(id==='import')initImport();
+  if(id==='cfworking')renderCFWorking();
   if(id==='fcast-ar')renderFcastAR();
   if(id==='fcast-ap')renderFcastAP();
 }
@@ -1350,8 +1381,9 @@ function buildCFGroups(isIn){
     txList.forEach(tx=>{
       if(ent!=='conso'&&tx.entity!==ent.toUpperCase())return;
       if(!isIn&&isFee(tx.contact))return;
+      const txOvKey=`${tx.date||''}||${tx.contact}||${tx.entity}||${tx.account||''}`;
       const mapKey=tx.contact+'||'+tx.entity;
-      const grpName=merged[mapKey]?.group||tx.contact;
+      const grpName=CF_TX_OVERRIDES[txOvKey]||merged[mapKey]?.group||tx.contact;
       if(!groups[grpName])groups[grpName]={group:grpName,vals:{},entities:{BH:{vals:{}},BC:{vals:{}}}};
       groups[grpName].vals[m]=(groups[grpName].vals[m]||0)+tx.amt;
       const entKey=tx.entity;
@@ -1762,6 +1794,9 @@ function renderFinTable(id,rows,curEnt,showYTD){
 // Persisted in localStorage key 'ct_map'
 let CT_MAP = {};
 try { CT_MAP = JSON.parse(localStorage.getItem('ct_map')||'{}'); } catch(e){}
+// Per-transaction display-group overrides: key = "date||contact||entity||account"
+let CF_TX_OVERRIDES = {};
+try { CF_TX_OVERRIDES = JSON.parse(localStorage.getItem('cf_tx_overrides')||'{}'); } catch(e){}
 
 let GL_MAPPINGS={};
 try{GL_MAPPINGS=JSON.parse(localStorage.getItem('gl_mappings')||'{}');}catch(e){}
@@ -2932,6 +2967,119 @@ let AR_FCST = [];
 let AP_FCST = [];
 try { AR_FCST = JSON.parse(localStorage.getItem('ar_fcst')||'[]'); } catch(e){}
 try { AP_FCST = JSON.parse(localStorage.getItem('ap_fcst')||'[]'); } catch(e){}
+
+// ── CF Working Sheet ──
+function buildCFWorkingRows(){
+  const merged=getMergedMap();
+  const rows=[];
+  E.forEach(m=>{
+    const mo=m+' 2026';
+    const push=(tx,type)=>{
+      const txKey=`${tx.date||''}||${tx.contact}||${tx.entity}||${tx.account||''}`;
+      const contactKey=tx.contact+'||'+tx.entity;
+      const autoGroup=merged[contactKey]?.group||tx.contact;
+      const override=CF_TX_OVERRIDES[txKey]||'';
+      const finalGroup=override||autoGroup;
+      const gross=(tx.amt||0)+(tx.fee||0);
+      const fee=tx.fee||0;
+      const net=tx.amt||0;
+      rows.push({txKey,month:mo,date:tx.date||m,entity:tx.entity,type,
+        account:tx.account||'',contact:tx.contact,client:tx.client||'',
+        gross,fee,net,autoGroup,override,finalGroup});
+    };
+    (BH_IN_D[m]||[]).forEach(tx=>push(tx,'inflow'));
+    (BC_IN_D[m]||[]).forEach(tx=>push(tx,'inflow'));
+    (BH_OUT_D[m]||[]).filter(tx=>!isFee(tx.contact)).forEach(tx=>push(tx,'outflow'));
+    (BC_OUT_D[m]||[]).filter(tx=>!isFee(tx.contact)).forEach(tx=>push(tx,'outflow'));
+  });
+  return rows;
+}
+
+function renderCFWorking(){
+  const allRows=buildCFWorkingRows();
+
+  // Populate month and account filters from data
+  const mSel=document.getElementById('cfw-f-month');
+  const aSel=document.getElementById('cfw-f-account');
+  if(mSel&&mSel.options.length<=1){
+    [...new Set(allRows.map(r=>r.month))].forEach(m=>{const o=document.createElement('option');o.value=m;o.textContent=m;mSel.appendChild(o);});
+  }
+  if(aSel&&aSel.options.length<=1){
+    [...new Set(allRows.map(r=>r.account).filter(Boolean))].sort().forEach(a=>{const o=document.createElement('option');o.value=a;o.textContent=a;aSel.appendChild(o);});
+  }
+
+  const fMonth=(document.getElementById('cfw-f-month')||{}).value||'all';
+  const fEntity=(document.getElementById('cfw-f-entity')||{}).value||'all';
+  const fType=(document.getElementById('cfw-f-type')||{}).value||'all';
+  const fAcct=(document.getElementById('cfw-f-account')||{}).value||'all';
+  const fSearch=((document.getElementById('cfw-f-search')||{}).value||'').toLowerCase().trim();
+
+  let rows=allRows;
+  if(fMonth!=='all')rows=rows.filter(r=>r.month===fMonth);
+  if(fEntity!=='all')rows=rows.filter(r=>r.entity===fEntity);
+  if(fType!=='all')rows=rows.filter(r=>r.type===fType);
+  if(fAcct!=='all')rows=rows.filter(r=>r.account===fAcct);
+  if(fSearch)rows=rows.filter(r=>r.contact.toLowerCase().includes(fSearch)||r.client.toLowerCase().includes(fSearch)||r.finalGroup.toLowerCase().includes(fSearch));
+
+  const el=document.getElementById('cfw-count');
+  if(el)el.textContent=rows.length+' rows';
+
+  const COLS=['Month','Date','Entity','Type','Account','Contact','Client','Gross','Fee','Net','Auto Mapping','Override (editable)','Final Display Group'];
+  let h=`<thead><tr>${COLS.map(c=>`<th style="white-space:nowrap;font-size:12px">${c}</th>`).join('')}</tr></thead><tbody>`;
+
+  rows.forEach((r,i)=>{
+    const isIn=r.type==='inflow';
+    const tc=isIn?'var(--green)':'var(--red)';
+    const hasOv=!!r.override;
+    const ovStyle=hasOv?'background:var(--accent-light);border-color:var(--accent-mid)':'background:var(--surface2);border-color:var(--border2)';
+    h+=`<tr>
+      <td style="white-space:nowrap;color:var(--text2)">${r.month}</td>
+      <td style="white-space:nowrap">${r.date}</td>
+      <td>${eb(r.entity)}</td>
+      <td><span style="font-size:12px;font-weight:600;color:${tc}">${r.type}</span></td>
+      <td style="color:var(--text2);font-size:12px">${r.account}</td>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.contact)}">${esc(r.contact)}</td>
+      <td style="color:var(--text3);font-size:12px">${esc(r.client)}</td>
+      <td class="r" style="color:${tc}">${r.gross?$f(r.gross):'—'}</td>
+      <td class="r" style="color:var(--amber)">${r.fee?$f(r.fee):'—'}</td>
+      <td class="r" style="font-weight:600;color:${tc}">${$f(r.net)}</td>
+      <td style="color:var(--text2);font-size:12px">${esc(r.autoGroup)}</td>
+      <td style="min-width:160px"><input data-txkey="${esc(r.txKey)}" value="${esc(r.override)}" placeholder="${esc(r.autoGroup)}"
+        style="width:100%;padding:4px 6px;font-size:12px;border-radius:4px;border:1px solid;${ovStyle};color:var(--text);font-family:var(--sans)"
+        oninput="saveCFTxOverride(this.dataset.txkey,this.value);this.style.background='var(--accent-light)';this.style.borderColor='var(--accent-mid)'"></td>
+      <td style="font-weight:600;color:var(--accent);font-size:12px">${esc(r.finalGroup)}</td>
+    </tr>`;
+  });
+  const tbl=document.getElementById('cfw-table');
+  if(tbl)tbl.innerHTML=h+'</tbody>';
+}
+
+function saveCFTxOverride(txKey,val){
+  if(val.trim())CF_TX_OVERRIDES[txKey]=val.trim();
+  else delete CF_TX_OVERRIDES[txKey];
+  try{localStorage.setItem('cf_tx_overrides',JSON.stringify(CF_TX_OVERRIDES));}catch(e){}
+  renderCF();
+  // Update Final Display Group cell inline
+  const row=document.querySelector(`#cfw-table input[data-txkey="${CSS.escape(txKey)}"]`)?.closest('tr');
+  if(row){const cells=row.querySelectorAll('td');if(cells[12])cells[12].textContent=val.trim()||cells[10].textContent;}
+}
+
+function cfwClearOverrides(){
+  if(!confirm('Clear all per-transaction overrides?'))return;
+  CF_TX_OVERRIDES={};
+  try{localStorage.removeItem('cf_tx_overrides');}catch(e){}
+  renderCFWorking();renderCF();
+}
+
+function exportCFWorking(){
+  if(!window.XLSX)return;
+  const rows=buildCFWorkingRows();
+  const hdrs=['Month','Date','Entity','Type','Account','Contact','Client','Gross','Fee','Net','Auto Mapping','Override','Final Display Group'];
+  const data=[hdrs,...rows.map(r=>[r.month,r.date,r.entity,r.type,r.account,r.contact,r.client,r.gross||0,r.fee||0,r.net||0,r.autoGroup,r.override,r.finalGroup])];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(data),'CF Working');
+  XLSX.writeFile(wb,`CFWorking_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
 
 // ── Export to Excel ──
 function exportToExcel(){
