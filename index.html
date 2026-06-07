@@ -200,6 +200,8 @@ input,select{font-family:var(--sans)}
     <div class="nav-section">Settings</div>
     <div class="nav-item" onclick="go('import',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M16 12l-4 4m0 0l-4-4m4 4V4"/></svg>Import data</div>
+    <div class="nav-item" onclick="exportToExcel()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>Export to Excel</div>
   </nav>
   <div class="sidebar-footer">
     <div class="cw">
@@ -2930,6 +2932,83 @@ let AR_FCST = [];
 let AP_FCST = [];
 try { AR_FCST = JSON.parse(localStorage.getItem('ar_fcst')||'[]'); } catch(e){}
 try { AP_FCST = JSON.parse(localStorage.getItem('ap_fcst')||'[]'); } catch(e){}
+
+// ── Export to Excel ──
+function exportToExcel(){
+  if(!window.XLSX){alert('SheetJS not loaded');return;}
+  const wb=XLSX.utils.book_new();
+  const months=E.slice();
+  const yr=' 2026';
+  const mHdrs=months.map(m=>m+yr);
+  const fmt=v=>typeof v==='number'?Math.round(v*100)/100:v;
+
+  // Helper: build aoa from a template array (PL or BS)
+  function templateSheet(arr){
+    const rows=[['',  ...mHdrs]];
+    arr.forEach(r=>{
+      if(!r.label)return;
+      const indent=r.type==='t'||r.type==='gt'?'':r.indent?'  ':'';
+      rows.push([indent+r.label,...months.map(m=>{const i=E.indexOf(m);return i>=0&&r.v?fmt(r.v[i]):''})]);
+    });
+    return XLSX.utils.aoa_to_sheet(rows);
+  }
+
+  // Cash Flow Summary
+  const cfRows=[['',  ...mHdrs,'YTD']];
+  const cfDefs=[
+    ['Opening Cash',(i)=>i===0?BH_OPEN+BC_OPEN:(BH_CLOSE[i-1]||0)+(BC_CLOSE[i-1]||0)],
+    ['BH Inflows',(i)=>BH_IN[i]||0],['BC Inflows',(i)=>BC_IN[i]||0],
+    ['Total Inflows',(i)=>(BH_IN[i]||0)+(BC_IN[i]||0)],
+    ['BH Outflows',(i)=>-(BH_OUT[i]||0)],['BC Outflows',(i)=>-(BC_OUT[i]||0)],
+    ['Total Outflows',(i)=>-((BH_OUT[i]||0)+(BC_OUT[i]||0))],
+    ['FX / Other',(i)=>(BH_FX[i]||0)+(BC_FX[i]||0)],
+    ['Closing Cash',(i)=>(BH_CLOSE[i]||0)+(BC_CLOSE[i]||0)],
+  ];
+  cfDefs.forEach(([lbl,fn])=>{
+    const vals=months.map((_,i)=>fmt(fn(i)));
+    const ytd=lbl==='Opening Cash'?'':lbl==='Closing Cash'?vals[vals.length-1]:vals.reduce((s,v)=>s+(v||0),0);
+    cfRows.push([lbl,...vals,lbl==='Opening Cash'||lbl==='Closing Cash'?'':fmt(ytd)]);
+  });
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(cfRows),'CF Summary');
+
+  // Cash Flow Inflows by contact
+  const inGrps=buildCFGroups(true);
+  const inRows=[['Contact','Entity',...mHdrs,'Total']];
+  inGrps.forEach(g=>{
+    const vals=months.map(m=>fmt(g.vals[m]||0));
+    inRows.push([g.group,ent==='conso'?'BH+BC':ent.toUpperCase(),...vals,fmt(vals.reduce((s,v)=>s+(v||0),0))]);
+  });
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(inRows),'CF Inflows');
+
+  // Cash Flow Outflows by contact
+  const outGrps=buildCFGroups(false);
+  const outRows=[['Contact','Entity',...mHdrs,'Total']];
+  outGrps.forEach(g=>{
+    const vals=months.map(m=>fmt(g.vals[m]||0));
+    outRows.push([g.group,ent==='conso'?'BH+BC':ent.toUpperCase(),...vals,fmt(vals.reduce((s,v)=>s+(v||0),0))]);
+  });
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(outRows),'CF Outflows');
+
+  // P&L sheets
+  XLSX.utils.book_append_sheet(wb,templateSheet(BH_PL),'BH P&L');
+  XLSX.utils.book_append_sheet(wb,templateSheet(BC_PL),'BC P&L');
+  XLSX.utils.book_append_sheet(wb,templateSheet(CONSO_PL),'Consolidated P&L');
+
+  // Balance Sheet sheets
+  XLSX.utils.book_append_sheet(wb,templateSheet(BH_BS),'BH Balance Sheet');
+  XLSX.utils.book_append_sheet(wb,templateSheet(BC_BS),'BC Balance Sheet');
+  XLSX.utils.book_append_sheet(wb,templateSheet(CONSO_BS),'Consolidated BS');
+
+  // Bank balances
+  const bnkRows=[['Bank Account','Entity',...mHdrs]];
+  Object.entries(BH_BANKS).forEach(([k,v])=>bnkRows.push([k,'BH',...months.map((_,i)=>fmt(v[i]||0))]));
+  Object.entries(BC_BANKS).forEach(([k,v])=>bnkRows.push([k,'BC',...months.map((_,i)=>fmt(v[i]||0))]));
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(bnkRows),'Bank Balances');
+
+  const now=new Date();
+  const fname=`IndexedFPA_${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}.xlsx`;
+  XLSX.writeFile(wb,fname);
+}
 
 // ── Actuals persistence (GL / BS / PL imported from Xero) ──
 // Note: loadActuals() is called at bottom of script after all helpers are defined.
