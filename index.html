@@ -1040,6 +1040,7 @@ const BH_PL = [
   {label:'Affiliate',              type:'i',v:[2596,2380,1756,0]},
   {label:'Sales',                  type:'i',v:[0,220,0,0]},
   {label:'Sales SEO Backlinks',    type:'i',v:[16500,12500,21500,2500]},
+  {label:'Other Revenue',          type:'i',v:[0,0,0,0]},
   {label:'SEO Consultancy',        type:'i',v:[450,0,0,0]},
   {label:'SEO Retainer',           type:'i',v:[21170,34305,35805,38635]},
   {label:'Total Trading Income',   type:'t',v:[40716,49405,59061,41135]},
@@ -1067,6 +1068,7 @@ const BH_PL = [
   {label:'Staff Entertainment',    type:'i',v:[90.17,0,107.88,0]},
   {label:'Subscriptions',          type:'i',v:[1870.39,2788.79,3866.11,3787.79]},
   {label:'Team Costs – Contractors',type:'i',v:[2890.41,4838.44,2110,1644.97]},
+  {label:'Team Costs - Contractors - G&A',type:'i',v:[0,0,0,1515.40]},
   {label:'Team Costs - Contractors - S&M',type:'i',v:[1126.79,250,1148.19,3668.59]},
   {label:'Team Costs - Employees - S&M', type:'i',v:[0,0,0,0]},
   {label:'Telephone & Internet',   type:'i',v:[82.19,82.99,82,91.72]},
@@ -1206,6 +1208,7 @@ const CONSO_PL = [
   {label:'Affiliate',                entity:'BH',type:'i',v:[2596,2380,1756,0]},
   {label:'Sales',                    entity:'BH',type:'i',v:[0,220,0,0]},
   {label:'Sales SEO Backlinks',      entity:'BH',type:'i',v:[16500,12500,21500,2500]},
+  {label:'Other Revenue',            entity:'BH',type:'i',v:[0,0,0,0]},
   {label:'SEO Consultancy',          entity:'BH',type:'i',v:[450,0,0,0]},
   {label:'SEO Retainer',             entity:'BH',type:'i',v:[21170,34305,35805,38635]},
   {label:'Marketing Operations',     entity:'BC',type:'i',v:[13230,14310,30415,13464]},
@@ -1238,6 +1241,7 @@ const CONSO_PL = [
   {label:'Staff Entertainment',      entity:'BH',type:'i',v:[90.17,0,107.88,0]},
   {label:'Subscriptions',            entity:'BH',type:'i',v:[1870.39,2788.79,3866.11,3787.79]},
   {label:'Team Costs – Contractors', entity:'BH',type:'i',v:[2890.41,4838.44,2110,1644.97]},
+  {label:'Team Costs - Contractors - G&A',entity:'BH',type:'i',v:[0,0,0,1515.40]},
   {label:'Team Costs - Contractors - S&M',entity:'BH',type:'i',v:[1126.79,250,1148.19,3668.59]},
   {label:'Team Costs - Employees - S&M', entity:'BH',type:'i',v:[0,0,0,0]},
   {label:'Telephone & Internet',     entity:'BH',type:'i',v:[82.19,82.99,82,91.72]},
@@ -2448,7 +2452,11 @@ function _parseFinancialReport(rows,entity,ftype){
   const byRow={};
   dateCells.filter(d=>d.c>=1).forEach(d=>{if(!byRow[d.r])byRow[d.r]=[];byRow[d.r].push(d);});
   const bestRow=Object.entries(byRow).sort((a,b)=>b[1].length-a[1].length)[0];
-  if(bestRow){headerRow=parseInt(bestRow[0]);colMonths=bestRow[1].map(d=>({ci:d.c,month:d.month}));}
+  if(bestRow){
+    headerRow=parseInt(bestRow[0]);
+    const seenM=new Set();
+    colMonths=bestRow[1].filter(d=>!seenM.has(d.month)&&seenM.add(d.month)).map(d=>({ci:d.c,month:d.month}));
+  }
 
   if(!colMonths.length){
     // Single date only — auto-detect data column from first data row
@@ -2535,10 +2543,11 @@ function renderImportPreview(entity,parsed,ftype){
     const unmatched=[], matched=[];
     dataRows.forEach(r=>{
       const rk=normKey(r.label);
-      const hit=kpiTarget.find(t=>{
+      let hit=kpiTarget.find(t=>t.label&&normKey(t.label)===rk);
+      if(!hit)hit=kpiTarget.find(t=>{
         if(!t.label)return false;
         const tk=normKey(t.label);
-        return tk===rk||rk.includes(tk);
+        return tk.length>=8&&rk.includes(tk);
       });
       if(hit){matched.push({xero:r.label,tmpl:hit.label,vals:r.vals});}
       else{unmatched.push({xero:r.label,vals:r.vals});}
@@ -2729,10 +2738,11 @@ function applyImport(entity,ftype){
     const dataRows=parsed.rows.filter(r=>r.type==='i'||r.type==='t');
     dataRows.forEach(r=>{
       const rk=normKey(r.label);
-      let hit=kpiTarget.find(t=>{
+      let hit=kpiTarget.find(t=>t.label&&normKey(t.label)===rk);
+      if(!hit)hit=kpiTarget.find(t=>{
         if(!t.label)return false;
         const tk=normKey(t.label);
-        return tk===rk||rk.includes(tk);
+        return tk.length>=8&&rk.includes(tk);
       });
       // GL mapping fallback: if no direct match, check user-defined mappings
       if(!hit){
