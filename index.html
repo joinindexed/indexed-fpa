@@ -544,16 +544,14 @@ input,select{font-family:var(--sans)}
 <!-- CF WORKING -->
 <div id="screen-cfworking" class="screen">
   <div class="page-header">
-    <div><div class="page-title">CF Working</div><div class="page-sub">All cash flow transactions · Override display group or net outflows against inflows</div></div>
+    <div><div class="page-title">CF Working</div><div class="page-sub">Complete transaction-level view · Inflows and outflows match CF statement exactly</div></div>
   </div>
   <div class="content">
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px" id="cfw-filters">
+    <!-- Shared filters -->
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px" id="cfw-filters">
       <select id="cfw-f-month" onchange="renderCFWorking()" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;font-family:var(--sans)"><option value="all">All months</option></select>
       <select id="cfw-f-entity" onchange="renderCFWorking()" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;font-family:var(--sans)">
         <option value="all">All entities</option><option value="BH">BH</option><option value="BC">BC</option>
-      </select>
-      <select id="cfw-f-type" onchange="renderCFWorking()" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;font-family:var(--sans)">
-        <option value="all">All types</option><option value="inflow">Inflows</option><option value="outflow">Outflows</option>
       </select>
       <select id="cfw-f-account" onchange="renderCFWorking()" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;font-family:var(--sans)"><option value="all">All accounts</option></select>
       <select id="cfw-f-contact" onchange="renderCFWorking()" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;font-family:var(--sans)"><option value="all">All contacts</option></select>
@@ -561,10 +559,26 @@ input,select{font-family:var(--sans)}
       <select id="cfw-f-fee" onchange="renderCFWorking()" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;font-family:var(--sans)">
         <option value="all">All (fee/no fee)</option><option value="hasfee">Has fee deducted</option><option value="nofee">No fee</option>
       </select>
-      <span id="cfw-count" style="font-size:12px;color:var(--text3);margin-left:4px"></span>
     </div>
-    <div style="overflow-x:auto">
-      <table class="dt" id="cfw-table" style="font-size:13px;min-width:1100px"></table>
+    <!-- Inflows card -->
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-head">
+        <span class="card-title">↑ Cash inflows</span>
+        <span class="card-hint" id="cfw-in-count"></span>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="dt" id="cfw-in-table" style="font-size:13px;min-width:1000px"></table>
+      </div>
+    </div>
+    <!-- Outflows card -->
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">↓ Cash outflows</span>
+        <span class="card-hint" id="cfw-out-count"></span>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="dt" id="cfw-out-table" style="font-size:13px;min-width:1000px"></table>
+      </div>
     </div>
   </div>
 </div>
@@ -3049,12 +3063,22 @@ function buildCFWorkingRows(){
       const netAsFee=type==='outflow'&&!!CF_NET_OVERRIDES[txKey];
       rows.push({txKey,month:mo,date:tx.date||m,entity:tx.entity,type,
         account:tx.account||'',contact:tx.contact,client:tx.client||'',
-        gross,fee,net,autoGroup,override,finalGroup,netAsFee});
+        gross,fee,net,autoGroup,override,finalGroup,netAsFee,isFeeRow:false});
+    };
+    const pushFee=(tx,contact)=>{
+      // Fee transactions (Payoneer/Stripe/PayPal) — netted against inflows, shown for transparency
+      rows.push({txKey:'',month:mo,date:tx.date||m,entity:tx.entity,type:'fee',
+        account:tx.account||'',contact,client:tx.client||'',
+        gross:tx.fee||0,fee:0,net:tx.fee||0,autoGroup:'(netted against inflow)',override:'',
+        finalGroup:'(netted against inflow)',netAsFee:false,isFeeRow:true});
     };
     (BH_IN_D[m]||[]).forEach(tx=>push(tx,'inflow'));
     (BC_IN_D[m]||[]).forEach(tx=>push(tx,'inflow'));
     (BH_OUT_D[m]||[]).filter(tx=>!isFee(tx.contact)).forEach(tx=>push(tx,'outflow'));
     (BC_OUT_D[m]||[]).filter(tx=>!isFee(tx.contact)).forEach(tx=>push(tx,'outflow'));
+    // Include fee transactions (Payoneer/Stripe/PayPal) as their own rows in outflows for full transparency
+    (BH_IN_D[m]||[]).filter(tx=>tx.fee>0).forEach(tx=>pushFee(tx,'Fee ('+tx.account+')'));
+    (BC_IN_D[m]||[]).filter(tx=>tx.fee>0).forEach(tx=>pushFee(tx,'Fee ('+tx.account+')'));
   });
   return rows;
 }
@@ -3062,77 +3086,112 @@ function buildCFWorkingRows(){
 function renderCFWorking(){
   const allRows=buildCFWorkingRows();
 
-  // Populate month, account, contact, client dropdowns from data
-  function repopSel(id,vals,current){
+  function repopSel(id,vals){
     const sel=document.getElementById(id);if(!sel)return;
-    const prev=current||sel.value;
+    const prev=sel.value;
     while(sel.options.length>1)sel.remove(1);
     vals.forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;sel.appendChild(o);});
     if([...sel.options].some(o=>o.value===prev))sel.value=prev;
   }
+  // Populate dropdowns from non-fee rows only (fee rows use synthetic contacts)
+  const realRows=allRows.filter(r=>!r.isFeeRow);
   repopSel('cfw-f-month',[...new Set(allRows.map(r=>r.month))]);
-  repopSel('cfw-f-account',[...new Set(allRows.map(r=>r.account).filter(Boolean))].sort());
-  repopSel('cfw-f-contact',[...new Set(allRows.map(r=>r.contact).filter(Boolean))].sort());
-  repopSel('cfw-f-client',[...new Set(allRows.map(r=>r.client).filter(Boolean))].sort());
+  repopSel('cfw-f-account',[...new Set(realRows.map(r=>r.account).filter(Boolean))].sort());
+  repopSel('cfw-f-contact',[...new Set(realRows.map(r=>r.contact).filter(Boolean))].sort());
+  repopSel('cfw-f-client',[...new Set(realRows.map(r=>r.client).filter(Boolean))].sort());
 
   const fMonth=(document.getElementById('cfw-f-month')||{}).value||'all';
   const fEntity=(document.getElementById('cfw-f-entity')||{}).value||'all';
-  const fType=(document.getElementById('cfw-f-type')||{}).value||'all';
   const fAcct=(document.getElementById('cfw-f-account')||{}).value||'all';
   const fContact=(document.getElementById('cfw-f-contact')||{}).value||'all';
   const fClient=(document.getElementById('cfw-f-client')||{}).value||'all';
   const fFee=(document.getElementById('cfw-f-fee')||{}).value||'all';
 
-  let rows=allRows;
-  if(fMonth!=='all')rows=rows.filter(r=>r.month===fMonth);
-  if(fEntity!=='all')rows=rows.filter(r=>r.entity===fEntity);
-  if(fType!=='all')rows=rows.filter(r=>r.type===fType);
-  if(fAcct!=='all')rows=rows.filter(r=>r.account===fAcct);
-  if(fContact!=='all')rows=rows.filter(r=>r.contact===fContact);
-  if(fClient!=='all')rows=rows.filter(r=>r.client===fClient);
-  if(fFee==='hasfee')rows=rows.filter(r=>r.fee>0);
-  if(fFee==='nofee')rows=rows.filter(r=>!r.fee);
+  function applyFilters(rows){
+    let r=rows;
+    if(fMonth!=='all')r=r.filter(x=>x.month===fMonth);
+    if(fEntity!=='all')r=r.filter(x=>x.entity===fEntity);
+    if(fAcct!=='all')r=r.filter(x=>x.account===fAcct);
+    if(fContact!=='all')r=r.filter(x=>x.contact===fContact);
+    if(fClient!=='all')r=r.filter(x=>x.client===fClient);
+    if(fFee==='hasfee')r=r.filter(x=>x.fee>0);
+    if(fFee==='nofee')r=r.filter(x=>!x.fee);
+    return r;
+  }
 
-  const el=document.getElementById('cfw-count');
-  if(el)el.textContent=rows.length+' rows';
+  const inRows=applyFilters(allRows.filter(r=>r.type==='inflow'));
+  const outRows=applyFilters(allRows.filter(r=>r.type==='outflow'||r.type==='fee'));
 
-  const COLS=['Month','Date','Entity','Type','Account','Contact','Client','Gross','Fee','Net','Auto Mapping','Override (editable)','Final Display Group','Net off inflow'];
-  let h=`<thead><tr>${COLS.map(c=>`<th style="white-space:nowrap;font-size:12px">${c}</th>`).join('')}</tr></thead><tbody>`;
+  const inTotal=inRows.reduce((s,r)=>s+r.net,0);
+  const outTotal=outRows.filter(r=>!r.isFeeRow).reduce((s,r)=>s+r.net,0);
+  const feeTotal=outRows.filter(r=>r.isFeeRow).reduce((s,r)=>s+r.gross,0);
 
-  rows.forEach(r=>{
-    const isIn=r.type==='inflow';
-    const tc=isIn?'var(--green)':r.netAsFee?'var(--text3)':'var(--red)';
-    const rowStyle=r.netAsFee?'opacity:0.55;text-decoration:line-through':'';
+  const inEl=document.getElementById('cfw-in-count');
+  if(inEl)inEl.textContent=`${inRows.length} rows · Total net: ${$f(inTotal)}`;
+  const outEl=document.getElementById('cfw-out-count');
+  if(outEl)outEl.textContent=`${outRows.length} rows · Vendor payments: ${$f(outTotal)} · Fees netted: ${$f(feeTotal)}`;
+
+  // ── Inflows table ──
+  const IN_COLS=['Month','Date','Entity','Account','Contact','Client','Gross','Fee','Net','Auto Mapping','Override (editable)','Final Display Group'];
+  let ih=`<thead><tr>${IN_COLS.map(c=>`<th style="white-space:nowrap;font-size:12px">${c}</th>`).join('')}</tr></thead><tbody>`;
+  inRows.forEach(r=>{
     const hasOv=!!r.override;
     const ovStyle=hasOv?'background:var(--accent-light);border-color:var(--accent-mid)':'background:var(--surface2);border-color:var(--border2)';
-    const chk=r.netAsFee?'checked':'';
-    const chkCell=isIn
-      ?'<td style="text-align:center;color:var(--text3);font-size:11px">—</td>'
-      :`<td style="text-align:center"><input type="checkbox" ${chk} data-txkey="${esc(r.txKey)}"
-          title="Net this outflow against inflows (removes from outflows, reduces inflow total)"
-          onchange="saveNetOverride(this.dataset.txkey,this.checked)"
-          style="cursor:pointer;width:15px;height:15px;accent-color:var(--accent)"></td>`;
-    h+=`<tr style="${rowStyle}">
+    ih+=`<tr>
       <td style="white-space:nowrap;color:var(--text2)">${r.month}</td>
       <td style="white-space:nowrap">${r.date}</td>
       <td>${eb(r.entity)}</td>
-      <td><span style="font-size:12px;font-weight:600;color:${tc}">${r.netAsFee?'netted':''+r.type}</span></td>
       <td style="color:var(--text2);font-size:12px">${r.account}</td>
       <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.contact)}">${esc(r.contact)}</td>
       <td style="color:var(--text3);font-size:12px">${esc(r.client)}</td>
-      <td class="r" style="color:${tc}">${r.gross?$f(r.gross):'—'}</td>
+      <td class="r" style="color:var(--green)">${r.gross?$f(r.gross):'—'}</td>
       <td class="r" style="color:var(--amber)">${r.fee?$f(r.fee):'—'}</td>
-      <td class="r" style="font-weight:600;color:${tc}">${$f(r.net)}</td>
+      <td class="r" style="font-weight:600;color:var(--green)">${$f(r.net)}</td>
       <td style="color:var(--text2);font-size:12px">${esc(r.autoGroup)}</td>
       <td style="min-width:160px"><input data-txkey="${esc(r.txKey)}" value="${esc(r.override)}" placeholder="${esc(r.autoGroup)}"
         style="width:100%;padding:4px 6px;font-size:12px;border-radius:4px;border:1px solid;${ovStyle};color:var(--text);font-family:var(--sans)"
         oninput="saveCFTxOverride(this.dataset.txkey,this.value);this.style.background='var(--accent-light)';this.style.borderColor='var(--accent-mid)'"></td>
       <td style="font-weight:600;color:var(--accent);font-size:12px">${esc(r.finalGroup)}</td>
-      ${chkCell}
     </tr>`;
   });
-  const tbl=document.getElementById('cfw-table');
-  if(tbl)tbl.innerHTML=h+'</tbody>';
+  const inTbl=document.getElementById('cfw-in-table');
+  if(inTbl)inTbl.innerHTML=ih+'</tbody>';
+
+  // ── Outflows table ──
+  const OUT_COLS=['Month','Date','Entity','Type','Account','Contact','Client','Amount','Auto Mapping','Override (editable)','Final Display Group'];
+  let oh=`<thead><tr>${OUT_COLS.map(c=>`<th style="white-space:nowrap;font-size:12px">${c}</th>`).join('')}</tr></thead><tbody>`;
+  outRows.forEach(r=>{
+    const isFeeRow=r.isFeeRow;
+    const tc=isFeeRow?'var(--amber)':r.netAsFee?'var(--text3)':'var(--red)';
+    const rowStyle=r.netAsFee?'opacity:0.55;text-decoration:line-through':isFeeRow?'opacity:0.75':'';
+    const hasOv=!!r.override;
+    const ovStyle=hasOv?'background:var(--accent-light);border-color:var(--accent-mid)':'background:var(--surface2);border-color:var(--border2)';
+    const typeBadge=isFeeRow
+      ?`<span style="font-size:11px;font-weight:600;color:var(--amber);background:rgba(251,191,36,0.12);padding:2px 6px;border-radius:3px">fee (netted)</span>`
+      :r.netAsFee
+        ?`<span style="font-size:11px;font-weight:600;color:var(--text3)">netted</span>`
+        :`<span style="font-size:11px;font-weight:600;color:var(--red)">outflow</span>`;
+    const overrideCell=isFeeRow
+      ?`<td style="color:var(--text3);font-size:12px;font-style:italic">auto-netted</td>`
+      :`<td style="min-width:160px"><input data-txkey="${esc(r.txKey)}" value="${esc(r.override)}" placeholder="${esc(r.autoGroup)}"
+          style="width:100%;padding:4px 6px;font-size:12px;border-radius:4px;border:1px solid;${ovStyle};color:var(--text);font-family:var(--sans)"
+          oninput="saveCFTxOverride(this.dataset.txkey,this.value);this.style.background='var(--accent-light)';this.style.borderColor='var(--accent-mid)'"></td>`;
+    oh+=`<tr style="${rowStyle}">
+      <td style="white-space:nowrap;color:var(--text2)">${r.month}</td>
+      <td style="white-space:nowrap">${r.date}</td>
+      <td>${eb(r.entity)}</td>
+      <td>${typeBadge}</td>
+      <td style="color:var(--text2);font-size:12px">${r.account}</td>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.contact)}">${esc(r.contact)}</td>
+      <td style="color:var(--text3);font-size:12px">${esc(r.client)}</td>
+      <td class="r" style="font-weight:600;color:${tc}">${$f(isFeeRow?r.gross:r.net)}</td>
+      <td style="color:var(--text2);font-size:12px">${isFeeRow?'—':esc(r.autoGroup)}</td>
+      ${overrideCell}
+      <td style="font-weight:600;color:${isFeeRow?'var(--text3)':'var(--accent)'};font-size:12px">${esc(r.finalGroup)}</td>
+    </tr>`;
+  });
+  const outTbl=document.getElementById('cfw-out-table');
+  if(outTbl)outTbl.innerHTML=oh+'</tbody>';
 }
 
 function saveCFTxOverride(txKey,val){
@@ -3141,8 +3200,9 @@ function saveCFTxOverride(txKey,val){
   try{localStorage.setItem('cf_tx_overrides',JSON.stringify(CF_TX_OVERRIDES));}catch(e){}
   renderCF();
   // Update Final Display Group cell inline
-  const row=document.querySelector(`#cfw-table input[data-txkey="${CSS.escape(txKey)}"]`)?.closest('tr');
-  if(row){const cells=row.querySelectorAll('td');if(cells[12])cells[12].textContent=val.trim()||cells[10].textContent;}
+  // Update Final Display Group cell inline in whichever table the input lives in
+  const inp=document.querySelector(`#cfw-in-table input[data-txkey="${CSS.escape(txKey)}"],#cfw-out-table input[data-txkey="${CSS.escape(txKey)}"]`);
+  if(inp){const cells=inp.closest('tr').querySelectorAll('td');const last=cells[cells.length-1];if(last)last.textContent=val.trim()||inp.placeholder;}
 }
 
 function saveNetOverride(txKey,checked){
