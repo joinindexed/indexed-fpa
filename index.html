@@ -2215,11 +2215,21 @@ function getBSMetrics(){
   return{ar:bsVal(BH_BS,'Accounts Receivable')+bsVal(BC_BS,'Accounts Receivable'),ap:bsVal(BH_BS,'Accounts Payable')+bsVal(BC_BS,'Accounts Payable'),accruals:bsVal(BH_BS,'Accruals')+bsVal(BC_BS,'Accruals'),dirLoan:bsVal(BH_BS,'Directors Loan Account'),loanDir:bsVal(BC_BS,'Loan from Director')};
 }
 
+function getFounderPayments(){
+  // Sum YTD outflow for any CF group whose name contains "founder" (case-insensitive)
+  const outGrps=buildCFGroups(false);
+  return outGrps
+    .filter(g=>g.group.toLowerCase().includes('founder'))
+    .reduce((s,g)=>s+E.reduce((ms,m)=>ms+(g.vals[m]||0),0),0);
+}
+
 function renderDash(){
   const d=getD();
   const ytdIn=d.in.reduce((s,v)=>s+v,0);
   const ytdOut=d.out.reduce((s,v)=>s+v,0);
   const net=ytdIn-ytdOut;
+  const founderPmt=getFounderPayments();
+  const adjNet=net+founderPmt;
   const pl=getPL();
   const bs=getBSMetrics();
   const pct=n=>(n*100).toFixed(1)+'%';
@@ -2234,7 +2244,7 @@ function renderDash(){
     <div class="mc"><div class="mc-label">Accounts receivable</div><div class="mc-value neu">${$f(bs.ar)}</div><div class="mc-sub">${closeLbl}</div></div>
     <div class="mc"><div class="mc-label">YTD inflow</div><div class="mc-value pos">${$f(ytdIn)}</div><div class="mc-sub">${ytdLbl}</div></div>
     <div class="mc"><div class="mc-label">YTD outflow</div><div class="mc-value neg">($${$f(ytdOut).replace('$','')})</div><div class="mc-sub">${ytdLbl}</div></div>
-    <div class="mc"><div class="mc-label">Net cash movement</div><div class="mc-value ${net>=0?'pos':'neg'}">${net>=0?$f(net):'($'+$f(Math.abs(net)).replace('$','')+')'}</div><div class="mc-sub">${ytdLbl}</div></div>`;
+    <div class="mc"><div class="mc-label">Adj. net cash movement</div><div class="mc-value ${adjNet>=0?'pos':'neg'}">${adjNet>=0?$f(adjNet):'($'+$f(Math.abs(adjNet)).replace('$','')+')'}</div><div class="mc-sub">Net movement + founder pmts</div></div>`;
 
   // P&L KPIs (5-column row)
   const adjCls=pl.adjNet>=0?'pos':'neg';
