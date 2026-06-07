@@ -202,8 +202,6 @@ input,select{font-family:var(--sans)}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M16 12l-4 4m0 0l-4-4m4 4V4"/></svg>Import data</div>
     <div class="nav-item" onclick="go('cfworking',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 10h18M3 14h18M10 3v18M14 3v18"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg>CF Working</div>
-    <div class="nav-item" onclick="exportToExcel()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>Export to Excel</div>
   </nav>
   <div class="sidebar-footer">
     <div class="cw">
@@ -248,11 +246,11 @@ input,select{font-family:var(--sans)}
   </div>
   <div class="content">
     <div class="card">
-      <div class="card-head"><span class="card-title">Cash flow statement</span><span class="card-hint">Click a row to drill into transactions</span></div>
+      <div class="card-head"><span class="card-title">Cash flow statement</span><span class="card-hint">Click a row to drill into transactions</span><button onclick="exportCFStatement()" title="Export to Excel" style="background:none;border:none;cursor:pointer;padding:2px 4px;color:var(--text3);display:flex;align-items:center" onmouseenter="this.style.color='var(--accent)'" onmouseleave="this.style.color='var(--text3)'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button></div>
       <div class="cf-wrap"><table class="cf" id="cft"></table></div>
     </div>
     <div class="card">
-      <div class="card-head"><span class="card-title">Bank account breakdown</span></div>
+      <div class="card-head"><span class="card-title">Bank account breakdown</span><button onclick="exportBankBreakdown()" title="Export to Excel" style="background:none;border:none;cursor:pointer;padding:2px 4px;color:var(--text3);display:flex;align-items:center" onmouseenter="this.style.color='var(--accent)'" onmouseleave="this.style.color='var(--text3)'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button></div>
       <div class="cf-wrap"><table class="cf" id="bnk-table"></table></div>
     </div>
   </div>
@@ -270,12 +268,12 @@ input,select{font-family:var(--sans)}
       <div class="itab" onclick="swFin('pl',this)">Profit &amp; Loss</div>
     </div>
     <div id="fin-bs" class="itp active">
-      <div class="card"><div class="card-head"><span class="card-title" id="bs-title">Balance sheet</span></div>
+      <div class="card"><div class="card-head"><span class="card-title" id="bs-title">Balance sheet</span><button onclick="exportBS()" title="Export to Excel" style="background:none;border:none;cursor:pointer;padding:2px 4px;color:var(--text3);display:flex;align-items:center" onmouseenter="this.style.color='var(--accent)'" onmouseleave="this.style.color='var(--text3)'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button></div>
         <div id="bs-banner"></div>
         <div class="cf-wrap"><table class="fin" id="bst"></table></div></div>
     </div>
     <div id="fin-pl" class="itp">
-      <div class="card"><div class="card-head"><span class="card-title" id="pl-title">Profit &amp; Loss</span></div>
+      <div class="card"><div class="card-head"><span class="card-title" id="pl-title">Profit &amp; Loss</span><button onclick="exportPL()" title="Export to Excel" style="background:none;border:none;cursor:pointer;padding:2px 4px;color:var(--text3);display:flex;align-items:center" onmouseenter="this.style.color='var(--accent)'" onmouseleave="this.style.color='var(--text3)'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button></div>
         <div id="pl-banner"></div>
         <div class="cf-wrap"><table class="fin" id="plt"></table></div></div>
     </div>
@@ -3072,18 +3070,105 @@ function cfwClearOverrides(){
 }
 
 function exportCFWorking(){
-  if(!window.XLSX)return;
-  const rows=buildCFWorkingRows();
-  const hdrs=['Month','Date','Entity','Type','Account','Contact','Client','Gross','Fee','Net','Auto Mapping','Override','Final Display Group'];
-  const data=[hdrs,...rows.map(r=>[r.month,r.date,r.entity,r.type,r.account,r.contact,r.client,r.gross||0,r.fee||0,r.net||0,r.autoGroup,r.override,r.finalGroup])];
-  const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(data),'CF Working');
-  XLSX.writeFile(wb,`CFWorking_${new Date().toISOString().slice(0,10)}.xlsx`);
+  loadSheetJS(()=>{
+    const rows=buildCFWorkingRows();
+    const hdrs=['Month','Date','Entity','Type','Account','Contact','Client','Gross','Fee','Net','Auto Mapping','Override','Final Display Group'];
+    const data=[hdrs,...rows.map(r=>[r.month,r.date,r.entity,r.type,r.account,r.contact,r.client,r.gross||0,r.fee||0,r.net||0,r.autoGroup,r.override,r.finalGroup])];
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(data),'CF Working');
+    XLSX.writeFile(wb,`CFWorking_${new Date().toISOString().slice(0,10)}.xlsx`);
+  });
 }
 
-// ── Export to Excel ──
+function exportCFStatement(){
+  loadSheetJS(()=>{
+    const wb=XLSX.utils.book_new();
+    const months=E.slice();const yr=' 2026';const mHdrs=months.map(m=>m+yr);
+    const fmt=v=>typeof v==='number'?Math.round(v*100)/100:v;
+    // CF Summary
+    const cfRows=[['',  ...mHdrs,'YTD']];
+    const cfDefs=[
+      ['Opening Cash',(i)=>i===0?BH_OPEN+BC_OPEN:(BH_CLOSE[i-1]||0)+(BC_CLOSE[i-1]||0)],
+      ['BH Inflows',(i)=>BH_IN[i]||0],['BC Inflows',(i)=>BC_IN[i]||0],
+      ['Total Inflows',(i)=>(BH_IN[i]||0)+(BC_IN[i]||0)],
+      ['BH Outflows',(i)=>-(BH_OUT[i]||0)],['BC Outflows',(i)=>-(BC_OUT[i]||0)],
+      ['Total Outflows',(i)=>-((BH_OUT[i]||0)+(BC_OUT[i]||0))],
+      ['FX / Other',(i)=>(BH_FX[i]||0)+(BC_FX[i]||0)],
+      ['Closing Cash',(i)=>(BH_CLOSE[i]||0)+(BC_CLOSE[i]||0)],
+    ];
+    cfDefs.forEach(([lbl,fn])=>{
+      const vals=months.map((_,i)=>fmt(fn(i)));
+      const ytd=lbl==='Opening Cash'?'':lbl==='Closing Cash'?vals[vals.length-1]:vals.reduce((s,v)=>s+(v||0),0);
+      cfRows.push([lbl,...vals,lbl==='Opening Cash'||lbl==='Closing Cash'?'':fmt(ytd)]);
+    });
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(cfRows),'CF Summary');
+    // Inflows
+    const inGrps=buildCFGroups(true);
+    const inRows=[['Contact','Entity',...mHdrs,'Total']];
+    inGrps.forEach(g=>{const vals=months.map(m=>fmt(g.vals[m]||0));inRows.push([g.group,ent==='conso'?'BH+BC':ent.toUpperCase(),...vals,fmt(vals.reduce((s,v)=>s+(v||0),0))]);});
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(inRows),'CF Inflows');
+    // Outflows
+    const outGrps=buildCFGroups(false);
+    const outRows=[['Contact','Entity',...mHdrs,'Total']];
+    outGrps.forEach(g=>{const vals=months.map(m=>fmt(g.vals[m]||0));outRows.push([g.group,ent==='conso'?'BH+BC':ent.toUpperCase(),...vals,fmt(vals.reduce((s,v)=>s+(v||0),0))]);});
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(outRows),'CF Outflows');
+    XLSX.writeFile(wb,`CF_Statement_${new Date().toISOString().slice(0,10)}.xlsx`);
+  });
+}
+
+function exportBankBreakdown(){
+  loadSheetJS(()=>{
+    const wb=XLSX.utils.book_new();
+    const months=E.slice();const yr=' 2026';const mHdrs=months.map(m=>m+yr);
+    const fmt=v=>typeof v==='number'?Math.round(v*100)/100:v;
+    const bnkRows=[['Bank Account','Entity',...mHdrs]];
+    Object.entries(BH_BANKS).forEach(([k,v])=>bnkRows.push([k,'BH',...months.map((_,i)=>fmt(v[i]||0))]));
+    Object.entries(BC_BANKS).forEach(([k,v])=>bnkRows.push([k,'BC',...months.map((_,i)=>fmt(v[i]||0))]));
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(bnkRows),'Bank Balances');
+    XLSX.writeFile(wb,`Bank_Breakdown_${new Date().toISOString().slice(0,10)}.xlsx`);
+  });
+}
+
+function exportBS(){
+  loadSheetJS(()=>{
+    const wb=XLSX.utils.book_new();
+    const months=E.slice();const yr=' 2026';const mHdrs=months.map(m=>m+yr);
+    const fmt=v=>typeof v==='number'?Math.round(v*100)/100:v;
+    function templateSheet(arr){
+      const rows=[['',  ...mHdrs]];
+      arr.forEach(r=>{if(!r.label)return;const indent=r.type==='t'||r.type==='gt'?'':r.indent?'  ':'';rows.push([indent+r.label,...months.map(m=>{const i=E.indexOf(m);return i>=0&&r.v?fmt(r.v[i]):'';})]);});
+      return XLSX.utils.aoa_to_sheet(rows);
+    }
+    XLSX.utils.book_append_sheet(wb,templateSheet(BH_BS),'BH Balance Sheet');
+    XLSX.utils.book_append_sheet(wb,templateSheet(BC_BS),'BC Balance Sheet');
+    XLSX.utils.book_append_sheet(wb,templateSheet(CONSO_BS),'Consolidated BS');
+    XLSX.writeFile(wb,`Balance_Sheet_${new Date().toISOString().slice(0,10)}.xlsx`);
+  });
+}
+
+function exportPL(){
+  loadSheetJS(()=>{
+    const wb=XLSX.utils.book_new();
+    const months=E.slice();const yr=' 2026';const mHdrs=months.map(m=>m+yr);
+    const fmt=v=>typeof v==='number'?Math.round(v*100)/100:v;
+    function templateSheet(arr){
+      const rows=[['',  ...mHdrs]];
+      arr.forEach(r=>{if(!r.label)return;const indent=r.type==='t'||r.type==='gt'?'':r.indent?'  ':'';rows.push([indent+r.label,...months.map(m=>{const i=E.indexOf(m);return i>=0&&r.v?fmt(r.v[i]):'';})]);});
+      return XLSX.utils.aoa_to_sheet(rows);
+    }
+    XLSX.utils.book_append_sheet(wb,templateSheet(BH_PL),'BH P&L');
+    XLSX.utils.book_append_sheet(wb,templateSheet(BC_PL),'BC P&L');
+    XLSX.utils.book_append_sheet(wb,templateSheet(CONSO_PL),'Consolidated P&L');
+    XLSX.writeFile(wb,`PL_${new Date().toISOString().slice(0,10)}.xlsx`);
+  });
+}
+
+// ── Export to Excel (full workbook) ──
 function exportToExcel(){
-  if(!window.XLSX){alert('SheetJS not loaded');return;}
+  loadSheetJS(()=>{_doExportToExcel();});
+}
+function _doExportToExcel(){
+  if(!window.XLSX)return;
   const wb=XLSX.utils.book_new();
   const months=E.slice();
   const yr=' 2026';
