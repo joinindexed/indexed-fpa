@@ -4618,8 +4618,8 @@ async function sbPull(){
     let changed=false;
     if(d.ar_fcst&&d.ar_fcst.length){AR_FCST=d.ar_fcst.map(recalcARRow);try{localStorage.setItem('ar_fcst',JSON.stringify(AR_FCST));}catch(e){}changed=true;}
     if(d.ap_fcst&&d.ap_fcst.length){AP_FCST=d.ap_fcst;try{localStorage.setItem('ap_fcst',JSON.stringify(AP_FCST));}catch(e){}changed=true;}
-    if(d.ct_map&&Object.keys(d.ct_map).length){CT_MAP=d.ct_map;try{localStorage.setItem('ct_map',JSON.stringify(CT_MAP));}catch(e){}}
-    if(d.gl_mappings&&Object.keys(d.gl_mappings).length){GL_MAPPINGS=d.gl_mappings;try{localStorage.setItem('gl_mappings',JSON.stringify(GL_MAPPINGS));}catch(e){}}
+    if(d.ct_map&&Object.keys(d.ct_map).length){CT_MAP={...d.ct_map,...CT_MAP};try{localStorage.setItem('ct_map',JSON.stringify(CT_MAP));}catch(e){}}
+    if(d.gl_mappings&&Object.keys(d.gl_mappings).length){GL_MAPPINGS={...d.gl_mappings,...GL_MAPPINGS};try{localStorage.setItem('gl_mappings',JSON.stringify(GL_MAPPINGS));}catch(e){}}
     _sbPulling=false;
     if(changed){renderDash();renderCF();renderFcastAR();renderFcastAP();renderContacts();}
     const ts=d.updated_at?new Date(d.updated_at).toLocaleString():'—';
@@ -4639,8 +4639,8 @@ async function sbPull(){
     let changed=false;
     if(d.ar_fcst&&d.ar_fcst.length){AR_FCST=d.ar_fcst.map(recalcARRow);try{localStorage.setItem('ar_fcst',JSON.stringify(AR_FCST));}catch(e){}changed=true;}
     if(d.ap_fcst&&d.ap_fcst.length){AP_FCST=d.ap_fcst;try{localStorage.setItem('ap_fcst',JSON.stringify(AP_FCST));}catch(e){}changed=true;}
-    if(d.ct_map&&Object.keys(d.ct_map).length){CT_MAP=d.ct_map;try{localStorage.setItem('ct_map',JSON.stringify(CT_MAP));}catch(e){}}
-    if(d.gl_mappings&&Object.keys(d.gl_mappings).length){GL_MAPPINGS=d.gl_mappings;try{localStorage.setItem('gl_mappings',JSON.stringify(GL_MAPPINGS));}catch(e){}}
+    if(d.ct_map&&Object.keys(d.ct_map).length){CT_MAP={...d.ct_map,...CT_MAP};try{localStorage.setItem('ct_map',JSON.stringify(CT_MAP));}catch(e){}}
+    if(d.gl_mappings&&Object.keys(d.gl_mappings).length){GL_MAPPINGS={...d.gl_mappings,...GL_MAPPINGS};try{localStorage.setItem('gl_mappings',JSON.stringify(GL_MAPPINGS));}catch(e){}}
     _sbPulling=false;
     if(changed){renderDash();renderCF();renderFcastAR();renderFcastAP();}
     const ts=d.updated_at?new Date(d.updated_at).toLocaleString():'—';
