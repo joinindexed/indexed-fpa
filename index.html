@@ -1406,9 +1406,25 @@ function renderCF(){
 
 let _cfInGroups=[], _cfOutGroups=[], _cfInFcstGroups=[], _cfOutFcstGroups=[];
 
+// Returns map of contact||entity||month → total outflow amount the user has marked to net
+function getNettedByContactMap(){
+  const map={};
+  E.forEach(m=>{
+    [...(BH_OUT_D[m]||[]),...(BC_OUT_D[m]||[])].forEach(tx=>{
+      const k=`${tx.date||''}||${tx.contact}||${tx.entity}||${tx.account||''}`;
+      if(CF_NET_OVERRIDES[k]){
+        const ck=tx.contact+'||'+tx.entity+'||'+m;
+        map[ck]=(map[ck]||0)+tx.amt;
+      }
+    });
+  });
+  return map;
+}
+
 function buildCFGroups(isIn){
   const merged=getMergedMap();
   const groups={};
+  const nettedMap=isIn?getNettedByContactMap():{};
   E.forEach(m=>{
     const txList=isIn
       ?[...(BH_IN_D[m]||[]),...(BC_IN_D[m]||[])]
@@ -1417,37 +1433,25 @@ function buildCFGroups(isIn){
       if(ent!=='conso'&&tx.entity!==ent.toUpperCase())return;
       if(!isIn&&isFee(tx.contact))return;
       const txOvKey=`${tx.date||''}||${tx.contact}||${tx.entity}||${tx.account||''}`;
-      // Skip outflows that the user has marked to net against inflows
-      if(!isIn&&CF_NET_OVERRIDES[txOvKey])return;
+      if(!isIn&&CF_NET_OVERRIDES[txOvKey])return; // skip netted outflows
       const mapKey=tx.contact+'||'+tx.entity;
       const grpName=CF_TX_OVERRIDES[txOvKey]||merged[mapKey]?.group||tx.contact;
       if(!groups[grpName])groups[grpName]={group:grpName,vals:{},entities:{BH:{vals:{}},BC:{vals:{}}}};
-      groups[grpName].vals[m]=(groups[grpName].vals[m]||0)+tx.amt;
+      // For inflows: subtract any user-netted outflows for this same contact+entity+month
+      let amt=tx.amt;
+      if(isIn){
+        const ck=tx.contact+'||'+tx.entity+'||'+m;
+        if(nettedMap[ck]&&!groups[grpName]._nettedApplied){
+          amt=Math.max(0,amt-nettedMap[ck]);
+          groups[grpName]._nettedApplied=true; // apply to first tx only to avoid double-subtracting
+        }
+      }
+      groups[grpName].vals[m]=(groups[grpName].vals[m]||0)+amt;
       const entKey=tx.entity;
-      groups[grpName].entities[entKey].vals[m]=(groups[grpName].entities[entKey].vals[m]||0)+tx.amt;
+      if(!groups[grpName].entities[entKey])groups[grpName].entities[entKey]={vals:{}};
+      groups[grpName].entities[entKey].vals[m]=(groups[grpName].entities[entKey].vals[m]||0)+amt;
     });
   });
-  // For inflows: add a "Fee adjustments" line for any outflows netted against inflow
-  if(isIn){
-    const na=computeNetAdjustments();
-    const hasAdj=E.some((m,i)=>{
-      if(ent==='bh')return na.BH[i]>0;
-      if(ent==='bc')return na.BC[i]>0;
-      return na.BH[i]>0||na.BC[i]>0;
-    });
-    if(hasAdj){
-      const feeAdj={group:'Fee adjustments (netted)',vals:{},entities:{BH:{vals:{}},BC:{vals:{}}}};
-      E.forEach((m,i)=>{
-        const bhAmt=ent!=='bc'?-na.BH[i]:0;
-        const bcAmt=ent!=='bh'?-na.BC[i]:0;
-        const total=bhAmt+bcAmt;
-        if(total!==0){feeAdj.vals[m]=total;}
-        if(na.BH[i]&&ent!=='bc')feeAdj.entities.BH.vals[m]=-na.BH[i];
-        if(na.BC[i]&&ent!=='bh')feeAdj.entities.BC.vals[m]=-na.BC[i];
-      });
-      groups['__fee_adj__']=feeAdj;
-    }
-  }
   return Object.values(groups)
     .sort((a,b)=>E.reduce((s,m)=>s+(b.vals[m]||0),0)-E.reduce((s,m)=>s+(a.vals[m]||0),0));
 }
@@ -3048,6 +3052,9 @@ try { AP_FCST = JSON.parse(localStorage.getItem('ap_fcst')||'[]'); } catch(e){}
 // ── CF Working Sheet ──
 function buildCFWorkingRows(){
   const merged=getMergedMap();
+  const nettedMap=getNettedByContactMap();
+  // Track how much of each contact's netting has been applied to inflow rows (apply once)
+  const nettedApplied={};
   const rows=[];
   E.forEach(m=>{
     const mo=m+' 2026';
@@ -3057,16 +3064,24 @@ function buildCFWorkingRows(){
       const autoGroup=merged[contactKey]?.group||tx.contact;
       const override=CF_TX_OVERRIDES[txKey]||'';
       const finalGroup=override||autoGroup;
-      const gross=(tx.amt||0)+(tx.fee||0);
-      const fee=tx.fee||0;
-      const net=tx.amt||0;
       const netAsFee=type==='outflow'&&!!CF_NET_OVERRIDES[txKey];
+      // For inflows: add any user-netted outflow amount to the fee (applied once per contact+entity+month)
+      let fee=tx.fee||0;
+      let net=tx.amt||0;
+      if(type==='inflow'){
+        const ck=tx.contact+'||'+tx.entity+'||'+m;
+        if(nettedMap[ck]&&!nettedApplied[ck]){
+          fee+=nettedMap[ck];
+          net=Math.max(0,net-nettedMap[ck]);
+          nettedApplied[ck]=true;
+        }
+      }
+      const gross=net+fee;
       rows.push({txKey,month:mo,date:tx.date||m,entity:tx.entity,type,
         account:tx.account||'',contact:tx.contact,client:tx.client||'',
         gross,fee,net,autoGroup,override,finalGroup,netAsFee,isFeeRow:false});
     };
     const pushFee=(tx,contact)=>{
-      // Fee transactions (Payoneer/Stripe/PayPal) — netted against inflows, shown for transparency
       rows.push({txKey:'',month:mo,date:tx.date||m,entity:tx.entity,type:'fee',
         account:tx.account||'',contact,client:tx.client||'',
         gross:tx.fee||0,fee:0,net:tx.fee||0,autoGroup:'(netted against inflow)',override:'',
@@ -3076,7 +3091,6 @@ function buildCFWorkingRows(){
     (BC_IN_D[m]||[]).forEach(tx=>push(tx,'inflow'));
     (BH_OUT_D[m]||[]).filter(tx=>!isFee(tx.contact)).forEach(tx=>push(tx,'outflow'));
     (BC_OUT_D[m]||[]).filter(tx=>!isFee(tx.contact)).forEach(tx=>push(tx,'outflow'));
-    // Include fee transactions (Payoneer/Stripe/PayPal) as their own rows in outflows for full transparency
     (BH_IN_D[m]||[]).filter(tx=>tx.fee>0).forEach(tx=>pushFee(tx,'Fee ('+tx.account+')'));
     (BC_IN_D[m]||[]).filter(tx=>tx.fee>0).forEach(tx=>pushFee(tx,'Fee ('+tx.account+')'));
   });
@@ -3158,7 +3172,7 @@ function renderCFWorking(){
   if(inTbl)inTbl.innerHTML=ih+'</tbody>';
 
   // ── Outflows table ──
-  const OUT_COLS=['Month','Date','Entity','Type','Account','Contact','Client','Amount','Auto Mapping','Override (editable)','Final Display Group'];
+  const OUT_COLS=['Month','Date','Entity','Type','Account','Contact','Client','Amount','Auto Mapping','Override (editable)','Final Display Group','Net off inflow ↑'];
   let oh=`<thead><tr>${OUT_COLS.map(c=>`<th style="white-space:nowrap;font-size:12px">${c}</th>`).join('')}</tr></thead><tbody>`;
   outRows.forEach(r=>{
     const isFeeRow=r.isFeeRow;
@@ -3176,6 +3190,14 @@ function renderCFWorking(){
       :`<td style="min-width:160px"><input data-txkey="${esc(r.txKey)}" value="${esc(r.override)}" placeholder="${esc(r.autoGroup)}"
           style="width:100%;padding:4px 6px;font-size:12px;border-radius:4px;border:1px solid;${ovStyle};color:var(--text);font-family:var(--sans)"
           oninput="saveCFTxOverride(this.dataset.txkey,this.value);this.style.background='var(--accent-light)';this.style.borderColor='var(--accent-mid)'"></td>`;
+    // Net off inflow checkbox — only on real outflow rows, not auto-fee rows
+    const netCell=isFeeRow
+      ?`<td style="text-align:center;color:var(--text3);font-size:11px" title="Already auto-netted">✓</td>`
+      :`<td style="text-align:center" title="Tick to remove this from outflows and reduce the matching contact's inflow by this amount">
+          <input type="checkbox" ${r.netAsFee?'checked':''} data-txkey="${esc(r.txKey)}"
+            onchange="saveNetOverride(this.dataset.txkey,this.checked)"
+            style="cursor:pointer;width:15px;height:15px;accent-color:var(--accent)">
+        </td>`;
     oh+=`<tr style="${rowStyle}">
       <td style="white-space:nowrap;color:var(--text2)">${r.month}</td>
       <td style="white-space:nowrap">${r.date}</td>
@@ -3188,6 +3210,7 @@ function renderCFWorking(){
       <td style="color:var(--text2);font-size:12px">${isFeeRow?'—':esc(r.autoGroup)}</td>
       ${overrideCell}
       <td style="font-weight:600;color:${isFeeRow?'var(--text3)':'var(--accent)'};font-size:12px">${esc(r.finalGroup)}</td>
+      ${netCell}
     </tr>`;
   });
   const outTbl=document.getElementById('cfw-out-table');
