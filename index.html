@@ -405,15 +405,25 @@ input,select{font-family:var(--sans)}
       </div>
     </div>
     <div id="ct-mapping" style="display:none">
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+        <select id="ctmap-filter-entity" onchange="renderMappingTable()" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:14px;font-family:var(--sans)">
+          <option value="all">All entities</option>
+          <option value="BH">BH only</option>
+          <option value="BC">BC only</option>
+        </select>
+        <select id="ctmap-filter-type" onchange="renderMappingTable()" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:14px;font-family:var(--sans)">
+          <option value="all">All types</option>
+          <option value="client">Clients only</option>
+          <option value="vendor">Vendors only</option>
+        </select>
+        <span style="font-size:13px;color:var(--text3);margin-left:4px">Changes save automatically as you type</span>
+      </div>
       <div class="card">
         <div class="card-head">
           <span class="card-title">Contact → Display group</span>
           <span class="card-hint">Type a group name to merge contacts · blank = each contact shown individually</span>
         </div>
         <div style="overflow-x:auto"><table class="dt" id="ctMap"></table></div>
-      </div>
-      <div style="background:var(--accent-light);border:1px solid var(--border);border-radius:8px;padding:12px 16px;font-size:15.0px;color:var(--text2);margin-top:4px">
-        <strong style="color:var(--accent)">How it works:</strong> Assign the same group name to multiple contacts and they'll be merged into one row in the Summary. Click any group row to expand and see the underlying contacts. Changes apply immediately when you click Save.
       </div>
     </div>
     <div id="ct-glmap" style="display:none">
@@ -1884,11 +1894,25 @@ function renderGrpTable(id,data){
   document.getElementById(id).innerHTML=h+'</tbody>';
 }
 
+function saveOneMapping(k,val){
+  const [contact,entity]=k.split('||');
+  const allContacts=buildContacts();
+  const found=allContacts.find(c=>c.contact===contact&&c.entity===entity);
+  const type=found?found.type:'vendor';
+  if(val.trim()){CT_MAP[k]={group:val.trim(),type};}else{delete CT_MAP[k];}
+  try{localStorage.setItem('ct_map',JSON.stringify(CT_MAP));}catch(e){}
+  renderCF();
+}
+
 function renderMappingTable(){
   const raw=buildContacts();
   const merged=getMergedMap();
+  const fEnt=(document.getElementById('ctmap-filter-entity')||{}).value||'all';
+  const fType=(document.getElementById('ctmap-filter-type')||{}).value||'all';
   // Sort by total flow descending so biggest contacts are at top
-  const sorted=[...raw].sort((a,b)=>(b.inflow+b.outflow)-(a.inflow+a.outflow));
+  let sorted=[...raw].sort((a,b)=>(b.inflow+b.outflow)-(a.inflow+a.outflow));
+  if(fEnt!=='all')sorted=sorted.filter(c=>c.entity===fEnt);
+  if(fType!=='all')sorted=sorted.filter(c=>c.type===fType);
   let h=`<thead><tr>
     <th>Contact (from Xero)</th><th>Entity</th><th>Type</th>
     <th class="r">Total flow</th>
@@ -1913,7 +1937,7 @@ function renderMappingTable(){
           placeholder="${c.contact}"
           list="grp-suggestions"
           style="width:100%;background:${isCustom?'var(--accent-light)':'var(--surface2)'};border:1px solid ${isCustom?'var(--accent-mid)':'var(--border2)'};border-radius:5px;padding:5px 8px;font-size:15.0px;font-family:var(--sans);color:var(--text)"
-          oninput="this.style.background='var(--amber-dim)';this.style.borderColor='var(--amber)'"
+          oninput="saveOneMapping(this.dataset.key,this.value);this.style.background='var(--accent-light)';this.style.borderColor='var(--accent-mid)'"
         >
       </td>
     </tr>`;
