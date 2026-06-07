@@ -1406,16 +1406,18 @@ function renderCF(){
 
 let _cfInGroups=[], _cfOutGroups=[], _cfInFcstGroups=[], _cfOutFcstGroups=[];
 
-// Returns map of contact||entity||month → total outflow amount the user has marked to net
+// Returns map of targetContact||entity||month → total outflow amount to net against that inflow contact
 function getNettedByContactMap(){
   const map={};
   E.forEach(m=>{
     [...(BH_OUT_D[m]||[]),...(BC_OUT_D[m]||[])].forEach(tx=>{
       const k=`${tx.date||''}||${tx.contact}||${tx.entity}||${tx.account||''}`;
-      if(CF_NET_OVERRIDES[k]){
-        const ck=tx.contact+'||'+tx.entity+'||'+m;
-        map[ck]=(map[ck]||0)+tx.amt;
-      }
+      const target=CF_NET_OVERRIDES[k];
+      if(!target)return;
+      // target is the inflow contact name to net against (string); true = legacy, treat as self
+      const targetContact=(target===true)?tx.contact:target;
+      const ck=targetContact+'||'+tx.entity+'||'+m;
+      map[ck]=(map[ck]||0)+tx.amt;
     });
   });
   return map;
@@ -3064,7 +3066,8 @@ function buildCFWorkingRows(){
       const autoGroup=merged[contactKey]?.group||tx.contact;
       const override=CF_TX_OVERRIDES[txKey]||'';
       const finalGroup=override||autoGroup;
-      const netAsFee=type==='outflow'&&!!CF_NET_OVERRIDES[txKey];
+      const netTarget=type==='outflow'?(CF_NET_OVERRIDES[txKey]||''):'';
+      const netAsFee=type==='outflow'&&!!netTarget;
       // For inflows: add any user-netted outflow amount to the fee (applied once per contact+entity+month)
       let fee=tx.fee||0;
       let net=tx.amt||0;
@@ -3079,7 +3082,7 @@ function buildCFWorkingRows(){
       const gross=net+fee;
       rows.push({txKey,month:mo,date:tx.date||m,entity:tx.entity,type,
         account:tx.account||'',contact:tx.contact,client:tx.client||'',
-        gross,fee,net,autoGroup,override,finalGroup,netAsFee,isFeeRow:false});
+        gross,fee,net,autoGroup,override,finalGroup,netAsFee,netTarget,isFeeRow:false});
     };
     const pushFee=(tx,contact)=>{
       rows.push({txKey:'',month:mo,date:tx.date||m,entity:tx.entity,type:'fee',
@@ -3172,7 +3175,9 @@ function renderCFWorking(){
   if(inTbl)inTbl.innerHTML=ih+'</tbody>';
 
   // ── Outflows table ──
-  const OUT_COLS=['Month','Date','Entity','Type','Account','Contact','Client','Amount','Auto Mapping','Override (editable)','Final Display Group','Net off inflow ↑'];
+  // Build datalist of inflow contacts for autocomplete on the net input
+  const inflowContacts=[...new Set(allRows.filter(r=>r.type==='inflow').map(r=>r.contact).filter(Boolean))].sort();
+  const OUT_COLS=['Month','Date','Entity','Type','Account','Contact','Client','Amount','Auto Mapping','Override (editable)','Final Display Group','Net against inflow contact ↑'];
   let oh=`<thead><tr>${OUT_COLS.map(c=>`<th style="white-space:nowrap;font-size:12px">${c}</th>`).join('')}</tr></thead><tbody>`;
   outRows.forEach(r=>{
     const isFeeRow=r.isFeeRow;
@@ -3190,13 +3195,19 @@ function renderCFWorking(){
       :`<td style="min-width:160px"><input data-txkey="${esc(r.txKey)}" value="${esc(r.override)}" placeholder="${esc(r.autoGroup)}"
           style="width:100%;padding:4px 6px;font-size:12px;border-radius:4px;border:1px solid;${ovStyle};color:var(--text);font-family:var(--sans)"
           oninput="saveCFTxOverride(this.dataset.txkey,this.value);this.style.background='var(--accent-light)';this.style.borderColor='var(--accent-mid)'"></td>`;
-    // Net off inflow checkbox — only on real outflow rows, not auto-fee rows
+    // Net against inflow — text input (type the inflow contact name). For auto-fee rows show checkmark.
+    const netInputStyle=r.netAsFee
+      ?'background:rgba(99,220,110,0.12);border-color:var(--green)'
+      :'background:var(--surface2);border-color:var(--border2)';
     const netCell=isFeeRow
-      ?`<td style="text-align:center;color:var(--text3);font-size:11px" title="Already auto-netted">✓</td>`
-      :`<td style="text-align:center" title="Tick to remove this from outflows and reduce the matching contact's inflow by this amount">
-          <input type="checkbox" ${r.netAsFee?'checked':''} data-txkey="${esc(r.txKey)}"
-            onchange="saveNetOverride(this.dataset.txkey,this.checked)"
-            style="cursor:pointer;width:15px;height:15px;accent-color:var(--accent)">
+      ?`<td style="text-align:center;color:var(--text3);font-size:11px" title="Already auto-netted against inflow">✓</td>`
+      :`<td style="min-width:180px">
+          <input list="cfw-inflow-contacts" data-txkey="${esc(r.txKey)}"
+            value="${esc(r.netTarget)}"
+            placeholder="Type inflow contact…"
+            title="Type the inflow contact name to net this outflow against. Can be a different contact (e.g. Duo Strategy LLC outflow → net against Boardroom Advisors inflow)."
+            onchange="saveNetOverride(this.dataset.txkey,this.value)"
+            style="width:100%;padding:4px 6px;font-size:12px;border-radius:4px;border:1px solid;${netInputStyle};color:var(--text);font-family:var(--sans)">
         </td>`;
     oh+=`<tr style="${rowStyle}">
       <td style="white-space:nowrap;color:var(--text2)">${r.month}</td>
@@ -3214,7 +3225,13 @@ function renderCFWorking(){
     </tr>`;
   });
   const outTbl=document.getElementById('cfw-out-table');
-  if(outTbl)outTbl.innerHTML=oh+'</tbody>';
+  if(outTbl){
+    // Inject datalist for autocomplete (outside the table, in the card)
+    let dl=document.getElementById('cfw-inflow-contacts');
+    if(!dl){dl=document.createElement('datalist');dl.id='cfw-inflow-contacts';outTbl.parentElement.appendChild(dl);}
+    dl.innerHTML=inflowContacts.map(c=>`<option value="${esc(c)}">`).join('');
+    outTbl.innerHTML=oh+'</tbody>';
+  }
 }
 
 function saveCFTxOverride(txKey,val){
@@ -3228,12 +3245,15 @@ function saveCFTxOverride(txKey,val){
   if(inp){const cells=inp.closest('tr').querySelectorAll('td');const last=cells[cells.length-1];if(last)last.textContent=val.trim()||inp.placeholder;}
 }
 
-function saveNetOverride(txKey,checked){
-  if(checked)CF_NET_OVERRIDES[txKey]=true;
+// val = target inflow contact name (e.g. "Boardroom Advisors"). Empty string = remove netting.
+function saveNetOverride(txKey,val){
+  const v=(val||'').trim();
+  if(v)CF_NET_OVERRIDES[txKey]=v;
   else delete CF_NET_OVERRIDES[txKey];
   try{localStorage.setItem('cf_net_overrides',JSON.stringify(CF_NET_OVERRIDES));}catch(e){}
   renderCFWorking();
   renderCF();
+  sbPush();
 }
 
 function cfwClearOverrides(){
