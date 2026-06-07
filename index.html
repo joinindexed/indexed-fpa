@@ -1986,6 +1986,7 @@ function saveOneMapping(k,val){
   if(val.trim()){CT_MAP[k]={group:val.trim(),type};}else{delete CT_MAP[k];}
   try{localStorage.setItem('ct_map',JSON.stringify(CT_MAP));}catch(e){}
   renderCF();
+  sbPush(); // auto-sync to Supabase so all users see the change
 }
 
 function renderMappingTable(){
