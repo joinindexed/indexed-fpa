@@ -7,6 +7,10 @@
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#0A0A0A;--surface:#141414;--surface2:#181818;--surface3:#1e1e1e;--border:rgba(255,255,255,0.08);--border2:rgba(255,255,255,0.12);--accent:#57D7E2;--accent-light:rgba(87,215,226,0.06);--accent-mid:#85E2E9;--accent-dark:#20B0BC;--accent-glow:rgba(87,215,226,0.25);--accent-border:rgba(87,215,226,0.20);--text:#F2F2F2;--text2:rgba(255,255,255,0.55);--text3:rgba(255,255,255,0.25);--red:#F87171;--green:#34D399;--green-dim:rgba(52,211,153,0.10);--blue:#57D7E2;--blue-dim:rgba(87,215,226,0.06);--amber:#FBBF24;--amber-dim:rgba(251,191,36,0.10);--sans:'Barlow',sans-serif}
+body.light{--bg:#F0F2F5;--surface:#FFFFFF;--surface2:#F5F7FA;--surface3:#E8ECF0;--border:rgba(0,0,0,0.08);--border2:rgba(0,0,0,0.14);--accent:#0BA5B4;--accent-light:rgba(11,165,180,0.07);--accent-mid:#0BA5B4;--accent-dark:#087A87;--accent-glow:rgba(11,165,180,0.20);--accent-border:rgba(11,165,180,0.25);--text:#111827;--text2:rgba(0,0,0,0.55);--text3:rgba(0,0,0,0.35);--red:#DC2626;--green:#059669;--green-dim:rgba(5,150,105,0.08);--blue:#0BA5B4;--blue-dim:rgba(11,165,180,0.07);--amber:#D97706;--amber-dim:rgba(217,119,6,0.08)}
+body.light table.cf tr.sr td{color:rgba(0,0,0,0.40)}
+body.light .ba{color:var(--accent)}
+body.light input,body.light select,body.light textarea{color-scheme:light}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:17.0px;min-height:100vh}
 .shell{display:flex;height:100vh;overflow:hidden}
@@ -213,6 +217,13 @@ input,select{font-family:var(--sans)}
         <div class="epill" onclick="setEnt('bc',this)">BC</div>
       </div>
     </div>
+    <button id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode"
+      style="margin-top:10px;width:100%;display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;border:1px solid var(--border2);background:transparent;color:var(--text2);font-size:13px;font-family:var(--sans);cursor:pointer;transition:all .13s"
+      onmouseenter="this.style.background='var(--surface2)';this.style.color='var(--text)'"
+      onmouseleave="this.style.background='transparent';this.style.color='var(--text2)'">
+      <span id="theme-icon" style="font-size:15px">☀️</span>
+      <span id="theme-label">Light mode</span>
+    </button>
   </div>
 </aside>
 
@@ -222,7 +233,7 @@ input,select{font-family:var(--sans)}
 <div id="screen-dash" class="screen active">
   <div class="page-header">
     <div><div class="page-title">Dashboard <em id="dash-el"></em></div>
-    <div class="page-sub" id="sub-dash">Jan–Apr 2026 actuals · All values in USD · Toggle entity above</div></div>
+    <div class="page-sub" id="sub-dash">Jan–Apr 2026 actuals · All values in USD · Toggle entity below</div></div>
   </div>
   <div class="content">
     <div class="metrics" id="dash-kpis" style="grid-template-columns:repeat(5,1fr)"></div>
@@ -260,7 +271,7 @@ input,select{font-family:var(--sans)}
 <div id="screen-fin" class="screen">
   <div class="page-header">
     <div><div class="page-title">Financials <em id="fin-el">· Consolidated</em></div>
-    <div class="page-sub" id="sub-fin">Jan–Apr 2026 · Exact from Xero · Toggle entity above</div></div>
+    <div class="page-sub" id="sub-fin">Jan–Apr 2026 · Exact from Xero · Toggle entity below</div></div>
   </div>
   <div class="content">
     <div class="itabs" style="background:transparent;padding:0;margin-bottom:14px;border-bottom:1px solid var(--border)">
@@ -607,6 +618,27 @@ input,select{font-family:var(--sans)}
 <script>
 const E = ['Jan','Feb','Mar','Apr'];
 let ent='conso', finTab='bs', openDrill=new Set();
+
+// ── Theme ──
+function toggleTheme(){
+  const isLight=document.body.classList.toggle('light');
+  try{localStorage.setItem('theme',isLight?'light':'dark');}catch(e){}
+  const icon=document.getElementById('theme-icon');
+  const lbl=document.getElementById('theme-label');
+  if(icon)icon.textContent=isLight?'🌙':'☀️';
+  if(lbl)lbl.textContent=isLight?'Dark mode':'Light mode';
+}
+// Apply saved theme on load (default dark)
+(()=>{
+  const saved=localStorage.getItem('theme');
+  if(saved==='light'){
+    document.body.classList.add('light');
+    const icon=document.getElementById('theme-icon');
+    const lbl=document.getElementById('theme-label');
+    if(icon)icon.textContent='🌙';
+    if(lbl)lbl.textContent='Dark mode';
+  }
+})();
 
 // ── GL ACTUALS (net of platform fees GL 323 / GL 404 Spend Money) ──
 const BH_IN_D = {
@@ -1427,6 +1459,7 @@ function buildCFGroups(isIn){
   const merged=getMergedMap();
   const groups={};
   const nettedMap=isIn?getNettedByContactMap():{};
+  const nettedApplied={}; // keyed by contact||entity||month — prevents double-subtracting when multiple txs exist for same contact+month
   E.forEach(m=>{
     const txList=isIn
       ?[...(BH_IN_D[m]||[]),...(BC_IN_D[m]||[])]
@@ -1439,13 +1472,13 @@ function buildCFGroups(isIn){
       const mapKey=tx.contact+'||'+tx.entity;
       const grpName=CF_TX_OVERRIDES[txOvKey]||merged[mapKey]?.group||tx.contact;
       if(!groups[grpName])groups[grpName]={group:grpName,vals:{},entities:{BH:{vals:{}},BC:{vals:{}}}};
-      // For inflows: subtract any user-netted outflows for this same contact+entity+month
+      // For inflows: subtract any user-netted outflows for this contact+entity+month (applied once per month)
       let amt=tx.amt;
       if(isIn){
         const ck=tx.contact+'||'+tx.entity+'||'+m;
-        if(nettedMap[ck]&&!groups[grpName]._nettedApplied){
+        if(nettedMap[ck]&&!nettedApplied[ck]){
           amt=Math.max(0,amt-nettedMap[ck]);
-          groups[grpName]._nettedApplied=true; // apply to first tx only to avoid double-subtracting
+          nettedApplied[ck]=true;
         }
       }
       groups[grpName].vals[m]=(groups[grpName].vals[m]||0)+amt;
@@ -3037,9 +3070,9 @@ function updateActualsLabels(){
   const fL=FCST_MONTHS[FCST_MONTHS.length-1]?FCST_MONTHS[FCST_MONTHS.length-1].split(' '):['Dec',FCST_YEAR];
   const fcstRange=FCST_MONTHS.length?`${f0[0]}–${fL[0]} ${fL[1]}`:'—';
   const s=id=>document.getElementById(id);
-  if(s('sub-dash'))s('sub-dash').textContent=`${actRange} actuals · All values in USD · Toggle entity above`;
+  if(s('sub-dash'))s('sub-dash').textContent=`${actRange} actuals · All values in USD · Toggle entity below`;
   if(s('sub-cf'))s('sub-cf').textContent=`${actRange} actuals · All values in USD`;
-  if(s('sub-fin'))s('sub-fin').textContent=`${actRange} · Exact from Xero · Toggle entity above`;
+  if(s('sub-fin'))s('sub-fin').textContent=`${actRange} · Exact from Xero · Toggle entity below`;
   if(s('sub-ar'))s('sub-ar').textContent=`Forecast cash collections · ${fcstRange}`;
   if(s('sub-ap'))s('sub-ap').textContent=`Forecast cash payments · ${fcstRange}`;
   if(s('sub-contacts'))s('sub-contacts').textContent=`Cash flow by contact · Map contacts to display groups · ${actRange} actuals`;
