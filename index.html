@@ -282,6 +282,10 @@ input,select{font-family:var(--sans)}
     <div class="page-sub" id="sub-cf">Jan–Apr 2026 actuals · All values in USD</div></div>
   </div>
   <div class="content">
+    <div class="itabs" id="cf-tabs" style="background:transparent;padding:0;margin-bottom:14px;border-bottom:1px solid var(--border)">
+      <div class="itab active" onclick="swCF('actuals',this)">Actuals</div>
+      <div class="itab" onclick="swCF('hybrid',this)">Actuals + Forecast</div>
+    </div>
     <div class="card">
       <div class="card-head"><span class="card-title">Cash flow statement</span><span class="card-hint">Click a row to drill into transactions</span><button onclick="exportCFStatement()" title="Export to Excel" style="background:none;border:none;cursor:pointer;padding:2px 4px;color:var(--text3);display:flex;align-items:center" onmouseenter="this.style.color='var(--accent)'" onmouseleave="this.style.color='var(--text3)'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button></div>
       <div class="cf-wrap"><table class="cf" id="cft"></table></div>
@@ -1463,6 +1467,14 @@ function renderCF(){
 }
 
 let _cfInGroups=[], _cfOutGroups=[], _cfInFcstGroups=[], _cfOutFcstGroups=[];
+let cfMode='actuals';
+let _cfActMonths=[], _cfFcstMonths=[];
+function swCF(mode,el){
+  cfMode=mode;
+  document.querySelectorAll('#cf-tabs .itab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  renderCF();
+}
 
 // Returns map of targetContact||entity||month → total outflow amount to net against that inflow contact
 function getNettedByContactMap(){
@@ -1517,7 +1529,8 @@ function buildCFGroups(isIn){
     .sort((a,b)=>E.reduce((s,m)=>s+(b.vals[m]||0),0)-E.reduce((s,m)=>s+(a.vals[m]||0),0));
 }
 
-function buildFcastCFGroups(isIn){
+function buildFcastCFGroups(isIn,months){
+  if(months===undefined)months=FCST_MONTHS;
   const merged=getMergedMap();
   const groups={};
   const rows=isIn?AR_FCST.filter(r=>r.status!=='Paid'):AP_FCST;
@@ -1526,7 +1539,7 @@ function buildFcastCFGroups(isIn){
     if(ent!=='conso'&&entity!==ent.toUpperCase())return;
     const contact=isIn?(r.client||'Unknown'):(r.vendor||'Unknown');
     const mFull=normalizeCashMonth(r.cashMonth);
-    if(!FCST_MONTHS.includes(mFull))return;
+    if(!months.includes(mFull))return;
     const amt=isIn?(r.cash||0):(r.amount||0);
     if(!amt)return;
     const mapKey=contact+'||'+entity;
@@ -1537,85 +1550,105 @@ function buildFcastCFGroups(isIn){
     groups[grpName].entities[entity].vals[mFull]=(groups[grpName].entities[entity].vals[mFull]||0)+amt;
   });
   return Object.values(groups)
-    .sort((a,b)=>FCST_MONTHS.reduce((s,m)=>s+(b.vals[m]||0),0)-FCST_MONTHS.reduce((s,m)=>s+(a.vals[m]||0),0));
+    .sort((a,b)=>months.reduce((s,m)=>s+(b.vals[m]||0),0)-months.reduce((s,m)=>s+(a.vals[m]||0),0));
 }
 
 function renderCFTable(d){
   openDrill=new Set();
+  // Determine effective actuals vs forecast columns based on current tab
+  let cfActMonths, cfFcstMonths, actIn, actOut, actClose, actFX, actOpen;
+  if(cfMode==='hybrid'&&E.length>1){
+    cfActMonths=E.slice(0,-1);
+    cfFcstMonths=[E[E.length-1]+' '+FCST_YEAR,...FCST_MONTHS];
+    actIn=d.in.slice(0,cfActMonths.length);
+    actOut=d.out.slice(0,cfActMonths.length);
+    actClose=d.close.slice(0,cfActMonths.length);
+    actFX=d.fx.slice(0,cfActMonths.length);
+    actOpen=d.open;
+  }else{
+    cfActMonths=E.slice();
+    cfFcstMonths=[];
+    actIn=d.in.slice();
+    actOut=d.out.slice();
+    actClose=d.close.slice();
+    actFX=d.fx.slice();
+    actOpen=d.open;
+  }
+  _cfActMonths=cfActMonths;
+  _cfFcstMonths=cfFcstMonths;
   _cfInGroups=buildCFGroups(true);
   _cfOutGroups=buildCFGroups(false);
-  _cfInFcstGroups=buildFcastCFGroups(true);
-  _cfOutFcstGroups=buildFcastCFGroups(false);
-  const ytdIn=d.in.reduce((s,v)=>s+v,0);
-  const ytdOut=d.out.reduce((s,v)=>s+v,0);
-  const ytdFX=d.fx.reduce((s,v)=>s+v,0);
+  _cfInFcstGroups=buildFcastCFGroups(true,cfFcstMonths);
+  _cfOutFcstGroups=buildFcastCFGroups(false,cfFcstMonths);
+  const ytdIn=actIn.reduce((s,v)=>s+v,0);
+  const ytdOut=actOut.reduce((s,v)=>s+v,0);
+  const ytdFX=actFX.reduce((s,v)=>s+v,0);
   // Forecast data per month
-  const fcastIn=FCST_MONTHS.map(m=>getFcastInflow(m));
-  const fcastOut=FCST_MONTHS.map(m=>getFcastOutflow(m));
-  const cfCols=E.length+FCST_MONTHS.length+2;
+  const fcastIn=cfFcstMonths.map(m=>getFcastInflow(m));
+  const fcastOut=cfFcstMonths.map(m=>getFcastOutflow(m));
+  const cfCols=cfActMonths.length+cfFcstMonths.length+2;
   const fcastCellStyle='background:rgba(251,191,36,0.04)';
   let h='<thead><tr><th>Line item</th>';
-  E.forEach(m=>h+=`<th><span class="ba">A</span> ${m}</th>`);
-  FCST_MONTHS.forEach(m=>h+=`<th style="opacity:.75"><span class="bf">F</span>${fmtFcstMonth(m)}</th>`);
+  cfActMonths.forEach(m=>h+=`<th><span class="ba">A</span> ${m}</th>`);
+  cfFcstMonths.forEach(m=>h+=`<th style="opacity:.75"><span class="bf">F</span>${fmtFcstMonth(m)}</th>`);
   h+='<th>YTD</th></tr></thead><tbody>';
   // Opening
   h+='<tr><td style="padding-left:10px;color:var(--text2)">Opening balance</td>';
-  E.forEach((_,i)=>h+=`<td>${$f(i===0?d.open:d.close[i-1])}</td>`);
+  cfActMonths.forEach((_,i)=>h+=`<td>${$f(i===0?actOpen:actClose[i-1])}</td>`);
   // Forecast opening = last actual close, then chain
-  let fcastClose=d.close[d.close.length-1]||0;
-  FCST_MONTHS.forEach((_,fi)=>{
-    const openBal=fi===0?fcastClose:(fcastClose);
-    h+=`<td style="${fcastCellStyle};color:var(--text3)">${$f(openBal)}</td>`;
-    fcastClose=openBal+fcastIn[fi]-fcastOut[fi];
+  let fcastClose=actClose.length?actClose[actClose.length-1]:actOpen;
+  cfFcstMonths.forEach((_,fi)=>{
+    h+=`<td style="${fcastCellStyle};color:var(--text3)">${$f(fcastClose)}</td>`;
+    fcastClose=fcastClose+fcastIn[fi]-fcastOut[fi];
   });
-  h+=`<td>${$f(d.open)}</td></tr>`;
-  // Inflow — single expandable row
+  h+=`<td>${$f(actOpen)}</td></tr>`;
+  // Inflow
   h+=`<tr class="sr"><td colspan="${cfCols}" style="padding-left:10px">↑ Cash inflow</td></tr>`;
   h+=`<tr class="indent" style="cursor:pointer" onclick="togCFDrill('inflow',true)">`;
   h+=`<td style="padding-left:22px">Cash received from clients ▸</td>`;
-  d.in.forEach(v=>h+=`<td class="pos">${$f(v)}</td>`);
+  actIn.forEach(v=>h+=`<td class="pos">${$f(v)}</td>`);
   fcastIn.forEach(v=>h+=`<td class="pos" style="${fcastCellStyle}">${v?$f(v):'—'}</td>`);
   h+=`<td class="pos">${$f(ytdIn)}</td></tr>`;
   h+=`<tr class="drill-row" id="dr-inflow"><td colspan="${cfCols}"><div class="di" id="dc-inflow"></div></td></tr>`;
   h+='<tr class="tr"><td style="padding-left:10px">Total inflow</td>';
-  d.in.forEach(v=>h+=`<td class="pos">${$f(v)}</td>`);
+  actIn.forEach(v=>h+=`<td class="pos">${$f(v)}</td>`);
   fcastIn.forEach(v=>h+=`<td class="pos" style="${fcastCellStyle}">${v?$f(v):'—'}</td>`);
   h+=`<td class="pos">${$f(ytdIn)}</td></tr>`;
-  // Outflow — single expandable row
+  // Outflow
   h+=`<tr class="sr"><td colspan="${cfCols}" style="padding-left:10px">↓ Cash outflow</td></tr>`;
   h+=`<tr class="indent" style="cursor:pointer" onclick="togCFDrill('outflow',false)">`;
   h+=`<td style="padding-left:22px">Payments to vendors &amp; expenses ▸</td>`;
-  d.out.forEach(v=>h+=`<td class="neg">($${$f(v).replace('$','')})</td>`);
+  actOut.forEach(v=>h+=`<td class="neg">($${$f(v).replace('$','')})</td>`);
   fcastOut.forEach(v=>h+=`<td class="neg" style="${fcastCellStyle}">${v?'('+$f(v)+')':'—'}</td>`);
   h+=`<td class="neg">(${$f(ytdOut).replace('$','')})</td></tr>`;
   h+=`<tr class="drill-row" id="dr-outflow"><td colspan="${cfCols}"><div class="di" id="dc-outflow"></div></td></tr>`;
   h+='<tr class="tr"><td style="padding-left:10px">Total outflow</td>';
-  d.out.forEach(v=>h+=`<td class="neg">($${$f(v).replace('$','')})</td>`);
+  actOut.forEach(v=>h+=`<td class="neg">($${$f(v).replace('$','')})</td>`);
   fcastOut.forEach(v=>h+=`<td class="neg" style="${fcastCellStyle}">${v?'('+$f(v)+')':'—'}</td>`);
   h+=`<td class="neg">(${$f(ytdOut).replace('$','')})</td></tr>`;
-  // Net
+  // Net movement
   h+='<tr class="tr"><td style="padding-left:10px">Net movement</td>';
-  E.forEach((_,i)=>{const v=d.in[i]-d.out[i];h+=`<td class="${v>=0?'pos':'neg'}">${v>=0?$f(v):'($'+$f(Math.abs(v)).replace('$','')+')'}</td>`;});
-  FCST_MONTHS.forEach((_,fi)=>{const v=fcastIn[fi]-fcastOut[fi];h+=`<td class="${v>=0?'pos':'neg'}" style="${fcastCellStyle}">${v>=0?$f(v):'($'+$f(Math.abs(v)).replace('$','')+')'}</td>`;});
+  cfActMonths.forEach((_,i)=>{const v=actIn[i]-actOut[i];h+=`<td class="${v>=0?'pos':'neg'}">${v>=0?$f(v):'($'+$f(Math.abs(v)).replace('$','')+')'}</td>`;});
+  cfFcstMonths.forEach((_,fi)=>{const v=fcastIn[fi]-fcastOut[fi];h+=`<td class="${v>=0?'pos':'neg'}" style="${fcastCellStyle}">${v>=0?$f(v):'($'+$f(Math.abs(v)).replace('$','')+')'}</td>`;});
   const ytdNet=ytdIn-ytdOut;
   h+=`<td class="${ytdNet>=0?'pos':'neg'}">${ytdNet>=0?$f(ytdNet):'($'+$f(Math.abs(ytdNet)).replace('$','')+')'}</td></tr>`;
   // FX (actuals only)
-  const hasFX=d.fx.some(v=>v!==0);
+  const hasFX=actFX.some(v=>v!==0);
   if(hasFX){
     h+='<tr class="fx"><td style="padding-left:10px">FX / revaluation (non-cash)</td>';
-    d.fx.forEach(v=>h+=`<td>${v?$f(v):'—'}</td>`);
-    FCST_MONTHS.forEach(()=>h+=`<td style="${fcastCellStyle}">—</td>`);
+    actFX.forEach(v=>h+=`<td>${v?$f(v):'—'}</td>`);
+    cfFcstMonths.forEach(()=>h+=`<td style="${fcastCellStyle}">—</td>`);
     h+=`<td>${ytdFX?$f(ytdFX):'—'}</td></tr>`;
   }
-  // Closing — chain forecast from last actual
+  // Closing bank balance — chain forecast from last actual close
   h+='<tr class="br"><td style="padding-left:10px">Closing bank balance</td>';
-  d.close.forEach(v=>h+=`<td>${$f(v)}</td>`);
-  let runClose=d.close[d.close.length-1]||0;
-  FCST_MONTHS.forEach((_,fi)=>{
+  actClose.forEach(v=>h+=`<td>${$f(v)}</td>`);
+  let runClose=actClose.length?actClose[actClose.length-1]:actOpen;
+  cfFcstMonths.forEach((_,fi)=>{
     runClose+=fcastIn[fi]-fcastOut[fi];
     h+=`<td style="${fcastCellStyle};color:var(--amber);font-weight:800">${$f(runClose)}</td>`;
   });
-  h+=`<td>${$f(d.close[d.close.length-1])}</td></tr></tbody>`;
+  h+=`<td>${$f(actClose.length?actClose[actClose.length-1]:actOpen)}</td></tr></tbody>`;
   document.getElementById('cft').innerHTML=h;
 }
 
@@ -1641,23 +1674,23 @@ function togCFDrill(drId,isIn){
     else mgMap[g.group]={group:g.group,actVals:{},actEnt:{BH:{vals:{}},BC:{vals:{}}},fcstVals:g.vals,fcstEnt:g.entities};
   });
   const allGroups=Object.values(mgMap).sort((a,b)=>{
-    const at=E.reduce((s,m)=>s+(a.actVals[m]||0),0)+FCST_MONTHS.reduce((s,m)=>s+(a.fcstVals[m]||0),0);
-    const bt=E.reduce((s,m)=>s+(b.actVals[m]||0),0)+FCST_MONTHS.reduce((s,m)=>s+(b.fcstVals[m]||0),0);
+    const at=_cfActMonths.reduce((s,m)=>s+(a.actVals[m]||0),0)+_cfFcstMonths.reduce((s,m)=>s+(a.fcstVals[m]||0),0);
+    const bt=_cfActMonths.reduce((s,m)=>s+(b.actVals[m]||0),0)+_cfFcstMonths.reduce((s,m)=>s+(b.fcstVals[m]||0),0);
     return bt-at;
   });
   const label=isIn?'Cash inflow by group':'Cash outflow by group';
   let h=`<div class="dt-hd"><span>↳ ${label}</span><span class="dc" onclick="clDrill('${drId}')">✕</span></div>`;
   h+=`<table class="drt"><thead><tr><th>Display group</th><th>Entity</th>`;
-  E.forEach(m=>h+=`<th><span class="ba" style="font-size:9px">A</span> ${m}</th>`);
-  FCST_MONTHS.forEach(m=>h+=`<th style="opacity:.85"><span class="bf" style="font-size:9px">F</span> ${fmtFcstMonth(m)}</th>`);
+  _cfActMonths.forEach(m=>h+=`<th><span class="ba" style="font-size:9px">A</span> ${m}</th>`);
+  _cfFcstMonths.forEach(m=>h+=`<th style="opacity:.85"><span class="bf" style="font-size:9px">F</span> ${fmtFcstMonth(m)}</th>`);
   h+=`<th>Total</th></tr></thead><tbody>`;
   allGroups.forEach((mg,gi)=>{
-    const actTotal=E.reduce((s,m)=>s+(mg.actVals[m]||0),0);
-    const fcstTotal=FCST_MONTHS.reduce((s,m)=>s+(mg.fcstVals[m]||0),0);
+    const actTotal=_cfActMonths.reduce((s,m)=>s+(mg.actVals[m]||0),0);
+    const fcstTotal=_cfFcstMonths.reduce((s,m)=>s+(mg.fcstVals[m]||0),0);
     const total=actTotal+fcstTotal;
     if(!total)return;
-    const hasBH=E.some(m=>mg.actEnt.BH?.vals[m])||FCST_MONTHS.some(m=>mg.fcstEnt.BH?.vals[m]);
-    const hasBC=E.some(m=>mg.actEnt.BC?.vals[m])||FCST_MONTHS.some(m=>mg.fcstEnt.BC?.vals[m]);
+    const hasBH=_cfActMonths.some(m=>mg.actEnt.BH?.vals[m])||_cfFcstMonths.some(m=>mg.fcstEnt.BH?.vals[m]);
+    const hasBC=_cfActMonths.some(m=>mg.actEnt.BC?.vals[m])||_cfFcstMonths.some(m=>mg.fcstEnt.BC?.vals[m]);
     const isMulti=hasBH&&hasBC;
     let entBadge;
     if(ent==='bh') entBadge=eb('BH');
@@ -1669,22 +1702,22 @@ function togCFDrill(drId,isIn){
     h+=`<tr${isMulti&&ent==='conso'?' style="cursor:pointer" onclick="togEntDrill(\''+rowId+'\')"':''}>`;
     h+=`<td style="font-weight:600">${isMulti&&ent==='conso'?'▸ ':''}${mg.group}</td>`;
     h+=`<td>${entBadge}</td>`;
-    E.forEach(m=>h+=`<td class="${cls}">${mg.actVals[m]?fmt(mg.actVals[m]):'—'}</td>`);
-    FCST_MONTHS.forEach(m=>h+=`<td class="${cls}" style="${fcs}">${mg.fcstVals[m]?fmt(mg.fcstVals[m]):'—'}</td>`);
+    _cfActMonths.forEach(m=>h+=`<td class="${cls}">${mg.actVals[m]?fmt(mg.actVals[m]):'—'}</td>`);
+    _cfFcstMonths.forEach(m=>h+=`<td class="${cls}" style="${fcs}">${mg.fcstVals[m]?fmt(mg.fcstVals[m]):'—'}</td>`);
     h+=`<td class="${cls}" style="font-weight:700">${fmt(total)}</td></tr>`;
     if(isMulti&&ent==='conso'){
       ['BH','BC'].forEach(ek=>{
         const actEv=mg.actEnt[ek]?.vals||{};
         const fcstEv=mg.fcstEnt[ek]?.vals||{};
-        const etotAct=E.reduce((s,m)=>s+(actEv[m]||0),0);
-        const etotFcst=FCST_MONTHS.reduce((s,m)=>s+(fcstEv[m]||0),0);
+        const etotAct=_cfActMonths.reduce((s,m)=>s+(actEv[m]||0),0);
+        const etotFcst=_cfFcstMonths.reduce((s,m)=>s+(fcstEv[m]||0),0);
         const etot=etotAct+etotFcst;
         if(!etot)return;
         h+=`<tr id="${rowId}-${ek}" style="display:none;background:var(--accent-light)">`;
         h+=`<td style="padding-left:28px;color:var(--text2)">${mg.group}</td>`;
         h+=`<td>${eb(ek)}</td>`;
-        E.forEach(m=>h+=`<td class="${cls}" style="font-size:13px">${actEv[m]?fmt(actEv[m]):'—'}</td>`);
-        FCST_MONTHS.forEach(m=>h+=`<td class="${cls}" style="${fcs};font-size:13px">${fcstEv[m]?fmt(fcstEv[m]):'—'}</td>`);
+        _cfActMonths.forEach(m=>h+=`<td class="${cls}" style="font-size:13px">${actEv[m]?fmt(actEv[m]):'—'}</td>`);
+        _cfFcstMonths.forEach(m=>h+=`<td class="${cls}" style="${fcs};font-size:13px">${fcstEv[m]?fmt(fcstEv[m]):'—'}</td>`);
         h+=`<td class="${cls}" style="font-size:13px">${fmt(etot)}</td></tr>`;
       });
     }
