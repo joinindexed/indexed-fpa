@@ -202,9 +202,61 @@ input,select{font-family:var(--sans)}
 .itr{display:flex;align-items:center;gap:9px;padding:7px 10px;background:var(--surface2);border-radius:6px;font-size:14.5px;margin-top:6px}
 .itr-label{flex:1;color:var(--text2);font-weight:500}
 .itr-status{font-size:13px;color:var(--text3)}
+/* ── Comments ── */
+.ct-btn{opacity:0;border:none;background:none;cursor:pointer;color:var(--text3);font-size:11px;padding:2px 4px;border-radius:4px;margin-left:4px;vertical-align:middle;transition:opacity .12s,color .12s;line-height:1}
+tr:hover .ct-btn,.mc:hover .ct-btn{opacity:1}
+.ct-btn:hover{color:var(--accent);background:var(--accent-light)}
+.cdot{display:none;width:7px;height:7px;border-radius:50%;background:var(--amber);margin-left:5px;vertical-align:middle;flex-shrink:0;cursor:pointer}
+#cp-panel{position:fixed;right:0;top:0;height:100%;width:320px;background:var(--surface);border-left:1px solid var(--border2);z-index:600;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .22s ease;box-shadow:-4px 0 24px rgba(0,0,0,.18)}
+#cp-panel.open{transform:translateX(0)}
+#cp-backdrop{display:none;position:fixed;inset:0;z-index:599;background:transparent}
+.cp-hd{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:10px}
+.cp-ctx{font-size:13px;font-weight:600;color:var(--text);flex:1;line-height:1.4}
+.cp-close{background:none;border:none;cursor:pointer;color:var(--text3);font-size:18px;line-height:1;padding:0;margin-top:-1px}
+.cp-close:hover{color:var(--text)}
+.cp-thread{flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:14px}
+.cp-msg{display:flex;gap:10px;align-items:flex-start}
+.cp-avatar{width:28px;height:28px;border-radius:50%;background:var(--accent-light);border:1px solid var(--accent-border);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--accent);flex-shrink:0}
+#cp-footer{padding:14px 18px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px}
+#cp-txt{width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;font-family:var(--sans);outline:none;resize:none;box-sizing:border-box;line-height:1.5}
+#cp-txt:focus{border-color:var(--accent)}
+.cp-actions{display:flex;justify-content:space-between;align-items:center}
+.cp-post-btn{padding:7px 16px;border-radius:7px;border:none;background:var(--accent);color:#fff;font-size:13px;font-weight:700;font-family:var(--sans);cursor:pointer}
+.cp-resolve-btn{padding:7px 12px;border-radius:7px;border:1px solid var(--border2);background:transparent;color:var(--text2);font-size:12px;font-family:var(--sans);cursor:pointer;display:flex;align-items:center;gap:5px}
+.cp-resolve-btn:hover{border-color:var(--green);color:var(--green)}
+.cp-resolved-banner{display:none;align-items:center;gap:8px;padding:10px 18px;background:var(--green-dim);border-bottom:1px solid rgba(4,120,87,.15);font-size:13px;color:var(--green);font-weight:600}
+.cmt-card{padding:14px 16px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;transition:border-color .13s}
+.cmt-card:hover{border-color:var(--accent-border)}
 </style>
 </head>
 <body>
+<!-- Comment panel -->
+<div id="cp-backdrop" onclick="cpClose()"></div>
+<div id="cp-panel">
+  <div id="cp-resolved-banner" class="cp-resolved-banner">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+    Resolved
+  </div>
+  <div class="cp-hd">
+    <div style="flex:1">
+      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px">Comment</div>
+      <div class="cp-ctx" id="cp-ctx"></div>
+    </div>
+    <button class="cp-close" onclick="cpClose()">✕</button>
+  </div>
+  <div class="cp-thread" id="cp-thread"></div>
+  <div id="cp-footer">
+    <textarea id="cp-txt" placeholder="Add a comment…" rows="3" onkeydown="if(event.key==='Enter'&&(event.metaKey||event.ctrlKey))cpPost()"></textarea>
+    <div class="cp-actions">
+      <button class="cp-resolve-btn" id="cp-resolve-btn" onclick="cpResolve()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        Mark resolved
+      </button>
+      <button class="cp-post-btn" onclick="cpPost()">Post →</button>
+    </div>
+  </div>
+</div>
+
 <div class="shell">
 <aside class="sidebar">
   <div class="logo" style="cursor:pointer" onclick="go('dash',document.querySelector('.nav-item'))">
@@ -232,6 +284,9 @@ input,select{font-family:var(--sans)}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M16 12l-4 4m0 0l-4-4m4 4V4"/></svg>Import data</div>
     <div class="nav-item" data-roles="admin" onclick="go('cfworking',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 10h18M3 14h18M10 3v18M14 3v18"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg>CF Working</div>
+    <div class="nav-section" data-roles="admin,accountant,viewer">Collaboration</div>
+    <div class="nav-item" data-roles="admin,accountant,viewer" onclick="go('comments',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Comments</div>
   </nav>
   <div class="sidebar-footer">
     <div class="cw">
@@ -629,6 +684,17 @@ input,select{font-family:var(--sans)}
         <table class="dt" id="cfw-out-table" style="font-size:13px;min-width:1000px"></table>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- COMMENTS -->
+<div id="screen-comments" class="screen">
+  <div class="page-header">
+    <div><div class="page-title">Comments</div>
+    <div class="page-sub">All open and resolved comment threads</div></div>
+  </div>
+  <div class="content" style="max-width:680px">
+    <div id="comments-list" style="display:flex;flex-direction:column;gap:10px"></div>
   </div>
 </div>
 
@@ -1439,6 +1505,9 @@ function go(id,el){
   if(id==='cfworking')renderCFWorking();
   if(id==='fcast-ar')renderFcastAR();
   if(id==='fcast-ap')renderFcastAP();
+  if(id==='comments')renderComments();
+  // Refresh dots whenever navigating so indicators stay current
+  if(['cf','fin','dash'].includes(id))setTimeout(refreshCommentDots,400);
 }
 function setEnt(e,el){
   ent=e;
@@ -1634,7 +1703,7 @@ function renderCFTable(d){
   fcastIn.forEach(v=>h+=`<td class="pos" style="${fcastCellStyle}">${v?$f(v):'—'}</td>`);
   h+=`<td class="pos">${$f(ytdIn)}</td></tr>`;
   h+=`<tr class="drill-row" id="dr-inflow"><td colspan="${cfCols}"><div class="di" id="dc-inflow"></div></td></tr>`;
-  h+='<tr class="tr"><td style="padding-left:10px">Total inflow</td>';
+  h+=`<tr class="tr"><td style="padding-left:10px">Total inflow${cBtn('cf|main|total-inflow','CF · Total inflow')}</td>`;
   actIn.forEach(v=>h+=`<td class="pos">${$f(v)}</td>`);
   fcastIn.forEach(v=>h+=`<td class="pos" style="${fcastCellStyle}">${v?$f(v):'—'}</td>`);
   h+=`<td class="pos">${$f(ytdIn)}</td></tr>`;
@@ -1646,12 +1715,12 @@ function renderCFTable(d){
   fcastOut.forEach(v=>h+=`<td class="neg" style="${fcastCellStyle}">${v?'('+$f(v)+')':'—'}</td>`);
   h+=`<td class="neg">(${$f(ytdOut).replace('$','')})</td></tr>`;
   h+=`<tr class="drill-row" id="dr-outflow"><td colspan="${cfCols}"><div class="di" id="dc-outflow"></div></td></tr>`;
-  h+='<tr class="tr"><td style="padding-left:10px">Total outflow</td>';
+  h+=`<tr class="tr"><td style="padding-left:10px">Total outflow${cBtn('cf|main|total-outflow','CF · Total outflow')}</td>`;
   actOut.forEach(v=>h+=`<td class="neg">($${$f(v).replace('$','')})</td>`);
   fcastOut.forEach(v=>h+=`<td class="neg" style="${fcastCellStyle}">${v?'('+$f(v)+')':'—'}</td>`);
   h+=`<td class="neg">(${$f(ytdOut).replace('$','')})</td></tr>`;
   // Net movement
-  h+='<tr class="tr"><td style="padding-left:10px">Net movement</td>';
+  h+=`<tr class="tr"><td style="padding-left:10px">Net movement${cBtn('cf|main|net-movement','CF · Net movement')}</td>`;
   cfActMonths.forEach((_,i)=>{const v=actIn[i]-actOut[i];h+=`<td class="${v>=0?'pos':'neg'}">${v>=0?$f(v):'($'+$f(Math.abs(v)).replace('$','')+')'}</td>`;});
   cfFcstMonths.forEach((_,fi)=>{const v=fcastIn[fi]-fcastOut[fi];h+=`<td class="${v>=0?'pos':'neg'}" style="${fcastCellStyle}">${v>=0?$f(v):'($'+$f(Math.abs(v)).replace('$','')+')'}</td>`;});
   const ytdNet=ytdIn-ytdOut;
@@ -1665,7 +1734,7 @@ function renderCFTable(d){
     h+=`<td>${ytdFX?$f(ytdFX):'—'}</td></tr>`;
   }
   // Closing bank balance — chain forecast from last actual close
-  h+='<tr class="br"><td style="padding-left:10px">Closing bank balance</td>';
+  h+=`<tr class="br"><td style="padding-left:10px">Closing bank balance${cBtn('cf|main|closing-balance','CF · Closing bank balance')}</td>`;
   actClose.forEach(v=>h+=`<td>${$f(v)}</td>`);
   let runClose=actClose.length?actClose[actClose.length-1]:actOpen;
   cfFcstMonths.forEach((_,fi)=>{
@@ -1960,7 +2029,8 @@ function renderFinTable(id,rows,curEnt,showYTD){
     if(r.type==='sh'){h+=`<tr class="fsh"><td colspan="${cols}" style="padding-left:14px">${r.g}</td></tr>`;return;}
     const cls=r.type==='gt'?'fgt':r.type==='t'?'ft':'fi';
     const entCell=r.entity?eb(r.entity):'';
-    h+=`<tr class="${cls}"><td>${r.label}</td><td>${entCell}</td>`;
+    const finCid=`fin|${id}|${r.label.replace(/[^a-zA-Z0-9]/g,'_').toLowerCase()}`;
+    h+=`<tr class="${cls}"><td>${r.label}${cBtn(finCid,'Financials · '+r.label)}</td><td>${entCell}</td>`;
     r.v.forEach(v=>{const c=v<0?'neg':'';h+=`<td class="${c}">${$f(v,2)}</td>`;});
     if(showYTD){const ytd=r.v.reduce((s,v)=>s+v,0);const c=ytd<0?'neg':'';h+=`<td class="${c}" style="font-weight:600">${$f(ytd,2)}</td>`;}
     h+='</tr>';
@@ -2317,20 +2387,20 @@ function renderDash(){
   // Cash KPIs (5-col: add AR)
   const lastM=E[E.length-1],firstM=E[0],closeLbl=`${lastM} 2026`,ytdLbl=`${firstM}–${lastM} 2026`;
   document.getElementById('dash-kpis').innerHTML=`
-    <div class="mc"><div class="mc-label">Closing cash balance</div><div class="mc-value neu">${$f(d.close[E.length-1])}</div><div class="mc-sub">${closeLbl}</div></div>
-    <div class="mc"><div class="mc-label">Accounts receivable</div><div class="mc-value neu">${$f(bs.ar)}</div><div class="mc-sub">${closeLbl}</div></div>
-    <div class="mc"><div class="mc-label">YTD inflow</div><div class="mc-value pos">${$f(ytdIn)}</div><div class="mc-sub">${ytdLbl}</div></div>
-    <div class="mc"><div class="mc-label">YTD outflow</div><div class="mc-value neg">($${$f(ytdOut).replace('$','')})</div><div class="mc-sub">${ytdLbl}</div></div>
-    <div class="mc"><div class="mc-label">Founder cash earnings</div><div class="mc-value ${founderEarnings>=0?'pos':'neg'}">${founderEarnings>=0?$f(founderEarnings):'($'+$f(Math.abs(founderEarnings)).replace('$','')+')'}</div><div class="mc-sub">Dec closing − opening + founder pmts</div></div>`;
+    <div class="mc"><div class="mc-label">Closing cash balance${cBtn('dash|kpi|closing-cash','Dashboard · Closing cash balance')}</div><div class="mc-value neu">${$f(d.close[E.length-1])}</div><div class="mc-sub">${closeLbl}</div></div>
+    <div class="mc"><div class="mc-label">Accounts receivable${cBtn('dash|kpi|ar','Dashboard · Accounts receivable')}</div><div class="mc-value neu">${$f(bs.ar)}</div><div class="mc-sub">${closeLbl}</div></div>
+    <div class="mc"><div class="mc-label">YTD inflow${cBtn('dash|kpi|ytd-inflow','Dashboard · YTD inflow')}</div><div class="mc-value pos">${$f(ytdIn)}</div><div class="mc-sub">${ytdLbl}</div></div>
+    <div class="mc"><div class="mc-label">YTD outflow${cBtn('dash|kpi|ytd-outflow','Dashboard · YTD outflow')}</div><div class="mc-value neg">($${$f(ytdOut).replace('$','')})</div><div class="mc-sub">${ytdLbl}</div></div>
+    <div class="mc"><div class="mc-label">Founder cash earnings${cBtn('dash|kpi|founder-earnings','Dashboard · Founder cash earnings')}</div><div class="mc-value ${founderEarnings>=0?'pos':'neg'}">${founderEarnings>=0?$f(founderEarnings):'($'+$f(Math.abs(founderEarnings)).replace('$','')+')'}</div><div class="mc-sub">Dec closing − opening + founder pmts</div></div>`;
 
   // P&L KPIs (5-column row)
   const adjCls=pl.adjNet>=0?'pos':'neg';
   document.getElementById('dash-pl').innerHTML=`
-    <div class="mc"><div class="mc-label">YTD revenue</div><div class="mc-value neu">${$f(pl.ytdRev)}</div><div class="mc-sub">${ytdLbl}</div></div>
-    <div class="mc"><div class="mc-label">YTD gross profit</div><div class="mc-value pos">${$f(pl.ytdGP)}</div><div class="mc-sub">${ytdLbl}</div></div>
-    <div class="mc"><div class="mc-label">Gross profit %</div><div class="mc-value pos">${pct(pl.gpPct)}</div><div class="mc-sub">GP / Revenue</div></div>
-    <div class="mc"><div class="mc-label">Adj. net profit</div><div class="mc-value ${adjCls}">${pl.adjNet>=0?$f(pl.adjNet):'($'+$f(Math.abs(pl.adjNet)).replace('$','')+')'}</div><div class="mc-sub">Net + wages &amp; salaries</div></div>
-    <div class="mc"><div class="mc-label">Adj. net profit %</div><div class="mc-value ${adjCls}">${pct(pl.adjNetPct)}</div><div class="mc-sub">Adj. net / Revenue</div></div>`;
+    <div class="mc"><div class="mc-label">YTD revenue${cBtn('dash|pl|ytd-revenue','Dashboard · YTD revenue')}</div><div class="mc-value neu">${$f(pl.ytdRev)}</div><div class="mc-sub">${ytdLbl}</div></div>
+    <div class="mc"><div class="mc-label">YTD gross profit${cBtn('dash|pl|ytd-gp','Dashboard · YTD gross profit')}</div><div class="mc-value pos">${$f(pl.ytdGP)}</div><div class="mc-sub">${ytdLbl}</div></div>
+    <div class="mc"><div class="mc-label">Gross profit %${cBtn('dash|pl|gp-pct','Dashboard · Gross profit %')}</div><div class="mc-value pos">${pct(pl.gpPct)}</div><div class="mc-sub">GP / Revenue</div></div>
+    <div class="mc"><div class="mc-label">Adj. net profit${cBtn('dash|pl|adj-net','Dashboard · Adj. net profit')}</div><div class="mc-value ${adjCls}">${pl.adjNet>=0?$f(pl.adjNet):'($'+$f(Math.abs(pl.adjNet)).replace('$','')+')'}</div><div class="mc-sub">Net + wages &amp; salaries</div></div>
+    <div class="mc"><div class="mc-label">Adj. net profit %${cBtn('dash|pl|adj-net-pct','Dashboard · Adj. net profit %')}</div><div class="mc-value ${adjCls}">${pct(pl.adjNetPct)}</div><div class="mc-sub">Adj. net / Revenue</div></div>`;
 
   // Chart
   const chartH=150, maxBar=chartH-32, maxV=Math.max(...d.close);
@@ -2357,9 +2427,10 @@ function renderDash(){
     ['Directors loan acct',  bs.dirLoan],
     ['Loan from director',   bs.loanDir],
   ];
-  document.getElementById('dash-liab').innerHTML=liabItems.map(([label,val])=>
-    `<div class="mc"><div class="mc-label">${label}</div><div class="mc-value ${val>0?'neg':'neu'}">${val>0?'($'+$f(val).replace('$','')+')':(val===0?'—':$f(val))}</div><div class="mc-sub">${periodLbl}</div></div>`
-  ).join('');
+  document.getElementById('dash-liab').innerHTML=liabItems.map(([label,val])=>{
+    const cid=`dash|liab|${label.replace(/[^a-zA-Z0-9]/g,'_').toLowerCase()}`;
+    return `<div class="mc"><div class="mc-label">${label}${cBtn(cid,'Dashboard · '+label)}</div><div class="mc-value ${val>0?'neg':'neu'}">${val>0?'($'+$f(val).replace('$','')+')':(val===0?'—':$f(val))}</div><div class="mc-sub">${periodLbl}</div></div>`;
+  }).join('');
 }
 
 // ── Import ──
@@ -4855,9 +4926,9 @@ let CURRENT_USER=null;   // {id, email}
 let _authToken=null;     // current access token
 
 const ROLE_ACCESS={
-  admin:   ['dash','cf','fin','fcast-ar','fcast-ap','contacts','import','cfworking'],
-  accountant:['dash','fin','import'],
-  viewer:  ['dash','cf','fin']
+  admin:   ['dash','cf','fin','fcast-ar','fcast-ap','contacts','import','cfworking','comments'],
+  accountant:['dash','fin','import','comments'],
+  viewer:  ['dash','cf','fin','comments']
 };
 
 function sbStatus(msg,ok){
@@ -5046,6 +5117,192 @@ async function initAuth(){
   // No valid session — show login
   if(overlay)overlay.style.display='flex';
 }
+
+// ── Comments ──
+let _cpCellId=null,_cpCtx=null;
+
+function cBtn(cellId,ctx){
+  // Returns dot + trigger icon HTML to embed in a table cell or card
+  const id=escAttr(cellId),c=escAttr(ctx);
+  return `<span class="cdot" data-cell="${id}" title="Open comment" onclick="event.stopPropagation();cpOpen('${id}','${c}')"></span><button class="ct-btn" onclick="event.stopPropagation();cpOpen('${id}','${c}')" title="Add comment"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>`;
+}
+
+function cpOpen(cellId,ctx,evt){
+  if(evt)evt.stopPropagation();
+  _cpCellId=cellId;_cpCtx=ctx;
+  const ctxEl=document.getElementById('cp-ctx');
+  if(ctxEl)ctxEl.textContent=ctx;
+  document.getElementById('cp-panel').classList.add('open');
+  document.getElementById('cp-backdrop').style.display='block';
+  cpLoadThread();
+}
+
+function cpClose(){
+  document.getElementById('cp-panel').classList.remove('open');
+  document.getElementById('cp-backdrop').style.display='none';
+}
+
+async function cpLoadThread(){
+  const thread=document.getElementById('cp-thread');
+  thread.innerHTML='<div style="padding:20px;color:var(--text3);font-size:13px;text-align:center">Loading…</div>';
+  try{
+    const r=await fetch(`${SB_URL}/rest/v1/comments?cell_id=eq.${encodeURIComponent(_cpCellId)}&order=created_at.asc`,{
+      headers:{apikey:SB_KEY,Authorization:`Bearer ${_authToken||SB_KEY}`}
+    });
+    cpRenderThread(await r.json());
+  }catch(e){thread.innerHTML='<div style="padding:20px;color:var(--red);font-size:13px">Failed to load.</div>';}
+}
+
+function cpRenderThread(rows){
+  const thread=document.getElementById('cp-thread');
+  const footer=document.getElementById('cp-footer');
+  const banner=document.getElementById('cp-resolved-banner');
+  const resBtn=document.getElementById('cp-resolve-btn');
+  if(!rows||!rows.length){
+    thread.innerHTML='<div style="padding:28px 0;color:var(--text3);font-size:13px;text-align:center">No comments yet.</div>';
+    if(footer)footer.style.display='flex';
+    if(banner)banner.style.display='none';
+    if(resBtn)resBtn.style.display='none';
+    return;
+  }
+  const resolved=rows.every(r=>r.resolved);
+  let h='';
+  rows.forEach(c=>{
+    const init=(c.author_email||'?')[0].toUpperCase();
+    h+=`<div class="cp-msg">
+      <div class="cp-avatar">${init}</div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;gap:8px;align-items:baseline;margin-bottom:3px">
+          <span style="font-size:12px;font-weight:700;color:var(--text)">${escHtml(c.author_email.split('@')[0])}</span>
+          <span style="font-size:11px;color:var(--text3)">${timeAgo(c.created_at)}</span>
+        </div>
+        <div style="font-size:13.5px;color:var(--text2);line-height:1.5;word-break:break-word">${escHtml(c.body)}</div>
+      </div>
+    </div>`;
+  });
+  thread.innerHTML=h;
+  if(banner)banner.style.display=resolved?'flex':'none';
+  if(footer)footer.style.display=resolved?'none':'flex';
+  if(resBtn)resBtn.style.display=resolved?'none':'flex';
+}
+
+async function cpPost(){
+  const txt=document.getElementById('cp-txt');
+  const body=txt?.value.trim();
+  if(!body)return;
+  if(!CURRENT_USER){return;}
+  txt.value='';
+  try{
+    await fetch(`${SB_URL}/rest/v1/comments`,{
+      method:'POST',
+      headers:{apikey:SB_KEY,Authorization:`Bearer ${_authToken||SB_KEY}`,'Content-Type':'application/json',Prefer:'return=minimal'},
+      body:JSON.stringify({cell_id:_cpCellId,cell_context:_cpCtx,body,author_email:CURRENT_USER.email,resolved:false})
+    });
+    cpLoadThread();
+    refreshCommentDots();
+  }catch(e){console.error('cpPost:',e);}
+}
+
+async function cpResolve(){
+  try{
+    await fetch(`${SB_URL}/rest/v1/comments?cell_id=eq.${encodeURIComponent(_cpCellId)}`,{
+      method:'PATCH',
+      headers:{apikey:SB_KEY,Authorization:`Bearer ${_authToken||SB_KEY}`,'Content-Type':'application/json',Prefer:'return=minimal'},
+      body:JSON.stringify({resolved:true,resolved_by:CURRENT_USER?.email,resolved_at:new Date().toISOString()})
+    });
+    cpClose();
+    refreshCommentDots();
+    if(document.getElementById('screen-comments')?.classList.contains('active'))renderComments();
+  }catch(e){console.error('cpResolve:',e);}
+}
+
+async function cpReopenThread(cellId,evt){
+  if(evt)evt.stopPropagation();
+  try{
+    await fetch(`${SB_URL}/rest/v1/comments?cell_id=eq.${encodeURIComponent(cellId)}`,{
+      method:'PATCH',
+      headers:{apikey:SB_KEY,Authorization:`Bearer ${_authToken||SB_KEY}`,'Content-Type':'application/json',Prefer:'return=minimal'},
+      body:JSON.stringify({resolved:false,resolved_by:null,resolved_at:null})
+    });
+    refreshCommentDots();
+    renderComments();
+  }catch(e){console.error('cpReopenThread:',e);}
+}
+
+async function refreshCommentDots(){
+  try{
+    const r=await fetch(`${SB_URL}/rest/v1/comments?resolved=eq.false&select=cell_id`,{
+      headers:{apikey:SB_KEY,Authorization:`Bearer ${_authToken||SB_KEY}`}
+    });
+    const rows=await r.json();
+    const openSet=new Set(rows.map(r=>r.cell_id));
+    document.querySelectorAll('.cdot').forEach(el=>{
+      el.style.display=openSet.has(el.dataset.cell)?'inline-block':'none';
+    });
+  }catch(e){}
+}
+
+async function renderComments(){
+  const container=document.getElementById('comments-list');
+  if(!container)return;
+  container.innerHTML='<div style="padding:40px;color:var(--text3);font-size:14px;text-align:center">Loading…</div>';
+  try{
+    const r=await fetch(`${SB_URL}/rest/v1/comments?order=created_at.desc`,{
+      headers:{apikey:SB_KEY,Authorization:`Bearer ${_authToken||SB_KEY}`}
+    });
+    const all=await r.json();
+    if(!all.length){container.innerHTML='<div style="padding:60px;color:var(--text3);font-size:14px;text-align:center">No comments yet.</div>';return;}
+    const byCell={};
+    all.forEach(c=>{
+      if(!byCell[c.cell_id])byCell[c.cell_id]={cellId:c.cell_id,ctx:c.cell_context,msgs:[],resolved:true};
+      byCell[c.cell_id].msgs.push(c);
+      if(!c.resolved)byCell[c.cell_id].resolved=false;
+    });
+    const threads=Object.values(byCell);
+    const open=threads.filter(t=>!t.resolved);
+    const resolved=threads.filter(t=>t.resolved);
+    let h='';
+    if(open.length){
+      h+=`<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.10em;margin-bottom:12px">Open · ${open.length}</div>`;
+      open.forEach(t=>{
+        const last=t.msgs[0];
+        h+=`<div class="cmt-card" onclick="cpOpen('${escAttr(t.cellId)}','${escAttr(t.ctx)}')">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
+            <span style="font-size:13px;font-weight:600;color:var(--text)">${escHtml(t.ctx)}</span>
+            <span style="font-size:11px;color:var(--text3)">${t.msgs.length} comment${t.msgs.length>1?'s':''}</span>
+          </div>
+          <div style="font-size:13px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">"${escHtml(last.body)}"</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:5px">${escHtml(last.author_email.split('@')[0])} · ${timeAgo(last.created_at)}</div>
+        </div>`;
+      });
+    }
+    if(resolved.length){
+      h+=`<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.10em;margin-top:28px;margin-bottom:12px">Resolved · ${resolved.length}</div>`;
+      resolved.forEach(t=>{
+        const last=t.msgs[0];
+        h+=`<div class="cmt-card" style="opacity:.55">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
+            <span style="font-size:13px;font-weight:600;color:var(--text)">${escHtml(t.ctx)}</span>
+            <button onclick="cpReopenThread('${escAttr(t.cellId)}',event)" style="font-size:11px;padding:3px 10px;border-radius:5px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:var(--sans)">Reopen</button>
+          </div>
+          <div style="font-size:13px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">"${escHtml(last.body)}"</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:5px">${escHtml(last.author_email.split('@')[0])} · ${timeAgo(last.created_at)}</div>
+        </div>`;
+      });
+    }
+    container.innerHTML=h;
+  }catch(e){container.innerHTML=`<div style="padding:40px;color:var(--red);font-size:13px">Error: ${escHtml(e.message)}</div>`;}
+}
+
+function timeAgo(iso){
+  const s=Math.floor((Date.now()-new Date(iso))/1000);
+  if(s<60)return 'just now';
+  if(s<3600)return Math.floor(s/60)+'m ago';
+  if(s<86400)return Math.floor(s/3600)+'h ago';
+  return Math.floor(s/86400)+'d ago';
+}
+function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function escAttr(s){return String(s||'').replace(/'/g,'&#39;');}
 
 // ── Init ──
 // Restore any previously imported actuals from localStorage BEFORE first render
