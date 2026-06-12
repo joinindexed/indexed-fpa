@@ -2282,7 +2282,7 @@ function renderDash(){
   const founderPmt=getFounderPayments();
   const adjNet=net+founderPmt;
   const decClose=getDecClosingBalance();
-  const founderEarnings=d.open-decClose+founderPmt;
+  const founderEarnings=decClose-d.open+founderPmt;
   const pl=getPL();
   const bs=getBSMetrics();
   const pct=n=>(n*100).toFixed(1)+'%';
@@ -2297,7 +2297,7 @@ function renderDash(){
     <div class="mc"><div class="mc-label">Accounts receivable</div><div class="mc-value neu">${$f(bs.ar)}</div><div class="mc-sub">${closeLbl}</div></div>
     <div class="mc"><div class="mc-label">YTD inflow</div><div class="mc-value pos">${$f(ytdIn)}</div><div class="mc-sub">${ytdLbl}</div></div>
     <div class="mc"><div class="mc-label">YTD outflow</div><div class="mc-value neg">($${$f(ytdOut).replace('$','')})</div><div class="mc-sub">${ytdLbl}</div></div>
-    <div class="mc"><div class="mc-label">Founder cash earnings</div><div class="mc-value ${founderEarnings>=0?'pos':'neg'}">${founderEarnings>=0?$f(founderEarnings):'($'+$f(Math.abs(founderEarnings)).replace('$','')+')'}</div><div class="mc-sub">Opening − Dec closing + founder pmts</div></div>`;
+    <div class="mc"><div class="mc-label">Founder cash earnings</div><div class="mc-value ${founderEarnings>=0?'pos':'neg'}">${founderEarnings>=0?$f(founderEarnings):'($'+$f(Math.abs(founderEarnings)).replace('$','')+')'}</div><div class="mc-sub">Dec closing − opening + founder pmts</div></div>`;
 
   // P&L KPIs (5-column row)
   const adjCls=pl.adjNet>=0?'pos':'neg';
