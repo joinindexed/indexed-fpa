@@ -4977,9 +4977,15 @@ async function doLogin(){
   if(!email||!password){errEl.textContent='Enter your email and password.';return;}
   errEl.textContent='';
   btn.textContent='Signing in…';btn.disabled=true;
-  const {error}=await sbClient.auth.signInWithPassword({email,password});
+  try{
+    const timeout=new Promise((_,rej)=>setTimeout(()=>rej(new Error('Request timed out — check your connection and try again.')),12000));
+    const {error}=await Promise.race([sbClient.auth.signInWithPassword({email,password}),timeout]);
+    if(error)throw error;
+  }catch(e){
+    btn.textContent='Sign in →';btn.disabled=false;
+    errEl.textContent=e.message;
+  }
   btn.textContent='Sign in →';btn.disabled=false;
-  if(error){errEl.textContent=error.message;}
 }
 
 async function doLogout(){
