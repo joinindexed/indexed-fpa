@@ -667,7 +667,6 @@ input,select{font-family:var(--sans)}
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
 const E = ['Jan','Feb','Mar','Apr'];
 let ent='conso', finTab='bs', openDrill=new Set();
@@ -4849,10 +4848,11 @@ const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZ
 const SB_HDR={apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`,'Content-Type':'application/json',Prefer:'return=minimal'};
 let _sbPulling=false;
 
-// ── Auth client ──
-const sbClient=supabase.createClient(SB_URL,SB_KEY);
+// ── Auth globals ──
+const SB_AUTH=`${SB_URL}/auth/v1`;
 let CURRENT_ROLE=null;   // 'admin' | 'accountant' | 'viewer'
-let CURRENT_USER=null;   // Supabase user object
+let CURRENT_USER=null;   // {id, email}
+let _authToken=null;     // current access token
 
 const ROLE_ACCESS={
   admin:   ['dash','cf','fin','fcast-ar','fcast-ap','contacts','import','cfworking'],
@@ -4941,28 +4941,38 @@ async function sbPull(){
   }catch(e){_sbPulling=false;sbStatus('Offline — using local data',false);}
 })();
 
-// ── Auth ──
-async function loadUserRole(){
-  const {data:{session}}=await sbClient.auth.getSession();
-  if(!session)return;
-  const r=await fetch(`${SB_URL}/rest/v1/user_roles?user_id=eq.${session.user.id}&select=role`,{
-    headers:{apikey:SB_KEY,Authorization:`Bearer ${session.access_token}`}
-  });
-  const rows=await r.json();
-  CURRENT_ROLE=rows[0]?.role||null;
+// ── Auth (plain fetch — no SDK) ──
+async function _authLoadRole(userId,token){
+  try{
+    const r=await fetch(`${SB_URL}/rest/v1/user_roles?user_id=eq.${userId}&select=role`,{
+      headers:{apikey:SB_KEY,Authorization:`Bearer ${token}`}
+    });
+    const rows=await r.json();
+    CURRENT_ROLE=rows[0]?.role||null;
+  }catch(e){CURRENT_ROLE=null;}
+}
+
+function _authShowApp(){
+  const shell=document.querySelector('.shell');
+  const overlay=document.getElementById('auth-overlay');
+  if(overlay)overlay.style.display='none';
+  if(shell)shell.style.display='flex';
+  applyRoleUI();
+  try{renderDash();}catch(e){}
+  if(CURRENT_ROLE!=='accountant')try{renderCF();}catch(e){}
+  try{renderFcastAR();}catch(e){}
+  try{renderFcastAP();}catch(e){}
+  try{updateActualsLabels();}catch(e){}
+  go('dash',document.querySelector(`.nav-item[data-roles*="${CURRENT_ROLE}"]`));
 }
 
 function applyRoleUI(){
-  // Show/hide nav items and section labels based on role
   document.querySelectorAll('[data-roles]').forEach(el=>{
     el.style.display=el.dataset.roles.split(',').includes(CURRENT_ROLE)?'':'none';
   });
-  // Viewer cannot see the Actuals+Forecast tab on Cash Flow
   const hybridTab=document.querySelector('#cf-tabs .itab:last-child');
   if(hybridTab)hybridTab.style.display=(CURRENT_ROLE==='viewer')?'none':'';
-  // If viewer was on hybrid tab, reset to actuals
   if(CURRENT_ROLE==='viewer'&&cfMode==='hybrid'){cfMode='actuals';const t=document.querySelector('#cf-tabs .itab');if(t){document.querySelectorAll('#cf-tabs .itab').forEach(x=>x.classList.remove('active'));t.classList.add('active');}}
-  // User info card
   const emailEl=document.getElementById('user-email-label');
   const roleEl=document.getElementById('user-role-label');
   if(emailEl)emailEl.textContent=CURRENT_USER?.email||'';
@@ -4975,58 +4985,66 @@ async function doLogin(){
   const errEl=document.getElementById('login-error');
   const btn=document.getElementById('login-btn');
   if(!email||!password){errEl.textContent='Enter your email and password.';return;}
-  errEl.textContent='';
-  btn.textContent='Signing in…';btn.disabled=true;
+  errEl.textContent='';btn.textContent='Signing in…';btn.disabled=true;
   try{
-    const timeout=new Promise((_,rej)=>setTimeout(()=>rej(new Error('Request timed out — check your connection and try again.')),12000));
-    const {error}=await Promise.race([sbClient.auth.signInWithPassword({email,password}),timeout]);
-    if(error)throw error;
-  }catch(e){
-    btn.textContent='Sign in →';btn.disabled=false;
-    errEl.textContent=e.message;
-  }
+    const r=await fetch(`${SB_AUTH}/token?grant_type=password`,{
+      method:'POST',
+      headers:{apikey:SB_KEY,'Content-Type':'application/json'},
+      body:JSON.stringify({email,password})
+    });
+    const data=await r.json();
+    if(!r.ok)throw new Error(data.error_description||data.msg||'Invalid email or password.');
+    _authToken=data.access_token;
+    CURRENT_USER={id:data.user.id,email:data.user.email};
+    try{localStorage.setItem('fpa_session',JSON.stringify({token:data.access_token,refresh:data.refresh_token,user:CURRENT_USER}));}catch(e){}
+    await _authLoadRole(CURRENT_USER.id,_authToken);
+    if(!CURRENT_ROLE){errEl.textContent='No role assigned. Contact your admin.';btn.textContent='Sign in →';btn.disabled=false;return;}
+    _authShowApp();
+  }catch(e){errEl.textContent=e.message;}
   btn.textContent='Sign in →';btn.disabled=false;
 }
 
 async function doLogout(){
-  await sbClient.auth.signOut();
-  CURRENT_ROLE=null;CURRENT_USER=null;
+  try{if(_authToken)await fetch(`${SB_AUTH}/logout`,{method:'POST',headers:{apikey:SB_KEY,Authorization:`Bearer ${_authToken}`}});}catch(e){}
+  _authToken=null;CURRENT_ROLE=null;CURRENT_USER=null;
+  try{localStorage.removeItem('fpa_session');}catch(e){}
+  document.getElementById('auth-overlay').style.display='flex';
+  document.querySelector('.shell').style.display='none';
 }
 
 async function initAuth(){
   const shell=document.querySelector('.shell');
   const overlay=document.getElementById('auth-overlay');
-  // Hide app shell until auth is confirmed
   if(shell)shell.style.display='none';
   if(overlay)overlay.style.display='flex';
-
-  sbClient.auth.onAuthStateChange(async(event,session)=>{
-    if(session){
-      CURRENT_USER=session.user;
-      await loadUserRole();
-      if(!CURRENT_ROLE){
-        const errEl=document.getElementById('login-error');
-        if(errEl)errEl.textContent='No role assigned to this account. Ask your admin.';
-        await sbClient.auth.signOut();
-        return;
+  // Restore session from localStorage
+  try{
+    const stored=JSON.parse(localStorage.getItem('fpa_session')||'null');
+    if(stored?.token&&stored?.user){
+      // Verify token still valid
+      const r=await fetch(`${SB_AUTH}/user`,{headers:{apikey:SB_KEY,Authorization:`Bearer ${stored.token}`}});
+      if(r.ok){
+        _authToken=stored.token;CURRENT_USER=stored.user;
+        await _authLoadRole(CURRENT_USER.id,_authToken);
+        if(CURRENT_ROLE){_authShowApp();return;}
+      } else if(stored.refresh){
+        // Token expired — try refresh
+        const rr=await fetch(`${SB_AUTH}/token?grant_type=refresh_token`,{
+          method:'POST',headers:{apikey:SB_KEY,'Content-Type':'application/json'},
+          body:JSON.stringify({refresh_token:stored.refresh})
+        });
+        if(rr.ok){
+          const nd=await rr.json();
+          _authToken=nd.access_token;CURRENT_USER={id:nd.user.id,email:nd.user.email};
+          try{localStorage.setItem('fpa_session',JSON.stringify({token:nd.access_token,refresh:nd.refresh_token,user:CURRENT_USER}));}catch(e){}
+          await _authLoadRole(CURRENT_USER.id,_authToken);
+          if(CURRENT_ROLE){_authShowApp();return;}
+        }
       }
-      applyRoleUI();
-      if(overlay)overlay.style.display='none';
-      if(shell)shell.style.display='flex';
-      try{renderDash();}catch(e){}
-      if(CURRENT_ROLE!=='accountant')try{renderCF();}catch(e){}
-      try{renderFcastAR();}catch(e){}
-      try{renderFcastAP();}catch(e){}
-      try{updateActualsLabels();}catch(e){}
-      // Navigate to dashboard (in case a restricted screen was previously active)
-      const firstNav=document.querySelector(`.nav-item[data-roles*="${CURRENT_ROLE}"]`);
-      go('dash',firstNav);
-    } else {
-      CURRENT_ROLE=null;CURRENT_USER=null;
-      if(overlay)overlay.style.display='flex';
-      if(shell)shell.style.display='none';
     }
-  });
+  }catch(e){}
+  // No valid session — show login
+  if(overlay)overlay.style.display='flex';
 }
 
 // ── Init ──
