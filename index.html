@@ -212,25 +212,25 @@ input,select{font-family:var(--sans)}
     <div class="logo-sub">Financial planning &amp; analysis</div>
   </div>
   <nav class="nav">
-    <div class="nav-section">Overview</div>
-    <div class="nav-item active" onclick="go('dash',this)">
+    <div class="nav-section" data-roles="admin,accountant,viewer">Overview</div>
+    <div class="nav-item active" data-roles="admin,accountant,viewer" onclick="go('dash',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Dashboard</div>
-    <div class="nav-item" onclick="go('cf',this)">
+    <div class="nav-item" data-roles="admin,viewer" onclick="go('cf',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>Cash flow</div>
-    <div class="nav-item" onclick="go('fin',this)">
+    <div class="nav-item" data-roles="admin,accountant,viewer" onclick="go('fin',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 17v-2m3 2v-4m3 4v-6M9 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V9l-5-6z"/></svg>Financials</div>
-    <div class="nav-section">Forecast</div>
-    <div class="nav-item" onclick="go('fcast-ar',this)">
+    <div class="nav-section" data-roles="admin">Forecast</div>
+    <div class="nav-item" data-roles="admin" onclick="go('fcast-ar',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>AR Pipeline</div>
-    <div class="nav-item" onclick="go('fcast-ap',this)">
+    <div class="nav-item" data-roles="admin" onclick="go('fcast-ap',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2M9 12h6m-6 4h6"/></svg>AP Schedule</div>
-    <div class="nav-section">Mapping</div>
-    <div class="nav-item" onclick="go('contacts',this)">
+    <div class="nav-section" data-roles="admin">Mapping</div>
+    <div class="nav-item" data-roles="admin" onclick="go('contacts',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Contacts</div>
-    <div class="nav-section">Settings</div>
-    <div class="nav-item" onclick="go('import',this)">
+    <div class="nav-section" data-roles="admin,accountant">Settings</div>
+    <div class="nav-item" data-roles="admin,accountant" onclick="go('import',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M16 12l-4 4m0 0l-4-4m4 4V4"/></svg>Import data</div>
-    <div class="nav-item" onclick="go('cfworking',this)">
+    <div class="nav-item" data-roles="admin" onclick="go('cfworking',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 10h18M3 14h18M10 3v18M14 3v18"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg>CF Working</div>
   </nav>
   <div class="sidebar-footer">
@@ -243,6 +243,14 @@ input,select{font-family:var(--sans)}
         <div class="epill" onclick="setEnt('bc',this)">BC</div>
       </div>
     </div>
+    <div id="user-info-card" style="margin-bottom:8px;padding:8px 10px;border-radius:8px;background:var(--surface2);border:1px solid var(--border)">
+      <div id="user-email-label" style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+      <div id="user-role-label" style="font-size:11px;color:var(--text2);text-transform:capitalize;margin-top:2px"></div>
+    </div>
+    <button onclick="doLogout()" style="margin-bottom:8px;width:100%;display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;border:1px solid var(--border2);background:transparent;color:var(--text2);font-size:13px;font-family:var(--sans);cursor:pointer;transition:all .13s" onmouseenter="this.style.background='var(--surface2)';this.style.color='var(--red)'" onmouseleave="this.style.background='transparent';this.style.color='var(--text2)'">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Sign out
+    </button>
     <button id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode"
       style="margin-top:10px;width:100%;display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;border:1px solid var(--border2);background:transparent;color:var(--text2);font-size:13px;font-family:var(--sans);cursor:pointer;transition:all .13s"
       onmouseenter="this.style.background='var(--surface2)';this.style.color='var(--text)'"
@@ -634,17 +642,32 @@ input,select{font-family:var(--sans)}
 </div>
 
 <!-- Password overlay -->
-<div id="auth-overlay" style="display:none;position:fixed;inset:0;background:#0A0A0A;z-index:9999;align-items:center;justify-content:center">
-  <div style="background:#141414;border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:40px 44px;width:360px;text-align:center">
-    <div style="font-size:22px;font-weight:800;color:#57D7E2;letter-spacing:-.02em;margin-bottom:4px">Indexed FP&A</div>
-    <div style="font-size:13px;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:.10em;font-weight:700;margin-bottom:28px">Financial planning &amp; analysis</div>
-    <input id="pwd-input" type="password" placeholder="Enter password" onkeydown="if(event.key==='Enter')submitPwd()"
-      style="width:100%;padding:10px 14px;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:#1e1e1e;color:#F2F2F2;font-size:16px;font-family:'Barlow',sans-serif;outline:none;margin-bottom:8px">
-    <div id="pwd-err" style="display:none;color:#F87171;font-size:13.5px;margin-bottom:8px"></div>
-    <button onclick="submitPwd()" style="width:100%;padding:10px;border-radius:8px;border:none;background:#57D7E2;color:#fff;font-size:16px;font-weight:600;cursor:pointer;font-family:'Barlow',sans-serif">Unlock →</button>
+<div id="auth-overlay" style="display:flex;position:fixed;inset:0;background:var(--bg);z-index:9999;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border2);border-radius:16px;padding:40px 44px;width:380px;display:flex;flex-direction:column;gap:18px;box-shadow:0 8px 32px rgba(0,0,0,0.35)">
+    <div>
+      <div style="font-size:22px;font-weight:800;color:var(--accent);letter-spacing:-.02em">Indexed FP&amp;A</div>
+      <div style="font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;margin-top:5px">Sign in to continue</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <label style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.08em">Email</label>
+      <input id="login-email" type="email" placeholder="you@example.com"
+        onkeydown="if(event.key==='Enter')document.getElementById('login-password').focus()"
+        style="padding:10px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:14px;font-family:var(--sans);outline:none;width:100%;box-sizing:border-box">
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <label style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.08em">Password</label>
+      <input id="login-password" type="password" placeholder="••••••••"
+        onkeydown="if(event.key==='Enter')doLogin()"
+        style="padding:10px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:14px;font-family:var(--sans);outline:none;width:100%;box-sizing:border-box">
+    </div>
+    <div id="login-error" style="font-size:13px;color:var(--red);min-height:18px;margin-top:-6px"></div>
+    <button id="login-btn" onclick="doLogin()"
+      style="padding:11px;border-radius:9px;border:none;background:var(--accent);color:#fff;font-size:15px;font-weight:700;font-family:var(--sans);cursor:pointer;width:100%;transition:opacity .15s"
+      onmouseenter="this.style.opacity='.87'" onmouseleave="this.style.opacity='1'">Sign in →</button>
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
 const E = ['Jan','Feb','Mar','Apr'];
 let ent='conso', finTab='bs', openDrill=new Set();
@@ -1403,6 +1426,8 @@ const toDateInput=(v)=>{
 
 // ── Nav ──
 function go(id,el){
+  // Role guard — silently block navigation to unauthorized screens
+  if(CURRENT_ROLE&&!(ROLE_ACCESS[CURRENT_ROLE]||[]).includes(id))return;
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   document.getElementById('screen-'+id).classList.add('active');
@@ -4824,6 +4849,17 @@ const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZ
 const SB_HDR={apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`,'Content-Type':'application/json',Prefer:'return=minimal'};
 let _sbPulling=false;
 
+// ── Auth client ──
+const sbClient=supabase.createClient(SB_URL,SB_KEY);
+let CURRENT_ROLE=null;   // 'admin' | 'accountant' | 'viewer'
+let CURRENT_USER=null;   // Supabase user object
+
+const ROLE_ACCESS={
+  admin:   ['dash','cf','fin','fcast-ar','fcast-ap','contacts','import','cfworking'],
+  accountant:['dash','fin','import'],
+  viewer:  ['dash','cf','fin']
+};
+
 function sbStatus(msg,ok){
   const el=document.getElementById('sb-status');
   if(el){el.textContent=msg;el.style.color=ok===false?'var(--red)':ok===true?'var(--green)':'var(--text3)';}
@@ -4835,7 +4871,7 @@ function sbPush(){
   _sbTimer=setTimeout(async()=>{
     sbStatus('Syncing…');
     try{
-      const basePayload={ar_fcst:AR_FCST,ap_fcst:AP_FCST,ct_map:CT_MAP,updated_at:new Date().toISOString(),updated_by:'karan'};
+      const basePayload={ar_fcst:AR_FCST,ap_fcst:AP_FCST,ct_map:CT_MAP,updated_at:new Date().toISOString(),updated_by:CURRENT_USER?.email||'unknown'};
       if(GL_MAPPINGS&&Object.keys(GL_MAPPINGS).length)basePayload.gl_mappings=GL_MAPPINGS;
       // Extended payload — includes Xero actuals + overrides (requires Supabase migration)
       const fullPayload={...basePayload,cf_tx_overrides:CF_TX_OVERRIDES,cf_net_overrides:CF_NET_OVERRIDES};
@@ -4905,32 +4941,86 @@ async function sbPull(){
   }catch(e){_sbPulling=false;sbStatus('Offline — using local data',false);}
 })();
 
-// ── Password gate ──
-const APP_PWD='fpaindexedfpa';
-function checkAuth(){
-  if(sessionStorage.getItem('fpa_auth')==='1')return;
-  const overlay=document.getElementById('auth-overlay');
-  if(overlay)overlay.style.display='flex';
-  document.querySelector('.shell').style.display='none';
+// ── Auth ──
+async function loadUserRole(){
+  const {data:{session}}=await sbClient.auth.getSession();
+  if(!session)return;
+  const r=await fetch(`${SB_URL}/rest/v1/user_roles?user_id=eq.${session.user.id}&select=role`,{
+    headers:{apikey:SB_KEY,Authorization:`Bearer ${session.access_token}`}
+  });
+  const rows=await r.json();
+  CURRENT_ROLE=rows[0]?.role||null;
 }
-function submitPwd(){
-  const inp=document.getElementById('pwd-input');
-  if(!inp)return;
-  if(inp.value===APP_PWD){
-    sessionStorage.setItem('fpa_auth','1');
-    document.getElementById('auth-overlay').style.display='none';
-    document.querySelector('.shell').style.display='flex';
-    const mainEl=document.querySelector('.main');
-    if(mainEl)mainEl.scrollTop=0;
-    try{renderDash();}catch(e){}
-    try{renderCF();}catch(e){}
-    try{renderFcastAR();}catch(e){}
-    try{renderFcastAP();}catch(e){}
-  } else {
-    const err=document.getElementById('pwd-err');
-    if(err){err.textContent='Incorrect password';err.style.display='block';}
-    inp.value='';inp.focus();
-  }
+
+function applyRoleUI(){
+  // Show/hide nav items and section labels based on role
+  document.querySelectorAll('[data-roles]').forEach(el=>{
+    el.style.display=el.dataset.roles.split(',').includes(CURRENT_ROLE)?'':'none';
+  });
+  // Viewer cannot see the Actuals+Forecast tab on Cash Flow
+  const hybridTab=document.querySelector('#cf-tabs .itab:last-child');
+  if(hybridTab)hybridTab.style.display=(CURRENT_ROLE==='viewer')?'none':'';
+  // If viewer was on hybrid tab, reset to actuals
+  if(CURRENT_ROLE==='viewer'&&cfMode==='hybrid'){cfMode='actuals';const t=document.querySelector('#cf-tabs .itab');if(t){document.querySelectorAll('#cf-tabs .itab').forEach(x=>x.classList.remove('active'));t.classList.add('active');}}
+  // User info card
+  const emailEl=document.getElementById('user-email-label');
+  const roleEl=document.getElementById('user-role-label');
+  if(emailEl)emailEl.textContent=CURRENT_USER?.email||'';
+  if(roleEl)roleEl.textContent=CURRENT_ROLE||'';
+}
+
+async function doLogin(){
+  const email=document.getElementById('login-email').value.trim();
+  const password=document.getElementById('login-password').value;
+  const errEl=document.getElementById('login-error');
+  const btn=document.getElementById('login-btn');
+  if(!email||!password){errEl.textContent='Enter your email and password.';return;}
+  errEl.textContent='';
+  btn.textContent='Signing in…';btn.disabled=true;
+  const {error}=await sbClient.auth.signInWithPassword({email,password});
+  btn.textContent='Sign in →';btn.disabled=false;
+  if(error){errEl.textContent=error.message;}
+}
+
+async function doLogout(){
+  await sbClient.auth.signOut();
+  CURRENT_ROLE=null;CURRENT_USER=null;
+}
+
+async function initAuth(){
+  const shell=document.querySelector('.shell');
+  const overlay=document.getElementById('auth-overlay');
+  // Hide app shell until auth is confirmed
+  if(shell)shell.style.display='none';
+  if(overlay)overlay.style.display='flex';
+
+  sbClient.auth.onAuthStateChange(async(event,session)=>{
+    if(session){
+      CURRENT_USER=session.user;
+      await loadUserRole();
+      if(!CURRENT_ROLE){
+        const errEl=document.getElementById('login-error');
+        if(errEl)errEl.textContent='No role assigned to this account. Ask your admin.';
+        await sbClient.auth.signOut();
+        return;
+      }
+      applyRoleUI();
+      if(overlay)overlay.style.display='none';
+      if(shell)shell.style.display='flex';
+      try{renderDash();}catch(e){}
+      if(CURRENT_ROLE!=='accountant')try{renderCF();}catch(e){}
+      try{renderFcastAR();}catch(e){}
+      try{renderFcastAP();}catch(e){}
+      try{updateActualsLabels();}catch(e){}
+      // Navigate to dashboard (in case a restricted screen was previously active)
+      const firstNav=document.querySelector(`.nav-item[data-roles*="${CURRENT_ROLE}"]`);
+      go('dash',firstNav);
+    } else {
+      CURRENT_ROLE=null;CURRENT_USER=null;
+      if(overlay)overlay.style.display='flex';
+      if(shell)shell.style.display='none';
+    }
+  });
 }
 
 // ── Init ──
@@ -4943,7 +5033,7 @@ try{updateActualsLabels();}catch(e){}
 // Run immediately (script is at bottom of body so DOM is ready)
 try{renderDash();}catch(e){}
 try{renderCF();}catch(e){}
-checkAuth();
+initAuth();
 // Also re-render on the nav click that activates the dash screen,
 // and add a window.onload backup in case something above failed
 window.addEventListener('load',()=>{
