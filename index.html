@@ -1517,7 +1517,7 @@ function setEnt(e,el){
   const lbl={'conso':'· Consolidated (Braveheart & Bravecore)','bh':'· Braveheart FZ LLC','bc':'· Bravecore FZ LLC'};
   document.getElementById('cf-el').textContent=lbl[e];
   document.getElementById('fin-el').textContent=lbl[e];
-  renderDash(); renderCF(); renderFin();
+  renderCF(); renderDash(); renderFin();
 }
 
 // ── CF ──
@@ -1562,6 +1562,7 @@ function renderCF(){
 
 let _cfInGroups=[], _cfOutGroups=[], _cfInFcstGroups=[], _cfOutFcstGroups=[];
 let cfMode='actuals';
+let _cfDecClose=0; // cached Dec closing from last CF table render
 let _cfActMonths=[], _cfFcstMonths=[];
 function swCF(mode,el){
   cfMode=mode;
@@ -1738,8 +1739,9 @@ function renderCFTable(d){
   h+=`<tr class="br"><td style="padding-left:10px">Closing bank balance${cBtn('cf|main|closing-balance','CF · Closing bank balance')}</td>`;
   actClose.forEach(v=>h+=`<td>${$f(v)}</td>`);
   let runClose=actClose.length?actClose[actClose.length-1]:actOpen;
-  cfFcstMonths.forEach((_,fi)=>{
+  cfFcstMonths.forEach((m,fi)=>{
     runClose+=fcastIn[fi]-fcastOut[fi];
+    if(m.startsWith('Dec'))_cfDecClose=runClose;
     h+=`<td style="${fcastCellStyle};color:var(--amber);font-weight:800">${$f(runClose)}</td>`;
   });
   h+=`<td>${$f(actClose.length?actClose[actClose.length-1]:actOpen)}</td></tr></tbody>`;
@@ -2374,24 +2376,10 @@ function getFounderPayments(){
 }
 
 function getDecClosingBalance(){
-  const d=getD();
-  if(E.includes('Dec')){
-    const decIdx=E.indexOf('Dec');
-    return d.close[decIdx];
-  }
-  const baseClose=E.length>1?d.close[E.length-2]:d.open;
-  const junFcst=E.length>0?`${E[E.length-1]} ${FCST_YEAR}`:'Jun '+FCST_YEAR;
-  let bal=baseClose+getFcastInflow(junFcst)-getFcastOutflow(junFcst);
-  console.log('[decClose] base='+baseClose.toFixed(2)+' junFcst='+junFcst+' in='+getFcastInflow(junFcst).toFixed(2)+' out='+getFcastOutflow(junFcst).toFixed(2)+' afterJun='+bal.toFixed(2));
-  for(let i=0;i<FCST_MONTHS.length;i++){
-    const m=FCST_MONTHS[i];
-    const prev=bal;
-    bal+=getFcastInflow(m)-getFcastOutflow(m);
-    console.log('[decClose] '+m+' in='+getFcastInflow(m).toFixed(2)+' out='+getFcastOutflow(m).toFixed(2)+' bal='+bal.toFixed(2));
-    if(m.startsWith('Dec'))break;
-  }
-  console.log('[decClose] final='+bal.toFixed(2));
-  return bal;
+  // If Dec is already in actuals, read it directly.
+  if(E.includes('Dec')){const d=getD();return d.close[E.indexOf('Dec')];}
+  // Otherwise use the value the CF table already computed — same number the user sees.
+  return _cfDecClose;
 }
 
 function renderDash(){
@@ -3255,7 +3243,7 @@ function applyImport(entity,ftype){
   const ftLabel={gl:'Account Transactions',bs:'Balance Sheet',pl:'P&L'}[ftype]||ftype;
   if(prev)prev.innerHTML=`<div class="es" style="border-color:var(--accent-border);background:var(--accent-light);margin-top:10px"><span style="color:var(--green)">✓</span> &nbsp;${ftLabel}: ${parsed.months.length} month(s) applied — ${parsed.months.join(', ')}</div>`;
 
-  renderDash();renderCF();renderFin();
+  renderCF();renderDash();renderFin();
   // Snapshot before deleting, so saveActuals can persist it
   if(!window._actualsSnap)window._actualsSnap={};
   window._actualsSnap[entity+'-'+ftype]=JSON.parse(JSON.stringify(parsed));
@@ -5029,7 +5017,7 @@ async function sbPull(){
     if(d.cf_net_overrides){CF_NET_OVERRIDES={...d.cf_net_overrides,...CF_NET_OVERRIDES};try{localStorage.setItem('cf_net_overrides',JSON.stringify(CF_NET_OVERRIDES));}catch(e){}}
     if(d.actuals_snap){try{localStorage.setItem('actuals_snap',JSON.stringify(d.actuals_snap));}catch(e){}loadActuals();changed=true;}
     _sbPulling=false;
-    if(changed){renderDash();renderCF();renderFcastAR();renderFcastAP();renderContacts();}
+    if(changed){renderCF();renderDash();renderFcastAR();renderFcastAP();renderContacts();}
     const ts=d.updated_at?new Date(d.updated_at).toLocaleString():'—';
     sbStatus(`✓ Pulled · last saved ${ts}${d.updated_by?' by '+d.updated_by:''}`,true);
   }catch(e){_sbPulling=false;sbStatus('Pull failed: '+e.message,false);}
@@ -5053,7 +5041,7 @@ async function sbPull(){
     if(d.cf_net_overrides){CF_NET_OVERRIDES={...d.cf_net_overrides,...CF_NET_OVERRIDES};try{localStorage.setItem('cf_net_overrides',JSON.stringify(CF_NET_OVERRIDES));}catch(e){}}
     if(d.actuals_snap){try{localStorage.setItem('actuals_snap',JSON.stringify(d.actuals_snap));}catch(e){}loadActuals();changed=true;}
     _sbPulling=false;
-    if(changed){renderDash();renderCF();renderFcastAR();renderFcastAP();}
+    if(changed){renderCF();renderDash();renderFcastAR();renderFcastAP();}
     const ts=d.updated_at?new Date(d.updated_at).toLocaleString():'—';
     sbStatus(`✓ Live · last saved ${ts}${d.updated_by?' by '+d.updated_by:''}`,true);
     // If cloud has no actuals but we have local data, push ours up so other users can get it
