@@ -2374,26 +2374,23 @@ function getFounderPayments(){
 }
 
 function getDecClosingBalance(){
-  // Returns the projected December 2026 closing cash balance (BH+BC combined).
-  // Mirrors the CF Actuals+Forecast table exactly: start from the second-to-last
-  // actual close (May), then chain Jun as a forecast month, then FCST_MONTHS
-  // (Jul–Dec). This avoids the BS-adjusted Jun actual close (d.close[E.length-1])
-  // which can diverge from the GL-derived value shown in the CF table.
   const d=getD();
   if(E.includes('Dec')){
     const decIdx=E.indexOf('Dec');
     return d.close[decIdx];
   }
-  // Base = May (second-to-last actual close), same as CF hybrid mode
   const baseClose=E.length>1?d.close[E.length-2]:d.open;
-  // First forecast month = last actual month treated as forecast (e.g. 'Jun 2026')
   const junFcst=E.length>0?`${E[E.length-1]} ${FCST_YEAR}`:'Jun '+FCST_YEAR;
   let bal=baseClose+getFcastInflow(junFcst)-getFcastOutflow(junFcst);
+  console.log('[decClose] base='+baseClose.toFixed(2)+' junFcst='+junFcst+' in='+getFcastInflow(junFcst).toFixed(2)+' out='+getFcastOutflow(junFcst).toFixed(2)+' afterJun='+bal.toFixed(2));
   for(let i=0;i<FCST_MONTHS.length;i++){
     const m=FCST_MONTHS[i];
+    const prev=bal;
     bal+=getFcastInflow(m)-getFcastOutflow(m);
+    console.log('[decClose] '+m+' in='+getFcastInflow(m).toFixed(2)+' out='+getFcastOutflow(m).toFixed(2)+' bal='+bal.toFixed(2));
     if(m.startsWith('Dec'))break;
   }
+  console.log('[decClose] final='+bal.toFixed(2));
   return bal;
 }
 
