@@ -346,8 +346,8 @@ tr:hover .ct-btn,.mc:hover .ct-btn{opacity:1}
   </div>
   <div class="content">
     <div class="itabs" id="cf-tabs" style="background:transparent;padding:0;margin-bottom:14px;border-bottom:1px solid var(--border)">
-      <div class="itab active" onclick="swCF('actuals',this)">Actuals</div>
-      <div class="itab" onclick="swCF('hybrid',this)">Actuals + Forecast</div>
+      <div class="itab" onclick="swCF('actuals',this)">Actuals</div>
+      <div class="itab active" onclick="swCF('hybrid',this)">Actuals + Forecast</div>
     </div>
     <div class="card">
       <div class="card-head"><span class="card-title">Cash flow statement</span><span class="card-hint">Click a row to drill into transactions</span><button onclick="exportCFStatement()" title="Export to Excel" style="background:none;border:none;cursor:pointer;padding:2px 4px;color:var(--text3);display:flex;align-items:center" onmouseenter="this.style.color='var(--accent)'" onmouseleave="this.style.color='var(--text3)'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button></div>
@@ -1561,7 +1561,7 @@ function renderCF(){
 }
 
 let _cfInGroups=[], _cfOutGroups=[], _cfInFcstGroups=[], _cfOutFcstGroups=[];
-let cfMode='actuals';
+let cfMode='hybrid';
 let _cfDecClose=0; // cached Dec closing from last CF table render
 let _cfActMonths=[], _cfFcstMonths=[];
 function swCF(mode,el){
@@ -2349,22 +2349,11 @@ function getBSMetrics(){
 }
 
 function getFounderPayments(){
-  // Sum ALL outflows to founder-group contacts from raw transaction data.
-  // Deliberately bypasses buildCFGroups() so netted/fee-excluded transactions
-  // (CF_NET_OVERRIDES) are still counted — founder salaries/reimbursements
-  // should never be silently dropped from this metric.
-  const merged=getMergedMap();
-  let total=0;
-  E.forEach(m=>{
-    [...(BH_OUT_D[m]||[]),...(BC_OUT_D[m]||[])].forEach(tx=>{
-      if(ent!=='conso'&&tx.entity!==ent.toUpperCase())return;
-      const grpName=merged[tx.contact+'||'+tx.entity]?.group||tx.contact;
-      if(grpName.toLowerCase().includes('founder'))total+=tx.amt;
-    });
-  });
-  // Also add any scheduled founder payments in the forecast period (Jul→Dec)
-  // so the metric is consistent with the Dec closing balance which already
-  // projects through year-end.
+  // Sum outflows to founder-group contacts via buildCFGroups (actuals)
+  // and buildFcastCFGroups (forecast Jul–Dec).
+  const actGrps=buildCFGroups(false);
+  let total=actGrps.filter(g=>g.group.toLowerCase().includes('founder'))
+    .reduce((s,g)=>s+E.reduce((ss,m)=>ss+(g.vals[m]||0),0),0);
   const fcstGrps=buildFcastCFGroups(false,FCST_MONTHS);
   fcstGrps.filter(g=>g.group.toLowerCase().includes('founder')).forEach(g=>{
     for(let i=0;i<FCST_MONTHS.length;i++){
