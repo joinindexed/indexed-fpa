@@ -2857,6 +2857,7 @@ function _parseFinancialReport(rows,entity,ftype){
   colMonths.forEach(({month})=>{if(!result.months.includes(month))result.months.push(month);});
 
   // ── Step 3: Parse ALL rows (headers, totals, accounts) ──
+  let _curSection='';
   for(let ri=headerRow+1;ri<rows.length;ri++){
     const row=rows[ri]||[];
     // Find first non-blank cell as the label
@@ -2876,8 +2877,9 @@ function _parseFinancialReport(rows,entity,ftype){
     const hasNumbers=Object.values(vals).some(v=>v!==0);
     const type=rowType(label,hasNumbers);
     if(type==='blank')continue;
-    if((type==='h'||type==='sh')&&!hasNumbers){result.rows.push({type,label,vals:{}});continue;}
-    result.rows.push({type,label,vals});
+    if(type==='h')_curSection=label.toLowerCase();
+    if((type==='h'||type==='sh')&&!hasNumbers){result.rows.push({type,label,vals:{},section:_curSection});continue;}
+    result.rows.push({type,label,vals,section:_curSection});
   }
   return result;
 }
@@ -3123,9 +3125,14 @@ function applyImport(entity,ftype){
     // Track which template labels have already been updated this import pass.
     // Prevents a duplicate Xero label (e.g. "Stripe AED 1" appears in both
     // Assets/Bank and Liabilities) from overwriting the first (correct) match.
+    // Dedup key = templateLabel + '|' + xeroSection so the same account name
+    // appearing in both Assets and Liabilities in Xero (e.g. "Stripe AED 1")
+    // can match a different template row in each section.
     const _alreadyUpdated=new Set();
     dataRows.forEach(r=>{
       const rk=normKey(r.label);
+      const xeroSection=r.section||'';
+      // Prefer a template row whose section hint matches the Xero section
       let hit=kpiTarget.find(t=>t.label&&normKey(t.label)===rk);
       if(!hit)hit=kpiTarget.find(t=>{
         if(!t.label)return false;
@@ -3138,9 +3145,22 @@ function applyImport(entity,ftype){
         const map=maps.find(m=>normKey(m.xero)===rk);
         if(map)hit=kpiTarget.find(t=>t.label&&normKey(t.label)===normKey(map.tmpl));
       }
-      if(hit&&hit.v&&!_alreadyUpdated.has(hit.label)){
-        _alreadyUpdated.add(hit.label);
-        parsed.months.forEach(m=>{const i=E.indexOf(m);if(i>=0)hit.v[i]=r.vals[m]||0;});
+      const dedupKey=hit?`${hit.label}|${xeroSection}`:'';
+      if(hit&&hit.v&&!_alreadyUpdated.has(dedupKey)){
+        _alreadyUpdated.add(dedupKey);
+        // If a liability-section Xero row matches a bank asset row, NET it (subtract)
+        // so it shows as a negative balance in Assets rather than a separate liability line.
+        const isBankHit=isB?!!BH_BANKS[hit.label]:!!BC_BANKS[hit.label];
+        const isLiabSrc=xeroSection.includes('liabil');
+        parsed.months.forEach(m=>{
+          const i=E.indexOf(m);
+          if(i<0)return;
+          if(isBankHit&&isLiabSrc){
+            hit.v[i]=(hit.v[i]||0)-(r.vals[m]||0); // net: asset − liability
+          } else {
+            hit.v[i]=r.vals[m]||0;
+          }
+        });
       }
     });
     // Rebuild consolidated — entity-aware:
