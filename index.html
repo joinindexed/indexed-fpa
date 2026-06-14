@@ -1838,12 +1838,12 @@ function renderBnk(){
   const totals=E.map(()=>0);
   if(showBH) Object.entries(BH_BANKS).forEach(([name,vals])=>{
     h+=`<tr><td style="font-weight:500">${name}${ent==='conso'?` <span class="ent-badge">BH</span>`:''}</td>`;
-    vals.forEach((v,i)=>{h+=`<td>${$f(v)}</td>`;totals[i]+=v;});
+    E.forEach((_,i)=>{const v=vals[i]||0;h+=`<td>${$f(v)}</td>`;totals[i]+=v;});
     h+='</tr>';
   });
   if(showBC) Object.entries(BC_BANKS).forEach(([name,vals])=>{
     h+=`<tr><td style="font-weight:500">${name}${ent==='conso'?` <span class="ent-badge">BC</span>`:''}</td>`;
-    vals.forEach((v,i)=>{h+=`<td>${$f(v)}</td>`;totals[i]+=v;});
+    E.forEach((_,i)=>{const v=vals[i]||0;h+=`<td>${$f(v)}</td>`;totals[i]+=v;});
     h+='</tr>';
   });
   h+='<tr class="tr"><td>Total</td>';
@@ -3099,7 +3099,7 @@ function applyImport(entity,ftype){
       const bankRow2=bsArr2.find(r=>r.label===bankLbl2);
       Object.keys(BANKS).forEach(bankName=>{
         const row=bsArr2.find(r=>r.label&&normKey(r.label)===normKey(bankName));
-        if(row&&row.v)row.v.forEach((v,i)=>{if(i<BANKS[bankName].length)BANKS[bankName][i]=v;});
+        if(row&&row.v)row.v.forEach((v,i)=>{BANKS[bankName][i]=v;});
       });
       E.forEach((_,i)=>{CLOSE[i]=closeFn(i);});
       if(bankRow2&&bankRow2.v)bankRow2.v.forEach((v,i)=>{if(v!==0)CLOSE[i]=v;});
@@ -3120,6 +3120,10 @@ function applyImport(entity,ftype){
     //    the hardcoded label (case-insensitive, punctuation-stripped).
     const kpiTarget=ftype==='bs'?(isB?BH_BS:BC_BS):(isB?BH_PL:BC_PL);
     const dataRows=parsed.rows.filter(r=>r.type==='i'||r.type==='t');
+    // Track which template labels have already been updated this import pass.
+    // Prevents a duplicate Xero label (e.g. "Stripe AED 1" appears in both
+    // Assets/Bank and Liabilities) from overwriting the first (correct) match.
+    const _alreadyUpdated=new Set();
     dataRows.forEach(r=>{
       const rk=normKey(r.label);
       let hit=kpiTarget.find(t=>t.label&&normKey(t.label)===rk);
@@ -3134,7 +3138,8 @@ function applyImport(entity,ftype){
         const map=maps.find(m=>normKey(m.xero)===rk);
         if(map)hit=kpiTarget.find(t=>t.label&&normKey(t.label)===normKey(map.tmpl));
       }
-      if(hit&&hit.v){
+      if(hit&&hit.v&&!_alreadyUpdated.has(hit.label)){
+        _alreadyUpdated.add(hit.label);
         parsed.months.forEach(m=>{const i=E.indexOf(m);if(i>=0)hit.v[i]=r.vals[m]||0;});
       }
     });
@@ -3172,9 +3177,10 @@ function applyImport(entity,ftype){
       const closeArr=isB?BH_CLOSE:BC_CLOSE;
       const banksTarget=isB?BH_BANKS:BC_BANKS;
       // 1. Sync individual bank rows → breakdown table uses exact BS values
+      // No length guard: allow array to grow when new months are imported.
       Object.keys(banksTarget).forEach(bankName=>{
         const row=bsArr.find(r=>r.label&&normKey(r.label)===normKey(bankName));
-        if(row&&row.v)row.v.forEach((v,i)=>{if(i<banksTarget[bankName].length)banksTarget[bankName][i]=v;});
+        if(row&&row.v)row.v.forEach((v,i)=>{banksTarget[bankName][i]=v;});
       });
       // 2. Sync total closing balance from BS Total Bank/Cash row
       if(bankRow&&bankRow.v){
