@@ -2347,11 +2347,30 @@ function getBSMetrics(){
 }
 
 function getFounderPayments(){
-  // Sum YTD outflow for any CF group whose name contains "founder" (case-insensitive)
-  const outGrps=buildCFGroups(false);
-  return outGrps
-    .filter(g=>g.group.toLowerCase().includes('founder'))
-    .reduce((s,g)=>s+E.reduce((ms,m)=>ms+(g.vals[m]||0),0),0);
+  // Sum ALL outflows to founder-group contacts from raw transaction data.
+  // Deliberately bypasses buildCFGroups() so netted/fee-excluded transactions
+  // (CF_NET_OVERRIDES) are still counted — founder salaries/reimbursements
+  // should never be silently dropped from this metric.
+  const merged=getMergedMap();
+  let total=0;
+  E.forEach(m=>{
+    [...(BH_OUT_D[m]||[]),...(BC_OUT_D[m]||[])].forEach(tx=>{
+      if(ent!=='conso'&&tx.entity!==ent.toUpperCase())return;
+      const grpName=merged[tx.contact+'||'+tx.entity]?.group||tx.contact;
+      if(grpName.toLowerCase().includes('founder'))total+=tx.amt;
+    });
+  });
+  // Also add any scheduled founder payments in the forecast period (Jul→Dec)
+  // so the metric is consistent with the Dec closing balance which already
+  // projects through year-end.
+  const fcstGrps=buildFcastCFGroups(false,FCST_MONTHS);
+  fcstGrps.filter(g=>g.group.toLowerCase().includes('founder')).forEach(g=>{
+    for(let i=0;i<FCST_MONTHS.length;i++){
+      total+=(g.vals[FCST_MONTHS[i]]||0);
+      if(FCST_MONTHS[i].startsWith('Dec'))break;
+    }
+  });
+  return total;
 }
 
 function getDecClosingBalance(){
