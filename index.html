@@ -714,22 +714,23 @@ tr:hover .ct-btn,.mc:hover .ct-btn{opacity:1}
       <div style="font-size:22px;font-weight:800;color:var(--accent);letter-spacing:-.02em">Indexed FP&amp;A</div>
       <div style="font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:.10em;font-weight:700;margin-top:5px">Sign in to continue</div>
     </div>
+    <form id="login-form" onsubmit="doLogin();return false;" style="display:contents">
     <div style="display:flex;flex-direction:column;gap:6px">
-      <label style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.08em">Email</label>
-      <input id="login-email" type="email" placeholder="you@example.com"
+      <label for="login-email" style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.08em">Email</label>
+      <input id="login-email" name="email" type="email" autocomplete="email" placeholder="you@example.com"
         onkeydown="if(event.key==='Enter')document.getElementById('login-password').focus()"
         style="padding:10px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:14px;font-family:var(--sans);outline:none;width:100%;box-sizing:border-box">
     </div>
     <div style="display:flex;flex-direction:column;gap:6px">
-      <label style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.08em">Password</label>
-      <input id="login-password" type="password" placeholder="••••••••"
-        onkeydown="if(event.key==='Enter')doLogin()"
+      <label for="login-password" style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.08em">Password</label>
+      <input id="login-password" name="password" type="password" autocomplete="current-password" placeholder="••••••••"
         style="padding:10px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:14px;font-family:var(--sans);outline:none;width:100%;box-sizing:border-box">
     </div>
     <div id="login-error" style="font-size:13px;color:var(--red);min-height:18px;margin-top:-6px"></div>
-    <button id="login-btn" onclick="doLogin()"
+    <button id="login-btn" type="submit"
       style="padding:11px;border-radius:9px;border:none;background:var(--accent);color:#fff;font-size:15px;font-weight:700;font-family:var(--sans);cursor:pointer;width:100%;transition:opacity .15s"
       onmouseenter="this.style.opacity='.87'" onmouseleave="this.style.opacity='1'">Sign in →</button>
+    </form>
   </div>
 </div>
 
