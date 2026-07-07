@@ -3520,34 +3520,56 @@ function exportCFWorking(){
 function exportCFStatement(){
   loadSheetJS(()=>{
     const wb=XLSX.utils.book_new();
-    const months=E.slice();const yr=' 2026';const mHdrs=months.map(m=>m+yr);
     const fmt=v=>typeof v==='number'?Math.round(v*100)/100:v;
-    // CF Summary
-    const cfRows=[['',  ...mHdrs,'YTD']];
+    // Actuals months + forecast months through Dec
+    const actMonths=E.slice();
+    const decIdx=FCST_MONTHS.findIndex(m=>m.startsWith('Dec'));
+    const fcstMonths=decIdx>=0?FCST_MONTHS.slice(0,decIdx+1):FCST_MONTHS.slice();
+    const allMonths=[...actMonths.map(m=>m+' '+FCST_YEAR),...fcstMonths];
+    const isAct=m=>actMonths.includes(m.replace(' '+FCST_YEAR,''));
+    // CF Summary sheet
+    const cfRows=[['', ...allMonths,'YTD Actuals']];
+    // build forecast closing chain from last actual close
+    const lastActClose=(BH_CLOSE[actMonths.length-1]||0)+(BC_CLOSE[actMonths.length-1]||0);
+    let fcstRunClose=lastActClose;
+    const fcstCloseMap={};
+    fcstMonths.forEach(m=>{fcstRunClose+=getFcastInflow(m)-getFcastOutflow(m);fcstCloseMap[m]=fcstRunClose;});
     const cfDefs=[
-      ['Opening Cash',(i)=>i===0?BH_OPEN+BC_OPEN:(BH_CLOSE[i-1]||0)+(BC_CLOSE[i-1]||0)],
-      ['BH Inflows',(i)=>BH_IN[i]||0],['BC Inflows',(i)=>BC_IN[i]||0],
-      ['Total Inflows',(i)=>(BH_IN[i]||0)+(BC_IN[i]||0)],
-      ['BH Outflows',(i)=>-(BH_OUT[i]||0)],['BC Outflows',(i)=>-(BC_OUT[i]||0)],
-      ['Total Outflows',(i)=>-((BH_OUT[i]||0)+(BC_OUT[i]||0))],
-      ['FX / Other',(i)=>(BH_FX[i]||0)+(BC_FX[i]||0)],
-      ['Closing Cash',(i)=>(BH_CLOSE[i]||0)+(BC_CLOSE[i]||0)],
+      {lbl:'Opening Cash',fn:(m,ai)=>ai===0?BH_OPEN+BC_OPEN:isAct(m)?(BH_CLOSE[ai-1]||0)+(BC_CLOSE[ai-1]||0):fcstCloseMap[fcstMonths[fcstMonths.indexOf(m)-1]]||lastActClose,sumYTD:false,isClose:false},
+      {lbl:'Total Inflows',fn:(m,ai)=>isAct(m)?(BH_IN[ai]||0)+(BC_IN[ai]||0):getFcastInflow(m),sumYTD:true},
+      {lbl:'Total Outflows',fn:(m,ai)=>isAct(m)?-((BH_OUT[ai]||0)+(BC_OUT[ai]||0)):-getFcastOutflow(m),sumYTD:true},
+      {lbl:'FX / Other',fn:(m,ai)=>isAct(m)?(BH_FX[ai]||0)+(BC_FX[ai]||0):0,sumYTD:true},
+      {lbl:'Closing Cash',fn:(m,ai)=>isAct(m)?(BH_CLOSE[ai]||0)+(BC_CLOSE[ai]||0):fcstCloseMap[m]||0,sumYTD:false,isClose:true},
     ];
-    cfDefs.forEach(([lbl,fn])=>{
-      const vals=months.map((_,i)=>fmt(fn(i)));
-      const ytd=lbl==='Opening Cash'?'':lbl==='Closing Cash'?vals[vals.length-1]:vals.reduce((s,v)=>s+(v||0),0);
-      cfRows.push([lbl,...vals,lbl==='Opening Cash'||lbl==='Closing Cash'?'':fmt(ytd)]);
+    cfDefs.forEach(({lbl,fn,sumYTD,isClose})=>{
+      const vals=allMonths.map((m,ci)=>{const ai=actMonths.indexOf(m.replace(' '+FCST_YEAR,''));return fmt(fn(m,ai,ci));});
+      const ytd=sumYTD?fmt(vals.slice(0,actMonths.length).reduce((s,v)=>s+(v||0),0)):isClose?fmt(vals[actMonths.length-1]):'';
+      cfRows.push([lbl,...vals,ytd]);
     });
     XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(cfRows),'CF Summary');
-    // Inflows
-    const inGrps=buildCFGroups(true);
-    const inRows=[['Contact','Entity',...mHdrs,'Total']];
-    inGrps.forEach(g=>{const vals=months.map(m=>fmt(g.vals[m]||0));inRows.push([g.group,ent==='conso'?'BH+BC':ent.toUpperCase(),...vals,fmt(vals.reduce((s,v)=>s+(v||0),0))]);});
+    // Inflows — actuals + forecast
+    const inActGrps=buildCFGroups(true);
+    const inFcstGrps=buildFcastCFGroups(true,fcstMonths);
+    const allInGroups=[...new Set([...inActGrps.map(g=>g.group),...inFcstGrps.map(g=>g.group)])];
+    const inRows=[['Contact','Entity',...allMonths,'Total']];
+    allInGroups.forEach(grp=>{
+      const a=inActGrps.find(g=>g.group===grp)||{vals:{}};
+      const f=inFcstGrps.find(g=>g.group===grp)||{vals:{}};
+      const vals=allMonths.map(m=>fmt(isAct(m)?(a.vals[m.replace(' '+FCST_YEAR,'')]||0):(f.vals[m]||0)));
+      inRows.push([grp,ent==='conso'?'BH+BC':ent.toUpperCase(),...vals,fmt(vals.reduce((s,v)=>s+(v||0),0))]);
+    });
     XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(inRows),'CF Inflows');
-    // Outflows
-    const outGrps=buildCFGroups(false);
-    const outRows=[['Contact','Entity',...mHdrs,'Total']];
-    outGrps.forEach(g=>{const vals=months.map(m=>fmt(g.vals[m]||0));outRows.push([g.group,ent==='conso'?'BH+BC':ent.toUpperCase(),...vals,fmt(vals.reduce((s,v)=>s+(v||0),0))]);});
+    // Outflows — actuals + forecast
+    const outActGrps=buildCFGroups(false);
+    const outFcstGrps=buildFcastCFGroups(false,fcstMonths);
+    const allOutGroups=[...new Set([...outActGrps.map(g=>g.group),...outFcstGrps.map(g=>g.group)])];
+    const outRows=[['Contact','Entity',...allMonths,'Total']];
+    allOutGroups.forEach(grp=>{
+      const a=outActGrps.find(g=>g.group===grp)||{vals:{}};
+      const f=outFcstGrps.find(g=>g.group===grp)||{vals:{}};
+      const vals=allMonths.map(m=>fmt(isAct(m)?(a.vals[m.replace(' '+FCST_YEAR,'')]||0):(f.vals[m]||0)));
+      outRows.push([grp,ent==='conso'?'BH+BC':ent.toUpperCase(),...vals,fmt(vals.reduce((s,v)=>s+(v||0),0))]);
+    });
     XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(outRows),'CF Outflows');
     XLSX.writeFile(wb,`CF_Statement_${new Date().toISOString().slice(0,10)}.xlsx`);
   });
