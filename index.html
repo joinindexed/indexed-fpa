@@ -2398,7 +2398,11 @@ function renderDash(){
 
   // P&L KPIs (5-column row)
   const adjCls=pl.adjNet>=0?'pos':'neg';
+  const fcstRevMonths=FCST_MONTHS.slice(0,FCST_MONTHS.findIndex(m=>m.startsWith('Dec'))+1||undefined);
+  const fcstRevTotal=fcstRevMonths.reduce((s,m)=>s+getFcastInflow(m),0);
+  const fullYearRev=pl.ytdRev+fcstRevTotal;
   document.getElementById('dash-pl').innerHTML=`
+    <div class="mc"><div class="mc-label">2026 revenue${cBtn('dash|pl|2026-revenue','Dashboard · 2026 revenue')}</div><div class="mc-value neu">${$f(fullYearRev)}</div><div class="mc-sub">YTD + forecast to Dec</div></div>
     <div class="mc"><div class="mc-label">YTD revenue${cBtn('dash|pl|ytd-revenue','Dashboard · YTD revenue')}</div><div class="mc-value neu">${$f(pl.ytdRev)}</div><div class="mc-sub">${ytdLbl}</div></div>
     <div class="mc"><div class="mc-label">YTD gross profit${cBtn('dash|pl|ytd-gp','Dashboard · YTD gross profit')}</div><div class="mc-value pos">${$f(pl.ytdGP)}</div><div class="mc-sub">${ytdLbl}</div></div>
     <div class="mc"><div class="mc-label">Gross profit %${cBtn('dash|pl|gp-pct','Dashboard · Gross profit %')}</div><div class="mc-value pos">${pct(pl.gpPct)}</div><div class="mc-sub">GP / Revenue</div></div>
