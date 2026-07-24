@@ -3872,6 +3872,7 @@ function deleteUserRow(idx){
   if(ci>=0)consoArr.splice(ci,1);
   USER_ROWS.splice(idx,1);
   try{localStorage.setItem('user_rows',JSON.stringify(USER_ROWS));}catch(e){}
+  saveGLMappings(); // persist + sync the removal (snapshot carries user rows to teammates)
   renderGLMapTable();
 }
 
@@ -3885,17 +3886,28 @@ function addGLMapping(){
   const exists=GL_MAPPINGS[glmKey].find(m=>normKey(m.xero)===normKey(xero));
   if(exists){exists.tmpl=tmpl;}else{GL_MAPPINGS[glmKey].push({xero,tmpl});}
   xeroInput.value='';
+  saveGLMappings(); // persist + sync so the mapping survives reload and reaches teammates
   renderGLMapTable();
 }
 
 function deleteGLMapping(idx){
   if(!GL_MAPPINGS[glmKey])return;
   GL_MAPPINGS[glmKey].splice(idx,1);
+  saveGLMappings(); // persist + sync the deletion
   renderGLMapTable();
 }
 
 function saveGLMappings(){
   try{localStorage.setItem('gl_mappings',JSON.stringify(GL_MAPPINGS));}catch(e){}
+  // Fold GL mappings + user-added rows into the synced actuals snapshot. The snapshot is the
+  // ONLY field Pull carries these through — without this they stay local and teammates never
+  // see them (and loadActuals resets them from the stale snapshot on the next reload).
+  try{
+    const snap=JSON.parse(localStorage.getItem('actuals_snap')||'{}')||{};
+    if(GL_MAPPINGS&&Object.keys(GL_MAPPINGS).length)snap._glMappings=GL_MAPPINGS;
+    snap._userRows=USER_ROWS||[];
+    localStorage.setItem('actuals_snap',JSON.stringify(snap));
+  }catch(e){}
   const btn=document.querySelector('#screen-glmap .save-btn-glmap');
   if(btn){btn.textContent='Saved ✓';setTimeout(()=>btn.textContent='Save mappings',1500);}
   if(!_sbPulling)sbPush();
