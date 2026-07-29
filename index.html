@@ -4044,6 +4044,7 @@ function deleteSelectedAR(){
   const n=AR_SELECTED.size;
   if(!n)return;
   if(!confirm(`Delete ${n} selected invoice${n>1?'s':''}? This cannot be undone.`))return;
+  AR_SELECTED.forEach(id=>_deletedRowIds.add(String(id)));
   AR_FCST=AR_FCST.filter(r=>!AR_SELECTED.has(String(r.id)));
   AR_SELECTED.clear();
   saveFcastAR();renderFcastAR();renderCF();
@@ -4095,6 +4096,7 @@ function deleteSelectedAP(){
   const n=AP_SELECTED.size;
   if(!n)return;
   if(!confirm(`Delete ${n} selected payment${n>1?'s':''}? This cannot be undone.`))return;
+  AP_SELECTED.forEach(id=>_deletedRowIds.add(String(id)));
   AP_FCST=AP_FCST.filter(r=>!AP_SELECTED.has(String(r.id)));
   AP_SELECTED.clear();
   saveFcastAP();renderFcastAP();renderCF();
@@ -4799,6 +4801,7 @@ function saveAPModal(id){
 
 function deleteFcastRow(type,id){
   if(!confirm('Delete this row?'))return;
+  _deletedRowIds.add(String(id));
   if(type==='ar'){AR_FCST=AR_FCST.filter(r=>String(r.id)!==String(id));saveFcastAR();renderFcastAR();renderCF();}
   else{AP_FCST=AP_FCST.filter(r=>String(r.id)!==String(id));saveFcastAP();renderFcastAP();renderCF();}
 }
@@ -4985,6 +4988,7 @@ const SB_URL='https://njtrqjcrqjzmspowkzax.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qdHJxamNycWp6bXNwb3dremF4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1NDE1ODIsImV4cCI6MjA5NTExNzU4Mn0.GcXzmobxg5XxuJ7DVDGMqMJfuRQzvuZa91TjxxWKMrM';
 const SB_HDR={apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`,'Content-Type':'application/json',Prefer:'return=minimal'};
 let _sbPulling=false;
+let _deletedRowIds=new Set(); // ids this tab deleted this session, so a merge-push won't resurrect them
 
 // ── Auth globals ──
 const SB_AUTH=`${SB_URL}/auth/v1`;
@@ -5003,17 +5007,71 @@ function sbStatus(msg,ok){
   if(el){el.textContent=msg;el.style.color=ok===false?'var(--red)':ok===true?'var(--green)':'var(--text3)';}
 }
 
+// Union two id-keyed row arrays: keep every local row, and every cloud row this tab
+// neither has nor explicitly deleted. Prevents a stale tab from wiping rows it never saw.
+function _mergeRowsById(cloudRows,localRows){
+  cloudRows=Array.isArray(cloudRows)?cloudRows:[];
+  localRows=Array.isArray(localRows)?localRows:[];
+  const localIds=new Set(localRows.map(r=>String(r.id)));
+  const preserved=cloudRows.filter(c=>!localIds.has(String(c.id))&&!_deletedRowIds.has(String(c.id)));
+  return localRows.concat(preserved);
+}
+// Union user-added dashboard rows by entity|ftype|label (local wins on a match).
+function _mergeUserRows(cloudRows,localRows){
+  cloudRows=Array.isArray(cloudRows)?cloudRows:[];
+  localRows=Array.isArray(localRows)?localRows:[];
+  const k=r=>`${r.entity}|${r.ftype}|${normKey(r.label||'')}`;
+  const localKeys=new Set(localRows.map(k));
+  return localRows.concat(cloudRows.filter(c=>!localKeys.has(k(c))));
+}
+// Build a merge of the current cloud row with local state so a save never deletes another
+// person's data. Rows union by id; maps merge with local winning; import snapshots preserve
+// cloud-only entities. `cloud` is the freshly-fetched forecast_data row (or null when offline).
+function _mergeCloud(cloud){
+  cloud=cloud||{};
+  let localSnap=null;try{localSnap=JSON.parse(localStorage.getItem('actuals_snap')||'null');}catch(e){}
+  const cloudSnap=cloud.actuals_snap||null;
+  let snap=null;
+  if(localSnap||cloudSnap){
+    snap={...(cloudSnap||{}),...(localSnap||{})}; // local wins per key; keeps cloud-only import keys
+    snap._userRows=_mergeUserRows(cloudSnap&&cloudSnap._userRows,localSnap&&localSnap._userRows);
+    snap._glMappings={...((cloudSnap&&cloudSnap._glMappings)||{}),...((localSnap&&localSnap._glMappings)||{})};
+  }
+  return {
+    ar_fcst:_mergeRowsById(cloud.ar_fcst,AR_FCST),
+    ap_fcst:_mergeRowsById(cloud.ap_fcst,AP_FCST),
+    ct_map:{...(cloud.ct_map||{}),...CT_MAP},
+    gl_mappings:{...(cloud.gl_mappings||{}),...GL_MAPPINGS},
+    cf_tx_overrides:{...(cloud.cf_tx_overrides||{}),...CF_TX_OVERRIDES},
+    cf_net_overrides:{...(cloud.cf_net_overrides||{}),...CF_NET_OVERRIDES},
+    actuals_snap:snap
+  };
+}
+
 let _sbTimer=null;
 function sbPush(){
   clearTimeout(_sbTimer);
   _sbTimer=setTimeout(async()=>{
     sbStatus('Syncing…');
     try{
-      const basePayload={ar_fcst:AR_FCST,ap_fcst:AP_FCST,ct_map:CT_MAP,updated_at:new Date().toISOString(),updated_by:CURRENT_USER?.email||'unknown'};
-      if(GL_MAPPINGS&&Object.keys(GL_MAPPINGS).length)basePayload.gl_mappings=GL_MAPPINGS;
+      // Fetch the current cloud row first and merge, so this save can't overwrite rows/entries
+      // another tab or user added while we weren't looking. If the fetch fails (offline), we
+      // fall back to pushing local state as before.
+      let cloud=null;
+      try{
+        const cr=await fetch(`${SB_URL}/rest/v1/forecast_data?id=eq.1&select=*`,{headers:{apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`}});
+        if(cr.ok){const rows=await cr.json();cloud=(rows&&rows[0])||null;}
+      }catch(e){}
+      const m=cloud?_mergeCloud(cloud):null;
+      const AR=m?m.ar_fcst:AR_FCST, AP=m?m.ap_fcst:AP_FCST;
+      const CT=m?m.ct_map:CT_MAP, GL=m?m.gl_mappings:GL_MAPPINGS;
+      const TXO=m?m.cf_tx_overrides:CF_TX_OVERRIDES, NETO=m?m.cf_net_overrides:CF_NET_OVERRIDES;
+      const basePayload={ar_fcst:AR,ap_fcst:AP,ct_map:CT,updated_at:new Date().toISOString(),updated_by:CURRENT_USER?.email||'unknown'};
+      if(GL&&Object.keys(GL).length)basePayload.gl_mappings=GL;
       // Extended payload — includes Xero actuals + overrides (requires Supabase migration)
-      const fullPayload={...basePayload,cf_tx_overrides:CF_TX_OVERRIDES,cf_net_overrides:CF_NET_OVERRIDES};
-      try{const snap=JSON.parse(localStorage.getItem('actuals_snap')||'null');if(snap)fullPayload.actuals_snap=snap;}catch(e){}
+      const fullPayload={...basePayload,cf_tx_overrides:TXO,cf_net_overrides:NETO};
+      let snap=m?m.actuals_snap:(()=>{try{return JSON.parse(localStorage.getItem('actuals_snap')||'null');}catch(e){return null;}})();
+      if(snap)fullPayload.actuals_snap=snap;
       let r=await fetch(`${SB_URL}/rest/v1/forecast_data?id=eq.1`,{method:'PATCH',headers:SB_HDR,body:JSON.stringify(fullPayload)});
       if(!r.ok){
         // Columns not yet added — fall back to base payload so existing sync still works
