@@ -3239,7 +3239,23 @@ function applyImport(entity,ftype){
   renderCF();renderDash();renderFin();
   // Snapshot before deleting, so saveActuals can persist it
   if(!window._actualsSnap)window._actualsSnap={};
-  window._actualsSnap[entity+'-'+ftype]=JSON.parse(JSON.stringify(parsed));
+  const _snapKey=entity+'-'+ftype;
+  const _prevSnap=window._actualsSnap[_snapKey];
+  if(ftype==='gl'&&_prevSnap&&(_prevSnap.months||[]).length){
+    // Merge by month: months present in the new file overwrite, previously-loaded months stay.
+    // So a full YTD import refreshes everything, and a partial (e.g. single-month) import can
+    // never wipe the other months that were already loaded.
+    const _MOx=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const merged=JSON.parse(JSON.stringify(_prevSnap));
+    merged.months=[...new Set([...(_prevSnap.months||[]),...(parsed.months||[])])].sort((a,b)=>_MOx.indexOf(a)-_MOx.indexOf(b));
+    ['inflow','outflow'].forEach(k=>{merged[k]=merged[k]||{};(parsed.months||[]).forEach(m=>{merged[k][m]=(parsed[k]||{})[m]||[];});});
+    merged.bankClose=merged.bankClose||{};
+    Object.entries(parsed.bankClose||{}).forEach(([acct,mMap])=>{merged.bankClose[acct]={...(merged.bankClose[acct]||{}),...mMap};});
+    merged.nettedFees={...(_prevSnap.nettedFees||{}),...(parsed.nettedFees||{})};
+    window._actualsSnap[_snapKey]=merged;
+  }else{
+    window._actualsSnap[_snapKey]=JSON.parse(JSON.stringify(parsed));
+  }
   delete importState[entity+'-'+ftype];
   saveActuals();
 }
