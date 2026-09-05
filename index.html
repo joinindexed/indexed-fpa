@@ -271,10 +271,10 @@ tr:hover .ct-btn,.mc:hover .ct-btn{opacity:1}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>Cash flow</div>
     <div class="nav-item" data-roles="admin,accountant,viewer" onclick="go('fin',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 17v-2m3 2v-4m3 4v-6M9 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V9l-5-6z"/></svg>Financials</div>
-    <div class="nav-section" data-roles="admin">Forecast</div>
-    <div class="nav-item" data-roles="admin" onclick="go('fcast-ar',this)">
+    <div class="nav-section" data-roles="admin,accountant">Forecast</div>
+    <div class="nav-item" data-roles="admin,accountant" onclick="go('fcast-ar',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>AR Pipeline</div>
-    <div class="nav-item" data-roles="admin" onclick="go('fcast-ap',this)">
+    <div class="nav-item" data-roles="admin,accountant" onclick="go('fcast-ap',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2M9 12h6m-6 4h6"/></svg>AP Schedule</div>
     <div class="nav-section" data-roles="admin">Mapping</div>
     <div class="nav-item" data-roles="admin" onclick="go('contacts',this)">
@@ -5014,7 +5014,7 @@ let _authToken=null;     // current access token
 
 const ROLE_ACCESS={
   admin:   ['dash','cf','fin','fcast-ar','fcast-ap','contacts','import','cfworking','comments'],
-  accountant:['dash','fin','import','comments'],
+  accountant:['dash','fin','import','comments','fcast-ar','fcast-ap'],
   viewer:  ['dash','cf','fin','comments']
 };
 
