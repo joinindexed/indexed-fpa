@@ -1839,16 +1839,26 @@ function renderBnk(){
   h+='</tr></thead><tbody>';
   const showBH=ent!=='bc', showBC=ent!=='bh';
   const totals=E.map(()=>0);
-  if(showBH) Object.entries(BH_BANKS).forEach(([name,vals])=>{
-    h+=`<tr><td style="font-weight:500">${name}${ent==='conso'?` <span class="ent-badge">BH</span>`:''}</td>`;
-    E.forEach((_,i)=>{const v=vals[i]||0;h+=`<td>${$f(v)}</td>`;totals[i]+=v;});
-    h+='</tr>';
-  });
-  if(showBC) Object.entries(BC_BANKS).forEach(([name,vals])=>{
-    h+=`<tr><td style="font-weight:500">${name}${ent==='conso'?` <span class="ent-badge">BC</span>`:''}</td>`;
-    E.forEach((_,i)=>{const v=vals[i]||0;h+=`<td>${$f(v)}</td>`;totals[i]+=v;});
-    h+='</tr>';
-  });
+  const imp=_bankRowsFromImport();
+  if(imp&&imp.length){
+    // Import-driven: every bank account, including new ones (Fixed Deposit, FX Clearing).
+    imp.filter(r=>(r.entity==='BH'&&showBH)||(r.entity==='BC'&&showBC)).forEach(r=>{
+      h+=`<tr><td style="font-weight:500">${esc(r.name)}${ent==='conso'?` <span class="ent-badge">${r.entity}</span>`:''}</td>`;
+      E.forEach((_,i)=>{const v=r.v[i]||0;h+=`<td>${$f(v)}</td>`;totals[i]+=v;});
+      h+='</tr>';
+    });
+  }else{
+    if(showBH) Object.entries(BH_BANKS).forEach(([name,vals])=>{
+      h+=`<tr><td style="font-weight:500">${name}${ent==='conso'?` <span class="ent-badge">BH</span>`:''}</td>`;
+      E.forEach((_,i)=>{const v=vals[i]||0;h+=`<td>${$f(v)}</td>`;totals[i]+=v;});
+      h+='</tr>';
+    });
+    if(showBC) Object.entries(BC_BANKS).forEach(([name,vals])=>{
+      h+=`<tr><td style="font-weight:500">${name}${ent==='conso'?` <span class="ent-badge">BC</span>`:''}</td>`;
+      E.forEach((_,i)=>{const v=vals[i]||0;h+=`<td>${$f(v)}</td>`;totals[i]+=v;});
+      h+='</tr>';
+    });
+  }
   h+='<tr class="tr"><td>Total</td>';
   totals.forEach(v=>h+=`<td>${$f(v)}</td>`);
   h+='</tr></tbody>';
@@ -1980,9 +1990,15 @@ function renderFin(){
   if(finTab==='bs'){
     const title=ent==='bc'?'Bravecore FZ LLC — Balance Sheet':ent==='bh'?'Braveheart FZ LLC — Balance Sheet':'Consolidated Balance Sheet (BH + BC)';
     document.getElementById('bs-title').textContent=title;
-    const src=ent==='bc'?BC_BS:ent==='bh'?BH_BS:CONSO_BS;
-    renderFinTable('bst',src,ent);
     const vkey=ent==='conso'?'conso_bs':(ent+'_bs');
+    // Prefer rendering straight from the Xero import (complete + balanced); fall back to template.
+    const impRows=ent==='conso'?_consoBSRows():_impBSRows((window._importedFin||{})[ent+'_bs'],ent.toUpperCase());
+    if(impRows&&impRows.length){
+      renderFinTable('bst',impRows,ent);
+      try{runValidation(impRows,vkey,'bs');}catch(e){}
+    }else{
+      renderFinTable('bst',ent==='bc'?BC_BS:ent==='bh'?BH_BS:CONSO_BS,ent);
+    }
     renderDataBanner('bs-banner',vkey);
   } else {
     const title=ent==='bc'?'Bravecore FZ LLC — Income Statement':ent==='bh'?'Braveheart FZ LLC — Profit & Loss':'Consolidated Income Statement (BH + BC)';
@@ -2040,6 +2056,66 @@ function renderFinTable(id,rows,curEnt,showYTD){
   });
   h+='</tbody>';
   document.getElementById(id).innerHTML=h;
+}
+
+// ── Import-driven Balance Sheet (renders straight from the Xero import) ──
+// window._importedFin[entity+'_bs'] holds the complete, balanced Xero report (every line item
+// plus Xero's own subtotal/total rows). Rendering from it means new accounts appear, removed/
+// renamed accounts leave no stale value, and Assets = Liabilities + Equity holds by construction.
+const _BS_GT=/^(total assets|total liabilities and equity|net assets)$/i;
+function _impBSRows(parsed,entity){
+  if(!parsed||!parsed.rows||!parsed.months||!parsed.months.length)return null;
+  return parsed.rows.map(r=>{
+    if(r.type==='h')return {type:'h',g:r.label};
+    if(r.type==='sh')return {type:'sh',g:r.label};
+    const v=E.map(m=>(r.vals&&r.vals[m])||0);
+    if(r.type==='t'||r.type==='gt')return {type:_BS_GT.test((r.label||'').trim())?'gt':'t',label:r.label,v};
+    return {type:'i',label:r.label,entity,v};
+  });
+}
+// Consolidated BS = union of every BH + BC line item, bucketed by major section, totals summed.
+// This always includes an account present in only one entity (the FX Clearing / Fixed Deposit gap).
+function _consoBSRows(){
+  const bh=(window._importedFin||{})['bh_bs'],bc=(window._importedFin||{})['bc_bs'];
+  if(!bh||!bh.rows||!bh.months||!bh.months.length||!bc||!bc.rows||!bc.months||!bc.months.length)return null;
+  const buckets={assets:[],liabilities:[],equity:[]};
+  const which=s=>{s=(s||'').toLowerCase();return /asset/.test(s)?'assets':/liab/.test(s)?'liabilities':/equit/.test(s)?'equity':null;};
+  [['BH',bh],['BC',bc]].forEach(([ent,p])=>{p.rows.forEach(r=>{
+    if(r.type!=='i')return;const b=which(r.section);if(!b)return;
+    buckets[b].push({type:'i',label:r.label,entity:ent,v:E.map(m=>(r.vals&&r.vals[m])||0)});
+  });});
+  const sumV=rows=>E.map((_,i)=>rows.reduce((s,r)=>s+(r.v[i]||0),0));
+  return [
+    {type:'h',g:'Assets'},...buckets.assets,{type:'gt',label:'Total Assets',v:sumV(buckets.assets)},
+    {type:'h',g:'Liabilities'},...buckets.liabilities,{type:'t',label:'Total Liabilities',v:sumV(buckets.liabilities)},
+    {type:'h',g:'Equity'},...buckets.equity,{type:'t',label:'Total Equity',v:sumV(buckets.equity)},
+  ];
+}
+// Bank accounts for the Cash Flow breakdown. Start from the authoritative, fee-netted
+// BH_BANKS/BC_BANKS series (which reconcile with the CF closing balance), then ADD any bank
+// account that only exists in the imported BS bank subsection (new accounts like Fixed Deposit
+// or FX Clearing). Net effect: every account shows, and the total still ties to cash flow.
+function _bankRowsFromImport(){
+  const out=[];
+  [['BH',BH_BANKS,(window._importedFin||{})['bh_bs']],['BC',BC_BANKS,(window._importedFin||{})['bc_bs']]].forEach(([ent,BANKS,p])=>{
+    const knownKeys=Object.keys(BANKS||{}).map(k=>normKey(k)).filter(Boolean);
+    // two-way substring match (same idea as the applyImport bank reconciler) so longer Xero
+    // names ("Stripe AED 1","Upwork - USD (Hiring Account)") aren't treated as new duplicates.
+    const isKnown=label=>{const nl=normKey(label);return !!nl&&knownKeys.some(nk=>nl.includes(nk)||nk.includes(nl));};
+    Object.entries(BANKS||{}).forEach(([name,vals])=>out.push({name,entity:ent,v:E.map((_,i)=>vals[i]||0)}));
+    if(p&&p.rows&&p.months&&p.months.length){
+      let inBank=false;
+      p.rows.forEach(r=>{
+        if(r.type==='sh'){inBank=/bank|cash/i.test(r.label||'');return;}
+        if(r.type==='h'||r.type==='t'||r.type==='gt'){inBank=false;return;}
+        if(r.type==='i'&&inBank&&!isKnown(r.label)){
+          knownKeys.push(normKey(r.label));
+          out.push({name:r.label,entity:ent,v:E.map(m=>(r.vals&&r.vals[m])||0)});
+        }
+      });
+    }
+  });
+  return out;
 }
 
 // ── Contact mapping store ──
