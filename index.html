@@ -1628,7 +1628,7 @@ function buildFcastCFGroups(isIn,months){
   if(months===undefined)months=FCST_MONTHS;
   const merged=getMergedMap();
   const groups={};
-  const rows=isIn?AR_FCST.filter(r=>r.status!=='Paid'):AP_FCST;
+  const rows=isIn?AR_FCST:AP_FCST; // include Paid AR: already-collected cash still shows in the month's forecast
   rows.forEach(r=>{
     const entity=(r.entity||'BH').toUpperCase();
     if(ent!=='conso'&&entity!==ent.toUpperCase())return;
@@ -1653,12 +1653,10 @@ function renderCFTable(d){
   // Determine effective actuals vs forecast columns based on current tab
   let cfActMonths, cfFcstMonths, actIn, actOut, actClose, actFX, actOpen;
   if(cfMode==='hybrid'&&E.length>1){
-    // Actuals cover every imported month (through the "actuals through" month); forecast only
-    // the months beyond. Don't hold back the last actual month as forecast — once its cash is
-    // received and the AR row is marked Paid it drops out of the forecast, so a held-back month
-    // would understate real received cash (e.g. RRVS Sep showing "—").
-    cfActMonths=E.slice();
-    cfFcstMonths=FCST_MONTHS.slice();
+    // Hold the latest month back as the first forecast column (it isn't over yet), so it shows
+    // the full expected collection for the month, not just cash received so far.
+    cfActMonths=E.slice(0,-1);
+    cfFcstMonths=[E[E.length-1]+' '+FCST_YEAR,...FCST_MONTHS];
     actIn=d.in.slice(0,cfActMonths.length);
     actOut=d.out.slice(0,cfActMonths.length);
     actClose=d.close.slice(0,cfActMonths.length);
@@ -4225,7 +4223,7 @@ function normalizeCashMonth(val,fallbackYear){
 
 function getFcastInflow(month){ // month = 'Jun 2026' etc — full "Mon YYYY" from FCST_MONTHS
   return AR_FCST.filter(r=>{
-    if(normalizeCashMonth(r.cashMonth)!==month||r.status==='Paid')return false;
+    if(normalizeCashMonth(r.cashMonth)!==month)return false; // include Paid: collected cash still counts in the month's forecast
     if(ent!=='conso'){const e=(r.entity||'BH').toUpperCase();if(e!==ent.toUpperCase())return false;}
     return true;
   }).reduce((s,r)=>s+(r.cash||0),0);
