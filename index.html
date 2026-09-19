@@ -1653,8 +1653,12 @@ function renderCFTable(d){
   // Determine effective actuals vs forecast columns based on current tab
   let cfActMonths, cfFcstMonths, actIn, actOut, actClose, actFX, actOpen;
   if(cfMode==='hybrid'&&E.length>1){
-    cfActMonths=E.slice(0,-1);
-    cfFcstMonths=[E[E.length-1]+' '+FCST_YEAR,...FCST_MONTHS];
+    // Actuals cover every imported month (through the "actuals through" month); forecast only
+    // the months beyond. Don't hold back the last actual month as forecast — once its cash is
+    // received and the AR row is marked Paid it drops out of the forecast, so a held-back month
+    // would understate real received cash (e.g. RRVS Sep showing "—").
+    cfActMonths=E.slice();
+    cfFcstMonths=FCST_MONTHS.slice();
     actIn=d.in.slice(0,cfActMonths.length);
     actOut=d.out.slice(0,cfActMonths.length);
     actClose=d.close.slice(0,cfActMonths.length);
