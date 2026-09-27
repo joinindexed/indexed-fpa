@@ -4051,6 +4051,10 @@ function normalizeToISO(v){
   if(!v||v==='—')return v;
   const s=String(v);
   if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.slice(0,10); // already ISO
+  // Day-first slash/dot/dash: DD/MM/YY or DD/MM/YYYY (UAE convention, e.g. 15/09/26 -> 2026-09-15)
+  const dmy=s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/);
+  if(dmy){let d=+dmy[1],mo=+dmy[2],y=dmy[3];if(y.length===2)y='20'+y;
+    if(d>=1&&d<=31&&mo>=1&&mo<=12)return`${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;}
   // Human: "28 Apr 2026" or "28 April 2026"
   const hr=s.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/);
   if(hr){
@@ -4917,8 +4921,8 @@ function dlCSV(filename,rows){
 function exportARCSV(){
   const headers=['Client','Entity','Invoice #','Invoice Date','Invoice Month','Due Date','Payment Date','Currency','Amount','FX Rate','USD Value','Mode','Fee','Interbank','Cash','Cash Month','Status','Type','Notes'];
   const rows=[headers,...AR_FCST.map(r=>[
-    r.client||'',r.entity||'BH',r.invoiceNo||'',r.invoiceDate||'',r.invoiceMonth||'',
-    r.dueDate||'',r.paymentDate||'',r.currency||'',r.amount||'',r.fx||'',r.usdValue||'',
+    r.client||'',r.entity||'BH',r.invoiceNo||'',normalizeToISO(r.invoiceDate||''),r.invoiceMonth||'',
+    normalizeToISO(r.dueDate||''),normalizeToISO(r.paymentDate||''),r.currency||'',r.amount||'',r.fx||'',r.usdValue||'',
     r.mode||'',r.fee||'',r.interbank||'',r.cash||'',r.cashMonth||'',r.status||'',
     r.invoiceType||'Retainer',r.notes||''
   ])];
@@ -4928,7 +4932,7 @@ function exportARCSV(){
 function exportAPCSV(){
   const headers=['Vendor','Entity','Work Month','Payment Date','Cash Month','Amount (USD)','Spend Type','Expense Category','Payment Mode','Notes'];
   const rows=[headers,...AP_FCST.map(r=>[
-    r.vendor||'',r.entity||'BH',r.workMonth||'',r.paymentDate||'',r.cashMonth||'',
+    r.vendor||'',r.entity||'BH',r.workMonth||'',normalizeToISO(r.paymentDate||''),r.cashMonth||'',
     r.amount||'',r.spendType||'',r.expenseCategory||'',r.paymentMode||'',r.notes||''
   ])];
   dlCSV('ap_schedule_'+new Date().toISOString().slice(0,10)+'.csv',rows);
