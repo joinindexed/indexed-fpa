@@ -2065,8 +2065,43 @@ function renderFinTable(id,rows,curEnt,showYTD){
 // plus Xero's own subtotal/total rows). Rendering from it means new accounts appear, removed/
 // renamed accounts leave no stale value, and Assets = Liabilities + Equity holds by construction.
 const _BS_GT=/^(total assets|total liabilities and equity|net assets)$/i;
+// Xero exports its Balance Sheet with EMPTY (0) value cells on every subtotal/total row - the
+// totals live only in Xero's display layer. So we recompute each total by summing its line items,
+// using the group nesting Xero encodes by indentation: every header/subheader opens a group, and
+// each "Total X" closes the innermost open group (strict LIFO), whose summed items become the
+// total and then bubble into the parent group. Handles arbitrary depth (BC nests Cash & Cash
+// Equivalents -> Current Assets -> Assets). "Net Assets" is special: Total Assets - Total Liabilities.
+// Mutates each total row's .vals in place; idempotent (recompute always overwrites from items).
+function _fillBSTotals(rows){
+  if(!rows||!rows.length)return rows;
+  const months=[...new Set(rows.flatMap(r=>r.vals?Object.keys(r.vals):[]))];
+  if(!months.length)return rows;
+  const zero=()=>{const o={};months.forEach(m=>o[m]=0);return o;};
+  const add=(acc,v)=>{months.forEach(m=>acc[m]=(acc[m]||0)+((v&&v[m])||0));return acc;};
+  const norm=s=>(s||'').toLowerCase().replace(/\s+/g,' ').trim();
+  const strip=s=>norm(s).replace(/^grand total /,'').replace(/^total /,'');
+  const stack=[], totalsByName={};
+  rows.forEach(r=>{
+    if(r.type==='h'||r.type==='sh'){stack.push({sum:zero()});return;}
+    if(r.type==='i'){if(stack.length)add(stack[stack.length-1].sum,r.vals);return;}
+    if(r.type==='t'||r.type==='gt'){
+      let v;
+      if(norm(r.label)==='net assets'){
+        const a=totalsByName['assets']||{}, l=totalsByName['liabilities']||{};
+        v=zero();months.forEach(m=>v[m]=(a[m]||0)-(l[m]||0));
+      } else if(stack.length){
+        v=stack.pop().sum;
+        if(stack.length)add(stack[stack.length-1].sum,v);
+      } else v=zero();
+      r.vals=v;
+      totalsByName[strip(r.label)]=v;
+    }
+  });
+  return rows;
+}
 function _impBSRows(parsed,entity){
   if(!parsed||!parsed.rows||!parsed.months||!parsed.months.length)return null;
+  _fillBSTotals(parsed.rows); // Xero zeroes total cells - recompute from line items
   return parsed.rows.map(r=>{
     if(r.type==='h')return {type:'h',g:r.label};
     if(r.type==='sh')return {type:'sh',g:r.label};
@@ -2966,6 +3001,9 @@ function _parseFinancialReport(rows,entity,ftype){
     if((type==='h'||type==='sh')&&!hasNumbers){result.rows.push({type,label,vals:{},section:_curSection});continue;}
     result.rows.push({type,label,vals,section:_curSection});
   }
+  // Xero zeroes the value cells on subtotal/total rows; recompute them from the line items so the
+  // stored report and the KPI arrays (BH_BS/BC_BS) it feeds carry correct totals, not zeros.
+  if(ftype==='bs')_fillBSTotals(result.rows);
   return result;
 }
 
