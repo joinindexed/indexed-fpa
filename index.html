@@ -4087,7 +4087,7 @@ function saveInlineMapping(entity,ftype,xeroLabel,tmplLabel){
 function normalizeToISO(v){
   // Returns YYYY-MM-DD string or original value if not parseable
   if(!v||v==='—')return v;
-  const s=String(v);
+  const s=String(v).trim(); // trim first: forecast dates arrive as " 7 September 2026" (leading space)
   if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.slice(0,10); // already ISO
   // Day-first slash/dot/dash: DD/MM/YY or DD/MM/YYYY (UAE convention, e.g. 15/09/26 -> 2026-09-15)
   const dmy=s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/);
@@ -4099,6 +4099,16 @@ function normalizeToISO(v){
     const MOS=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
     const mi=MOS.indexOf(hr[2].toLowerCase().slice(0,3));
     if(mi>=0)return`${hr[3]}-${String(mi+1).padStart(2,'0')}-${String(hr[1]).padStart(2,'0')}`;
+  }
+  // Month-only: "September 2026" / "Sep 2026" -> first of month. AP forecast payments are scheduled
+  // at month level; export them as a real date so Google Sheets parses/sorts them (the Cash Month
+  // column still carries the month). Portal storage is untouched: recalcAPRow never calls this, so
+  // the in-app AP paymentDate stays "September 2026".
+  const my=s.match(/^([A-Za-z]{3,})\s+(\d{4})$/);
+  if(my){
+    const MOS2=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+    const mi=MOS2.indexOf(my[1].toLowerCase().slice(0,3));
+    if(mi>=0)return`${my[2]}-${String(mi+1).padStart(2,'0')}-01`;
   }
   // Excel serial
   const n=Number(s);
