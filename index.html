@@ -4120,6 +4120,14 @@ function normalizeToISO(v){
 }
 
 const _MO_NAMES=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+// Export dates as DD-Mon-YYYY (e.g. 28-Sep-2026). Spelling out the month removes ALL day/month
+// ambiguity, so Google Sheets parses them correctly in any locale - unlike ISO, which a day-first
+// sheet misreads as YYYY-DD-MM (2026-09-07 -> "9 July"). Non-date values pass through unchanged.
+function toExportDate(v){
+  const iso=normalizeToISO(v);
+  const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso));
+  return m?`${m[3]}-${_MO_NAMES[+m[2]-1]}-${m[1]}`:iso;
+}
 function recalcARRow(r){
   try{
     if(!r.invoiceType)r.invoiceType='Retainer';
@@ -4969,8 +4977,8 @@ function dlCSV(filename,rows){
 function exportARCSV(){
   const headers=['Client','Entity','Invoice #','Invoice Date','Invoice Month','Due Date','Payment Date','Currency','Amount','FX Rate','USD Value','Mode','Fee','Interbank','Cash','Cash Month','Status','Type','Notes'];
   const rows=[headers,...AR_FCST.map(r=>[
-    r.client||'',r.entity||'BH',r.invoiceNo||'',normalizeToISO(r.invoiceDate||''),r.invoiceMonth||'',
-    normalizeToISO(r.dueDate||''),normalizeToISO(r.paymentDate||''),r.currency||'',r.amount||'',r.fx||'',r.usdValue||'',
+    r.client||'',r.entity||'BH',r.invoiceNo||'',toExportDate(r.invoiceDate||''),r.invoiceMonth||'',
+    toExportDate(r.dueDate||''),toExportDate(r.paymentDate||''),r.currency||'',r.amount||'',r.fx||'',r.usdValue||'',
     r.mode||'',r.fee||'',r.interbank||'',r.cash||'',r.cashMonth||'',r.status||'',
     r.invoiceType||'Retainer',r.notes||''
   ])];
@@ -4980,7 +4988,7 @@ function exportARCSV(){
 function exportAPCSV(){
   const headers=['Vendor','Entity','Work Month','Payment Date','Cash Month','Amount (USD)','Spend Type','Expense Category','Payment Mode','Notes'];
   const rows=[headers,...AP_FCST.map(r=>[
-    r.vendor||'',r.entity||'BH',r.workMonth||'',normalizeToISO(r.paymentDate||''),r.cashMonth||'',
+    r.vendor||'',r.entity||'BH',r.workMonth||'',toExportDate(r.paymentDate||''),r.cashMonth||'',
     r.amount||'',r.spendType||'',r.expenseCategory||'',r.paymentMode||'',r.notes||''
   ])];
   dlCSV('ap_schedule_'+new Date().toISOString().slice(0,10)+'.csv',rows);
