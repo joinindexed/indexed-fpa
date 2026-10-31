@@ -2210,6 +2210,55 @@ try { CF_TX_OVERRIDES = JSON.parse(localStorage.getItem('cf_tx_overrides')||'{}'
 let CF_NET_OVERRIDES = {};
 try { CF_NET_OVERRIDES = JSON.parse(localStorage.getItem('cf_net_overrides')||'{}'); } catch(e){}
 
+// ── Sync for the shared map stores (ct_map, cf_tx_overrides, cf_net_overrides) ──
+// Each browser keeps a VERSIONED list of entries it changed and hasn't saved yet. Pull: the cloud copy wins,
+// except for those entries. Save: those entries are written on top of a fresh cloud copy, and an entry is
+// only marked saved if it wasn't edited again while the save was in flight. So a teammate's change reaches
+// everyone, a stale tab can't revert it, and deletions propagate. (Previously local won on pull AND save,
+// so edits to an existing mapping never reached anyone who already had it.)
+const _MAP_STORES={ct_map:()=>CT_MAP,cf_tx_overrides:()=>CF_TX_OVERRIDES,cf_net_overrides:()=>CF_NET_OVERRIDES};
+function _setMapStore(store,obj){
+  if(store==='ct_map')CT_MAP=obj;else if(store==='cf_tx_overrides')CF_TX_OVERRIDES=obj;else CF_NET_OVERRIDES=obj;
+  try{localStorage.setItem(store,JSON.stringify(obj));}catch(e){}
+}
+let _mapDirty={}, _mapDirtySeq=0;
+try{const d=JSON.parse(localStorage.getItem('map_dirty')||'{}')||{};_mapDirty=d.e||{};_mapDirtySeq=d.seq||0;}catch(e){}
+function _saveMapDirty(){try{localStorage.setItem('map_dirty',JSON.stringify({seq:_mapDirtySeq,e:_mapDirty}));}catch(e){}}
+function markMapDirty(store,key,deleted){
+  (_mapDirty[store]=_mapDirty[store]||{})[key]={v:++_mapDirtySeq,d:deleted?1:0};
+  _saveMapDirty();
+}
+// cloud copy + this browser's unsaved edits
+function _overlayDirty(store,cloudObj,localObj){
+  const out={...(cloudObj||{})};
+  Object.entries(_mapDirty[store]||{}).forEach(([k,st])=>{
+    if(st.d)delete out[k];
+    else if(localObj&&Object.prototype.hasOwnProperty.call(localObj,k))out[k]=localObj[k];
+  });
+  return out;
+}
+// One-time, on the first load of this version: CF Working per-transaction overrides used to stay only in the
+// browser that set them (they were never uploaded). Queue this browser's overrides that the cloud doesn't have,
+// so switching to cloud-wins pulls doesn't drop them.
+function _migrateTxOverrides(cloud){
+  try{
+    if(localStorage.getItem('map_sync_v2'))return;
+    const cl=(cloud&&cloud.cf_tx_overrides)||{};
+    Object.keys(CF_TX_OVERRIDES||{}).forEach(k=>{if(!Object.prototype.hasOwnProperty.call(cl,k))markMapDirty('cf_tx_overrides',k,false);});
+    localStorage.setItem('map_sync_v2','1');
+  }catch(e){}
+}
+// After a save landed: forget the entries it carried (unless edited again since — those stay queued with
+// their newer value), and adopt the saved cloud copy for everything else.
+function _afterMapPush(written,sent,stores){
+  stores.forEach(store=>{
+    const s=sent[store]||{}, cur=_mapDirty[store]||{};
+    Object.keys(s).forEach(k=>{if(cur[k]&&cur[k].v===s[k].v)delete cur[k];});
+    _setMapStore(store,_overlayDirty(store,written[store],_MAP_STORES[store]()));
+  });
+  _saveMapDirty();
+}
+
 let GL_MAPPINGS={};
 try{GL_MAPPINGS=JSON.parse(localStorage.getItem('gl_mappings')||'{}');}catch(e){}
 let USER_ROWS=[];
@@ -2312,9 +2361,9 @@ function renderGrpTable(id,data){
       <div style="padding:10px 18px 10px 24px">
         ${isGroup?`<div style="font-size:13.0px;font-weight:600;color:var(--accent);text-transform:uppercase;margin-bottom:8px">Members of "${label}"</div>
         <table style="width:100%;border-collapse:collapse;font-size:15.0px">
-          <tr>${['Contact','Jan','Feb','Mar','Apr','Total'].map(h=>`<th style="text-align:${h==='Contact'?'left':'right'};padding:4px 8px;color:var(--text3);border-bottom:1px solid var(--border);font-size:14.0px">${h}</th>`).join('')}</tr>
+          <tr>${['Contact',...E,'Total'].map(h=>`<th style="text-align:${h==='Contact'?'left':'right'};padding:4px 8px;color:var(--text3);border-bottom:1px solid var(--border);font-size:14.0px">${h}</th>`).join('')}</tr>
           ${g.members.map(m=>{
-            const mvals=['Jan','Feb','Mar','Apr'].map(mo=>{
+            const mvals=E.map(mo=>{
               const inv=([...(BH_IN_D[mo]||[]),...(BC_IN_D[mo]||[])]).filter(t=>t.contact===m.contact&&t.entity===m.entity).reduce((s,t)=>s+t.amt,0);
               const out=([...(BH_OUT_D[mo]||[]),...(BC_OUT_D[mo]||[])]).filter(t=>t.contact===m.contact&&t.entity===m.entity).reduce((s,t)=>s+t.amt,0);
               return inv||out;
@@ -2328,13 +2377,13 @@ function renderGrpTable(id,data){
           }).join('')}
         </table>`:`<div style="font-size:13.0px;font-weight:600;color:var(--accent);text-transform:uppercase;margin-bottom:6px">${label} · monthly</div>
         <div style="display:flex;gap:16px;flex-wrap:wrap">
-          ${['Jan','Feb','Mar','Apr'].map(mo=>{
+          ${E.map(mo=>{
             const inv=([...(BH_IN_D[mo]||[]),...(BC_IN_D[mo]||[])]).filter(t=>t.contact===g.members[0]?.contact&&t.entity===g.entity).reduce((s,t)=>s+t.amt,0);
             const out=([...(BH_OUT_D[mo]||[]),...(BC_OUT_D[mo]||[])]).filter(t=>t.contact===g.members[0]?.contact&&t.entity===g.entity).reduce((s,t)=>s+t.amt,0);
             const v=inv||out;
             if(!v)return '';
             const col=g.type==='client'?'var(--green)':'var(--red)';
-            return '<div><div style="font-size:13.0px;color:var(--text3);font-weight:600;text-transform:uppercase">' + mo + ' 2026</div><div style="font-size:17.0px;font-weight:600;color:' + col + '">' + $f(v) + '</div></div>';
+            return '<div><div style="font-size:13.0px;color:var(--text3);font-weight:600;text-transform:uppercase">' + mo + ' ' + FCST_YEAR + '</div><div style="font-size:17.0px;font-weight:600;color:' + col + '">' + $f(v) + '</div></div>';
           }).join('')}
         </div>`}
       </div>
@@ -2348,7 +2397,9 @@ function saveOneMapping(k,val){
   const allContacts=buildContacts();
   const found=allContacts.find(c=>c.contact===contact&&c.entity===entity);
   const type=found?found.type:'vendor';
+  const before=JSON.stringify(CT_MAP[k]??null);
   if(val.trim()){CT_MAP[k]={group:val.trim(),type};}else{delete CT_MAP[k];}
+  if(JSON.stringify(CT_MAP[k]??null)!==before)markMapDirty('ct_map',k,!CT_MAP[k]);
   try{localStorage.setItem('ct_map',JSON.stringify(CT_MAP));}catch(e){}
   renderCF();
   sbPush(); // auto-sync to Supabase so all users see the change
@@ -2387,7 +2438,7 @@ function renderMappingTable(){
           placeholder="${c.contact}"
           list="grp-suggestions"
           style="width:100%;background:${isCustom?'var(--accent-light)':'var(--surface2)'};border:1px solid ${isCustom?'var(--accent-mid)':'var(--border2)'};border-radius:5px;padding:5px 8px;font-size:15.0px;font-family:var(--sans);color:var(--text)"
-          oninput="saveOneMapping(this.dataset.key,this.value);this.style.background='var(--accent-light)';this.style.borderColor='var(--accent-mid)'"
+          oninput="saveOneMapping(this.dataset.key,this.value);this.defaultValue=this.value;this.style.background='var(--accent-light)';this.style.borderColor='var(--accent-mid)'"
         >
       </td>
     </tr>`;
@@ -2403,6 +2454,7 @@ function renderMappingTable(){
 function saveMappings(){
   const inputs=document.querySelectorAll('#ctMap input[data-key]');
   inputs.forEach(inp=>{
+    if(inp.value===inp.defaultValue)return; // untouched row
     const k=inp.dataset.key;
     const val=inp.value.trim();
     const [contact,entity]=k.split('||');
@@ -2410,11 +2462,13 @@ function saveMappings(){
     const allContacts=buildContacts();
     const found=allContacts.find(c=>c.contact===contact&&c.entity===entity);
     const type=found?found.type:'vendor';
+    const before=JSON.stringify(CT_MAP[k]??null);
     if(val){
       CT_MAP[k]={group:val,type};
     } else {
       delete CT_MAP[k];
     }
+    if(JSON.stringify(CT_MAP[k]??null)!==before)markMapDirty('ct_map',k,!CT_MAP[k]);
   });
   try { localStorage.setItem('ct_map',JSON.stringify(CT_MAP)); } catch(e){}
   if(!_sbPulling)sbPush();
@@ -3675,9 +3729,12 @@ function renderCFWorking(){
 }
 
 function saveCFTxOverride(txKey,val){
+  const before=CF_TX_OVERRIDES[txKey]??null;
   if(val.trim())CF_TX_OVERRIDES[txKey]=val.trim();
   else delete CF_TX_OVERRIDES[txKey];
+  if((CF_TX_OVERRIDES[txKey]??null)!==before)markMapDirty('cf_tx_overrides',txKey,!CF_TX_OVERRIDES[txKey]);
   try{localStorage.setItem('cf_tx_overrides',JSON.stringify(CF_TX_OVERRIDES));}catch(e){}
+  if(!_sbPulling)sbPush();
   renderCF();
   // Update Final Display Group cell inline
   // Update Final Display Group cell inline in whichever table the input lives in
@@ -3688,8 +3745,10 @@ function saveCFTxOverride(txKey,val){
 // val = target inflow contact name (e.g. "Boardroom Advisors"). Empty string = remove netting.
 function saveNetOverride(txKey,val){
   const v=(val||'').trim();
+  const before=CF_NET_OVERRIDES[txKey]??null;
   if(v)CF_NET_OVERRIDES[txKey]=v;
   else delete CF_NET_OVERRIDES[txKey];
+  if((CF_NET_OVERRIDES[txKey]??null)!==before)markMapDirty('cf_net_overrides',txKey,!CF_NET_OVERRIDES[txKey]);
   try{localStorage.setItem('cf_net_overrides',JSON.stringify(CF_NET_OVERRIDES));}catch(e){}
   renderCFWorking();
   renderCF();
@@ -3698,9 +3757,11 @@ function saveNetOverride(txKey,val){
 
 function cfwClearOverrides(){
   if(!confirm('Clear all per-transaction overrides?'))return;
+  Object.keys(CF_TX_OVERRIDES).forEach(k=>markMapDirty('cf_tx_overrides',k,true));
   CF_TX_OVERRIDES={};
   try{localStorage.removeItem('cf_tx_overrides');}catch(e){}
   renderCFWorking();renderCF();
+  if(!_sbPulling)sbPush();
 }
 
 function exportCFWorking(){
@@ -5244,6 +5305,7 @@ function _mergeUserRows(cloudRows,localRows){
 // cloud-only entities. `cloud` is the freshly-fetched forecast_data row (or null when offline).
 function _mergeCloud(cloud){
   cloud=cloud||{};
+  _migrateTxOverrides(cloud); // also here, in case this browser was offline when the page loaded
   let localSnap=null;try{localSnap=JSON.parse(localStorage.getItem('actuals_snap')||'null');}catch(e){}
   const cloudSnap=cloud.actuals_snap||null;
   let snap=null;
@@ -5255,48 +5317,73 @@ function _mergeCloud(cloud){
   return {
     ar_fcst:_mergeRowsById(cloud.ar_fcst,AR_FCST),
     ap_fcst:_mergeRowsById(cloud.ap_fcst,AP_FCST),
-    ct_map:{...(cloud.ct_map||{}),...CT_MAP},
+    ct_map:_overlayDirty('ct_map',cloud.ct_map,CT_MAP),
     gl_mappings:{...(cloud.gl_mappings||{}),...GL_MAPPINGS},
-    cf_tx_overrides:{...(cloud.cf_tx_overrides||{}),...CF_TX_OVERRIDES},
-    cf_net_overrides:{...(cloud.cf_net_overrides||{}),...CF_NET_OVERRIDES},
+    cf_tx_overrides:_overlayDirty('cf_tx_overrides',cloud.cf_tx_overrides,CF_TX_OVERRIDES),
+    cf_net_overrides:_overlayDirty('cf_net_overrides',cloud.cf_net_overrides,CF_NET_OVERRIDES),
     actuals_snap:snap
   };
 }
 
-let _sbTimer=null;
+let _sbTimer=null, _sbPushing=false, _sbAgain=false;
 function sbPush(){
   clearTimeout(_sbTimer);
-  _sbTimer=setTimeout(async()=>{
-    sbStatus('Syncing…');
-    try{
-      // Fetch the current cloud row first and merge, so this save can't overwrite rows/entries
-      // another tab or user added while we weren't looking. If the fetch fails (offline), we
-      // fall back to pushing local state as before.
+  _sbTimer=setTimeout(_sbPushNow,800);
+}
+// One save at a time (a save requested meanwhile runs right after, with a fresh fetch). Every save merges
+// onto a FRESH cloud copy and is written only if nobody saved since that copy was fetched (the PATCH is
+// conditional on its updated_at; on a clash we re-fetch, re-merge and try again, up to 4 times). If the
+// cloud copy can't be fetched, nothing is written — an unmerged write could overwrite teammates' data — and
+// there is deliberately no automatic retry (a delayed retry could push this tab's stale copy over newer
+// data); the user's next change saves again with a fresh merge.
+async function _sbPushNow(){
+  if(_sbPushing){_sbAgain=true;return;}
+  _sbPushing=true;
+  let done=false, clashes=0;
+  try{
+    for(let attempt=0;attempt<4&&!done;attempt++){
+      sbStatus('Syncing…');
       let cloud=null;
       try{
         const cr=await fetch(`${SB_URL}/rest/v1/forecast_data?id=eq.1&select=*`,{headers:{apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`}});
         if(cr.ok){const rows=await cr.json();cloud=(rows&&rows[0])||null;}
       }catch(e){}
-      const m=cloud?_mergeCloud(cloud):null;
-      const AR=m?m.ar_fcst:AR_FCST, AP=m?m.ap_fcst:AP_FCST;
-      const CT=m?m.ct_map:CT_MAP, GL=m?m.gl_mappings:GL_MAPPINGS;
-      const TXO=m?m.cf_tx_overrides:CF_TX_OVERRIDES, NETO=m?m.cf_net_overrides:CF_NET_OVERRIDES;
-      const basePayload={ar_fcst:AR,ap_fcst:AP,ct_map:CT,updated_at:new Date().toISOString(),updated_by:CURRENT_USER?.email||'unknown'};
-      if(GL&&Object.keys(GL).length)basePayload.gl_mappings=GL;
+      if(!cloud)break;
+      const m=_mergeCloud(cloud);
+      const sent=JSON.parse(JSON.stringify(_mapDirty));
+      const basePayload={ar_fcst:m.ar_fcst,ap_fcst:m.ap_fcst,ct_map:m.ct_map,updated_at:new Date().toISOString(),updated_by:CURRENT_USER?.email||'unknown'};
+      if(m.gl_mappings&&Object.keys(m.gl_mappings).length)basePayload.gl_mappings=m.gl_mappings;
       // Extended payload — includes Xero actuals + overrides (requires Supabase migration)
-      const fullPayload={...basePayload,cf_tx_overrides:TXO,cf_net_overrides:NETO};
-      let snap=m?m.actuals_snap:(()=>{try{return JSON.parse(localStorage.getItem('actuals_snap')||'null');}catch(e){return null;}})();
-      if(snap)fullPayload.actuals_snap=snap;
-      let r=await fetch(`${SB_URL}/rest/v1/forecast_data?id=eq.1`,{method:'PATCH',headers:SB_HDR,body:JSON.stringify(fullPayload)});
+      const fullPayload={...basePayload,cf_tx_overrides:m.cf_tx_overrides,cf_net_overrides:m.cf_net_overrides};
+      if(m.actuals_snap)fullPayload.actuals_snap=m.actuals_snap;
+      const seen=cloud.updated_at?`updated_at=eq.${encodeURIComponent(cloud.updated_at)}`:'updated_at=is.null';
+      const url=`${SB_URL}/rest/v1/forecast_data?id=eq.1&${seen}&select=id`;
+      const hdr={...SB_HDR,Prefer:'return=representation'};
+      let r=await fetch(url,{method:'PATCH',headers:hdr,body:JSON.stringify(fullPayload)});
+      let stores=['ct_map','cf_tx_overrides','cf_net_overrides'], partial=false;
       if(!r.ok){
         // Columns not yet added — fall back to base payload so existing sync still works
-        r=await fetch(`${SB_URL}/rest/v1/forecast_data?id=eq.1`,{method:'PATCH',headers:SB_HDR,body:JSON.stringify(basePayload)});
-        if(!r.ok){const e=await r.text();sbStatus('Sync error: '+e,false);return;}
-        sbStatus('⚠ Synced (partial — Supabase migration needed for Xero data sync)',null);return;
+        r=await fetch(url,{method:'PATCH',headers:hdr,body:JSON.stringify(basePayload)});
+        if(!r.ok){const e=await r.text();sbStatus('Sync error: '+e,false);done=true;break;}
+        stores=['ct_map'];partial=true;
       }
-      sbStatus('✓ Synced '+new Date().toLocaleTimeString(),true);
-    }catch(e){sbStatus('Sync failed: '+e.message,false);}
-  },800);
+      let rows=[];try{rows=await r.json();}catch(e){}
+      if(!Array.isArray(rows)||!rows.length){clashes++;continue;} // someone saved since we fetched: re-fetch, re-merge, retry
+      _afterMapPush(m,sent,stores);
+      if(partial)sbStatus('⚠ Synced (partial — Supabase migration needed for Xero data sync)',null);
+      else sbStatus('✓ Synced '+new Date().toLocaleTimeString(),true);
+      done=true;
+    }
+    if(!done){
+      sbStatus(clashes?'⚠ Not saved — others were saving at the same moment. Your next change will save again.'
+                      :"⚠ Not saved — couldn't reach the cloud. Check your connection; your next change will save again.",false);
+    }
+  }catch(e){
+    sbStatus('⚠ Not saved — '+e.message+'. Your next change will save again.',false);
+  }finally{
+    _sbPushing=false;
+    if(_sbAgain){_sbAgain=false;sbPush();}
+  }
 }
 
 async function sbPull(){
@@ -5311,10 +5398,11 @@ async function sbPull(){
     let changed=false;
     if(d.ar_fcst&&d.ar_fcst.length){AR_FCST=d.ar_fcst.map(recalcARRow);try{localStorage.setItem('ar_fcst',JSON.stringify(AR_FCST));}catch(e){}changed=true;}
     if(d.ap_fcst&&d.ap_fcst.length){AP_FCST=d.ap_fcst;try{localStorage.setItem('ap_fcst',JSON.stringify(AP_FCST));}catch(e){}changed=true;}
-    if(d.ct_map&&Object.keys(d.ct_map).length){CT_MAP={...d.ct_map,...CT_MAP};try{localStorage.setItem('ct_map',JSON.stringify(CT_MAP));}catch(e){}}
+    if(d.ct_map)_setMapStore('ct_map',_overlayDirty('ct_map',d.ct_map,CT_MAP));
     if(d.gl_mappings&&Object.keys(d.gl_mappings).length){GL_MAPPINGS={...d.gl_mappings,...GL_MAPPINGS};try{localStorage.setItem('gl_mappings',JSON.stringify(GL_MAPPINGS));}catch(e){}}
-    if(d.cf_tx_overrides){CF_TX_OVERRIDES={...d.cf_tx_overrides,...CF_TX_OVERRIDES};try{localStorage.setItem('cf_tx_overrides',JSON.stringify(CF_TX_OVERRIDES));}catch(e){}}
-    if(d.cf_net_overrides){CF_NET_OVERRIDES={...d.cf_net_overrides,...CF_NET_OVERRIDES};try{localStorage.setItem('cf_net_overrides',JSON.stringify(CF_NET_OVERRIDES));}catch(e){}}
+    _migrateTxOverrides(d);
+    if(d.cf_tx_overrides)_setMapStore('cf_tx_overrides',_overlayDirty('cf_tx_overrides',d.cf_tx_overrides,CF_TX_OVERRIDES));
+    if(d.cf_net_overrides)_setMapStore('cf_net_overrides',_overlayDirty('cf_net_overrides',d.cf_net_overrides,CF_NET_OVERRIDES));
     if(d.actuals_snap){try{localStorage.setItem('actuals_snap',JSON.stringify(d.actuals_snap));}catch(e){}loadActuals();changed=true;}
     _sbPulling=false;
     if(changed){renderCF();renderDash();renderFcastAR();renderFcastAP();renderContacts();}
@@ -5335,10 +5423,11 @@ async function sbPull(){
     let changed=false;
     if(d.ar_fcst&&d.ar_fcst.length){AR_FCST=d.ar_fcst.map(recalcARRow);try{localStorage.setItem('ar_fcst',JSON.stringify(AR_FCST));}catch(e){}changed=true;}
     if(d.ap_fcst&&d.ap_fcst.length){AP_FCST=d.ap_fcst;try{localStorage.setItem('ap_fcst',JSON.stringify(AP_FCST));}catch(e){}changed=true;}
-    if(d.ct_map&&Object.keys(d.ct_map).length){CT_MAP={...d.ct_map,...CT_MAP};try{localStorage.setItem('ct_map',JSON.stringify(CT_MAP));}catch(e){}}
+    if(d.ct_map)_setMapStore('ct_map',_overlayDirty('ct_map',d.ct_map,CT_MAP));
     if(d.gl_mappings&&Object.keys(d.gl_mappings).length){GL_MAPPINGS={...d.gl_mappings,...GL_MAPPINGS};try{localStorage.setItem('gl_mappings',JSON.stringify(GL_MAPPINGS));}catch(e){}}
-    if(d.cf_tx_overrides){CF_TX_OVERRIDES={...d.cf_tx_overrides,...CF_TX_OVERRIDES};try{localStorage.setItem('cf_tx_overrides',JSON.stringify(CF_TX_OVERRIDES));}catch(e){}}
-    if(d.cf_net_overrides){CF_NET_OVERRIDES={...d.cf_net_overrides,...CF_NET_OVERRIDES};try{localStorage.setItem('cf_net_overrides',JSON.stringify(CF_NET_OVERRIDES));}catch(e){}}
+    _migrateTxOverrides(d);
+    if(d.cf_tx_overrides)_setMapStore('cf_tx_overrides',_overlayDirty('cf_tx_overrides',d.cf_tx_overrides,CF_TX_OVERRIDES));
+    if(d.cf_net_overrides)_setMapStore('cf_net_overrides',_overlayDirty('cf_net_overrides',d.cf_net_overrides,CF_NET_OVERRIDES));
     if(d.actuals_snap){try{localStorage.setItem('actuals_snap',JSON.stringify(d.actuals_snap));}catch(e){}loadActuals();changed=true;}
     _sbPulling=false;
     if(changed){renderCF();renderDash();renderFcastAR();renderFcastAP();}
@@ -5648,7 +5737,11 @@ function escAttr(s){return String(s||'').replace(/'/g,'&#39;');}
 // Restore any previously imported actuals from localStorage BEFORE first render
 // Apply any user-defined template rows before replaying imports
 try{applyUserRows();}catch(e){console.warn('applyUserRows:',e);}
+// Replaying saved imports is not an edit: don't save to the cloud for it (that save ran on every page load
+// and could push this browser's stale copy if the on-load pull hadn't got through).
+_sbPulling=true;
 try{loadActuals();}catch(e){console.warn('loadActuals:',e);}
+_sbPulling=false;
 // Sync all date labels after actuals are loaded
 try{updateActualsLabels();}catch(e){}
 // Run immediately (script is at bottom of body so DOM is ready)
