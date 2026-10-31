@@ -2702,6 +2702,24 @@ function parseXeroAccountTx(rows,entity){
     sorted.forEach(m=>{running+=sectionMonthlyNet[acct][m];result.bankClose[acct][m]=running;});
   }
 
+  // Pre-pass: Xero only lets a "Bank Transfer" post between BANK accounts, so any section containing
+  // one is a bank — even if its name isn't in BANKS. This is how the "FX Clearing Account" (used to pay
+  // INR contractors: Alaan -> transfer -> FX Clearing -> payment) gets picked up; previously every
+  // payment and receipt through it was silently dropped and absorbed into the FX plug.
+  const transferSections=new Set();
+  {
+    let sc=-1,sec=null;
+    for(const row of rows){
+      const rs=row.map(c=>String(c||'').trim());
+      if(rs.some(c=>/^date$/i.test(c))&&(rs.some(c=>/debit/i.test(c))||rs.some(c=>/credit/i.test(c)))){sc=rs.findIndex(c=>/^source$/i.test(c));continue;}
+      const ne=rs.filter(c=>c!=='');
+      if(!ne.length||/^(opening|closing) balance$/i.test(ne[0]))continue;
+      if(ne.length<=3){const f=ne[0];if(!/^total|^grand|^\d+(\.\d+)?$/.test(f)&&!parseDt(f)&&f.length>2){sec=f;continue;}}
+      if(sec&&sc>=0&&/^bank transfer$/i.test(rs[sc]||''))transferSections.add(sec);
+    }
+  }
+  const isBankSection=name=>BANKS.some(p=>name.toLowerCase().includes(p))||/clearing/i.test(name)||transferSections.has(name);
+
   for(let i=0;i<rows.length;i++){
     const row=rows[i];
     const rs=row.map(c=>String(c||'').trim());
@@ -2757,7 +2775,7 @@ function parseXeroAccountTx(rows,entity){
         }
         curAcct=first;
         curOpenBal=0;
-        isBank=BANKS.some(p=>first.toLowerCase().includes(p));
+        isBank=isBankSection(first);
         isPlatformFee=!isBank&&PLATFORM_FEE_ACCTS.some(p=>first.toLowerCase().includes(p));
         if(isBank)sectionMonthlyNet[curAcct]={};
         continue;
