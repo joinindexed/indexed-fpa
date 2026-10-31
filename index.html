@@ -106,6 +106,15 @@ table.drt th:nth-child(2){text-align:left;width:8%}
 table.drt td{padding:5px 8px;text-align:right;border-bottom:1px solid var(--border);color:var(--text2)}
 table.drt td:first-child,table.drt td:nth-child(2){text-align:left}
 table.drt tr:last-child td{border-bottom:none}
+table.drt th.cfs{cursor:pointer;user-select:none;transition:color .15s}
+table.drt th.cfs:hover,table.drt th.cfs:focus-visible{color:var(--accent);outline:none}
+table.drt th.cfs-on{color:var(--accent);font-weight:700;box-shadow:inset 0 -2px 0 var(--accent)}
+table.drt td.cfs-col{background:rgba(87,215,226,0.14);font-weight:600}
+body.light table.drt td.cfs-col{background:rgba(11,165,180,0.14)}
+table.drt tr.cfs-tot td{font-weight:700;color:var(--text);border-top:1px solid var(--border2)}
+.cfs-hint{font-weight:500;text-transform:none;letter-spacing:0;color:var(--text3);font-size:12px;margin-left:10px}
+.cfs-note{font-size:13px;color:var(--text3);padding:6px 8px}
+.cfs-note a{color:var(--accent);cursor:pointer;text-decoration:underline}
 /* data table */
 table.dt{width:100%;border-collapse:collapse;font-size:15.5px}
 table.dt th{padding:8px 10px;text-align:left;color:var(--text3);font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap;font-size:13.5px;text-transform:uppercase;letter-spacing:.06em;background:var(--surface2)}
@@ -1752,11 +1761,26 @@ function renderCFTable(d){
 
 const ENT_FULL={BH:'Braveheart FZ LLC',BC:'Bravecore FZ LLC'};
 const ENT_SHORT={BH:'Braveheart',BC:'Bravecore'};
+// Drill-down ranking: click a month header to rank that month's groups highest→lowest and hide the
+// ones with nothing in it; click it again (or "Total") to return to the full-period view. Remembered per
+// drill-down for the session. The footer always sums every group, so it ties to the statement line above.
+const cfDrillSort={}, cfDrillShowAll={};
 function togCFDrill(drId,isIn){
   const row=document.getElementById('dr-'+drId);
   if(!row)return;
   if(openDrill.has(drId)){row.classList.remove('open');openDrill.delete(drId);return;}
   openDrill.add(drId); row.classList.add('open');
+  renderCFDrill(drId,isIn);
+  row.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function sortCFDrill(drId,isIn,key){
+  const cur=cfDrillSort[drId]||'total';
+  cfDrillSort[drId]=(key===cur&&key!=='total')?'total':key;
+  cfDrillShowAll[drId]=false;
+  renderCFDrill(drId,isIn);
+}
+function togCFDrillAll(drId,isIn){cfDrillShowAll[drId]=!cfDrillShowAll[drId];renderCFDrill(drId,isIn);}
+function renderCFDrill(drId,isIn){
   const actGroups=isIn?_cfInGroups:_cfOutGroups;
   const fcstGroups=isIn?_cfInFcstGroups:_cfOutFcstGroups;
   const cls=isIn?'pos':'neg';
@@ -1771,22 +1795,48 @@ function togCFDrill(drId,isIn){
     if(mgMap[g.group]){mgMap[g.group].fcstVals=g.vals;mgMap[g.group].fcstEnt=g.entities;}
     else mgMap[g.group]={group:g.group,actVals:{},actEnt:{BH:{vals:{}},BC:{vals:{}}},fcstVals:g.vals,fcstEnt:g.entities};
   });
-  const allGroups=Object.values(mgMap).sort((a,b)=>{
-    const at=_cfActMonths.reduce((s,m)=>s+(a.actVals[m]||0),0)+_cfFcstMonths.reduce((s,m)=>s+(a.fcstVals[m]||0),0);
-    const bt=_cfActMonths.reduce((s,m)=>s+(b.actVals[m]||0),0)+_cfFcstMonths.reduce((s,m)=>s+(b.fcstVals[m]||0),0);
-    return bt-at;
-  });
+  const totalOf=mg=>_cfActMonths.reduce((s,m)=>s+(mg.actVals[m]||0),0)+_cfFcstMonths.reduce((s,m)=>s+(mg.fcstVals[m]||0),0);
+  // Anything that would display as $0 counts as empty (netting dust like 99.02-99.02, or a 1¢ receipt),
+  // so a month ranking only lists groups that show a real amount. The footer still sums every cent.
+  const nz=v=>Math.abs(v||0)>=0.5;
+  // Column keys: 'total', 'A|Sep' (actual month), 'F|Oct 2026' (forecast month). A remembered key that is no
+  // longer on screen (e.g. after switching Actuals ↔ Actuals + Forecast) falls back to Total.
+  const keys=['total',..._cfActMonths.map(m=>'A|'+m),..._cfFcstMonths.map(m=>'F|'+m)];
+  const sortKey=keys.includes(cfDrillSort[drId])?cfDrillSort[drId]:'total';
+  const valOf=(mg,key)=>key==='total'?totalOf(mg):key[0]==='A'?(mg.actVals[key.slice(2)]||0):(mg.fcstVals[key.slice(2)]||0);
+  const monthPicked=sortKey!=='total';
+  const pickedLbl=!monthPicked?'':sortKey[0]==='A'?sortKey.slice(2):fmtFcstMonth(sortKey.slice(2));
+  // A group is listed if ANY visible column shows an amount — not just its period total, which a credit
+  // note (+5,000 Oct, −5,000 Nov) can net to zero.
+  const all=Object.values(mgMap);
+  const hasAny=(av,fv,tot)=>nz(tot)||_cfActMonths.some(m=>nz(av[m]))||_cfFcstMonths.some(m=>nz(fv[m]));
+  const ranked=all.filter(mg=>hasAny(mg.actVals,mg.fcstVals,totalOf(mg)))
+    .sort((a,b)=>(valOf(b,sortKey)-valOf(a,sortKey))||(totalOf(b)-totalOf(a)));
+  const showAll=monthPicked&&cfDrillShowAll[drId];
+  const shown=monthPicked&&!showAll?ranked.filter(mg=>nz(valOf(mg,sortKey))):ranked;
+  const hiddenN=ranked.length-shown.length;
+  const hl=key=>key===sortKey?' cfs-col':'';
+  const th=(key,inner,style)=>{
+    const on=key===sortKey, call=`sortCFDrill('${drId}',${isIn},'${key}')`;
+    return `<th class="cfs${on?' cfs-on':''}" role="button" tabindex="0" aria-sort="${on?'descending':'none'}" title="Rank by this column"`+
+      ` onclick="${call}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${call}}"${style?` style="${style}"`:''}>${inner}${on?' ▾':''}</th>`;
+  };
   const label=isIn?'Cash inflow by group':'Cash outflow by group';
-  let h=`<div class="dt-hd"><span>↳ ${label}</span><span class="dc" onclick="clDrill('${drId}')">✕</span></div>`;
+  let h=`<div class="dt-hd"><span>↳ ${label}${monthPicked?` · ${pickedLbl}, highest first`:''}<span class="cfs-hint">Click a month to rank it</span></span><span class="dc" onclick="clDrill('${drId}')">✕</span></div>`;
   h+=`<table class="drt"><thead><tr><th>Display group</th><th>Entity</th>`;
-  _cfActMonths.forEach(m=>h+=`<th><span class="ba" style="font-size:9px">A</span> ${m}</th>`);
-  _cfFcstMonths.forEach(m=>h+=`<th style="opacity:.85"><span class="bf" style="font-size:9px">F</span> ${fmtFcstMonth(m)}</th>`);
-  h+=`<th>Total</th></tr></thead><tbody>`;
-  allGroups.forEach((mg,gi)=>{
-    const actTotal=_cfActMonths.reduce((s,m)=>s+(mg.actVals[m]||0),0);
-    const fcstTotal=_cfFcstMonths.reduce((s,m)=>s+(mg.fcstVals[m]||0),0);
-    const total=actTotal+fcstTotal;
-    if(!total)return;
+  _cfActMonths.forEach(m=>h+=th('A|'+m,`<span class="ba" style="font-size:9px">A</span> ${m}`));
+  _cfFcstMonths.forEach(m=>h+=th('F|'+m,`<span class="bf" style="font-size:9px">F</span> ${fmtFcstMonth(m)}`,'opacity:.85'));
+  h+=th('total','Total')+`</tr></thead><tbody>`;
+  const cells=(av,fv,total,small)=>{
+    let c='';
+    const fs=small?'font-size:13px':'';
+    _cfActMonths.forEach(m=>c+=`<td class="${cls}${hl('A|'+m)}"${fs?` style="${fs}"`:''}>${nz(av[m])?fmt(av[m]):'—'}</td>`);
+    _cfFcstMonths.forEach(m=>c+=`<td class="${cls}${hl('F|'+m)}" style="${hl('F|'+m)?'':fcs+';'}${fs}">${nz(fv[m])?fmt(fv[m]):'—'}</td>`);
+    c+=`<td class="${cls}${hl('total')}" style="${small?fs:'font-weight:700'}">${fmt(total)}</td>`;
+    return c;
+  };
+  shown.forEach((mg,gi)=>{
+    const total=totalOf(mg);
     const hasBH=_cfActMonths.some(m=>mg.actEnt.BH?.vals[m])||_cfFcstMonths.some(m=>mg.fcstEnt.BH?.vals[m]);
     const hasBC=_cfActMonths.some(m=>mg.actEnt.BC?.vals[m])||_cfFcstMonths.some(m=>mg.fcstEnt.BC?.vals[m]);
     const isMulti=hasBH&&hasBC;
@@ -1798,31 +1848,30 @@ function togCFDrill(drId,isIn){
     else entBadge=eb('BC');
     const rowId='cfent-'+drId+'-'+gi;
     h+=`<tr${isMulti&&ent==='conso'?' style="cursor:pointer" onclick="togEntDrill(\''+rowId+'\')"':''}>`;
-    h+=`<td style="font-weight:600">${isMulti&&ent==='conso'?'▸ ':''}${mg.group}</td>`;
-    h+=`<td>${entBadge}</td>`;
-    _cfActMonths.forEach(m=>h+=`<td class="${cls}">${mg.actVals[m]?fmt(mg.actVals[m]):'—'}</td>`);
-    _cfFcstMonths.forEach(m=>h+=`<td class="${cls}" style="${fcs}">${mg.fcstVals[m]?fmt(mg.fcstVals[m]):'—'}</td>`);
-    h+=`<td class="${cls}" style="font-weight:700">${fmt(total)}</td></tr>`;
+    h+=`<td style="font-weight:600">${isMulti&&ent==='conso'?'▸ ':''}${esc(mg.group)}</td><td>${entBadge}</td>`;
+    h+=cells(mg.actVals,mg.fcstVals,total,false)+`</tr>`;
     if(isMulti&&ent==='conso'){
       ['BH','BC'].forEach(ek=>{
         const actEv=mg.actEnt[ek]?.vals||{};
         const fcstEv=mg.fcstEnt[ek]?.vals||{};
-        const etotAct=_cfActMonths.reduce((s,m)=>s+(actEv[m]||0),0);
-        const etotFcst=_cfFcstMonths.reduce((s,m)=>s+(fcstEv[m]||0),0);
-        const etot=etotAct+etotFcst;
-        if(!etot)return;
+        const etot=_cfActMonths.reduce((s,m)=>s+(actEv[m]||0),0)+_cfFcstMonths.reduce((s,m)=>s+(fcstEv[m]||0),0);
+        if(!hasAny(actEv,fcstEv,etot))return;
         h+=`<tr id="${rowId}-${ek}" style="display:none;background:var(--accent-light)">`;
-        h+=`<td style="padding-left:28px;color:var(--text2)">${mg.group}</td>`;
-        h+=`<td>${eb(ek)}</td>`;
-        _cfActMonths.forEach(m=>h+=`<td class="${cls}" style="font-size:13px">${actEv[m]?fmt(actEv[m]):'—'}</td>`);
-        _cfFcstMonths.forEach(m=>h+=`<td class="${cls}" style="${fcs};font-size:13px">${fcstEv[m]?fmt(fcstEv[m]):'—'}</td>`);
-        h+=`<td class="${cls}" style="font-size:13px">${fmt(etot)}</td></tr>`;
+        h+=`<td style="padding-left:28px;color:var(--text2)">${esc(mg.group)}</td><td>${eb(ek)}</td>`;
+        h+=cells(actEv,fcstEv,etot,true)+`</tr>`;
       });
     }
   });
+  // Footer sums EVERY group (including any hidden), so it always ties to Total inflow/outflow above.
+  const sumA=m=>all.reduce((s,mg)=>s+(mg.actVals[m]||0),0), sumF=m=>all.reduce((s,mg)=>s+(mg.fcstVals[m]||0),0);
+  const fa={}, ff={}; _cfActMonths.forEach(m=>fa[m]=sumA(m)); _cfFcstMonths.forEach(m=>ff[m]=sumF(m));
+  h+=`<tr class="cfs-tot"><td>Total</td><td></td>${cells(fa,ff,all.reduce((s,mg)=>s+totalOf(mg),0),false)}</tr>`;
   h+='</tbody></table>';
+  if(monthPicked&&(hiddenN||showAll)){
+    h+=`<div class="cfs-note">${showAll?'Showing every group.':`${hiddenN} group${hiddenN===1?'':'s'} with nothing in ${pickedLbl} hidden.`}`+
+       ` <a role="button" tabindex="0" onclick="togCFDrillAll('${drId}',${isIn})" onkeydown="if(event.key==='Enter'){togCFDrillAll('${drId}',${isIn})}">${showAll?'Hide empty':'Show all'}</a></div>`;
+  }
   document.getElementById('dc-'+drId).innerHTML=h;
-  row.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 function togEntDrill(id){
   ['BH','BC'].forEach(ek=>{
