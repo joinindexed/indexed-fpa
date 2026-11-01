@@ -1746,12 +1746,27 @@ function buildFcastCFGroups(isIn,months){
 // Every column of the statement for the current mode, before the month filter. Balances always chain through
 // every month, so a filtered view still shows each month's true opening and closing.
 function cfColumns(d){
-  const n=E.length, hold=cfMode==='hybrid'&&n>1, nAct=hold?n-1:n, cols=[];
+  const n=E.length, hyb=cfMode==='hybrid', held=hyb?cfHeldMonth():null, nAct=held?n-1:n, cols=[];
   for(let i=0;i<nAct;i++)cols.push({kind:'A',key:E[i],full:mFull(E[i]),open:i===0?d.open:d.close[i-1],in:d.in[i],out:d.out[i],fx:d.fx[i],close:d.close[i]});
-  // Hybrid: the latest actual month is held back as the first forecast column (it isn't over yet), so it shows
-  // the full expected collection for the month, not just cash received so far.
-  if(hold)cfForecastChain(d).forEach(c=>cols.push({kind:'F',key:c.m,full:c.m,open:c.open,in:c.in,out:c.out,fx:0,close:c.close}));
+  // Hybrid: every finished month shows its actuals; a month still in progress is the first forecast column
+  // (see cfHeldFlows), then the forecast months.
+  if(hyb)cfForecastChain(d).forEach(c=>cols.push({kind:'F',key:c.m,full:c.m,open:c.open,in:c.in,out:c.out,fx:0,close:c.close,held:c.held||null}));
   return cols;
+}
+// Drill-down groups for the in-progress month must come from the same source as its statement cell: where the
+// actuals so far won, show the actual groups for that month instead of the AR/AP ones.
+function _cfHeldGroups(fcG,actG,h,side){
+  if(!h||h[side+'Src']!=='A')return fcG;
+  const k=mKey(h.m), m=h.m, byName={};
+  const out=fcG.map(g=>{const c={...g,vals:{...g.vals},entities:{}};Object.entries(g.entities||{}).forEach(([e,v])=>c.entities[e]={vals:{...v.vals}});delete c.vals[m];Object.values(c.entities).forEach(v=>delete v.vals[m]);byName[c.group]=c;return c;});
+  actG.forEach(g=>{
+    if(!g.vals[k])return;
+    let c=byName[g.group];
+    if(!c){c={group:g.group,vals:{},entities:{BH:{vals:{}},BC:{vals:{}}}};byName[g.group]=c;out.push(c);}
+    c.vals[m]=g.vals[k];
+    Object.entries(g.entities||{}).forEach(([e,v])=>{if(v.vals&&v.vals[k]){(c.entities[e]=c.entities[e]||{vals:{}}).vals[m]=v.vals[k];}});
+  });
+  return out;
 }
 // Name of a month selection: '2026', 'Q4 2026', 'Oct 2026', 'Sep 2026–Feb 2027', 'Mar, Sep 2026', '7 months'.
 function cfSelLabel(sel){
@@ -1801,8 +1816,9 @@ function renderCFTable(d){
   _cfInGroups=buildCFGroups(true);
   _cfOutGroups=buildCFGroups(false);
   const allF=fcCols.map(c=>c.full);
-  _cfInFcstGroups=buildFcastCFGroups(true,allF);
-  _cfOutFcstGroups=buildFcastCFGroups(false,allF);
+  const heldCol=fcCols.find(c=>c.held), hf=heldCol&&heldCol.held;
+  _cfInFcstGroups=_cfHeldGroups(buildFcastCFGroups(true,allF),_cfInGroups,hf,'in');
+  _cfOutFcstGroups=_cfHeldGroups(buildFcastCFGroups(false,allF),_cfOutGroups,hf,'out');
   const dc=fcCols.find(c=>c.full==='Dec '+dashYear());if(dc)_cfDecClose=dc.close; // back-compat; getDecClosingBalance computes its own
   const sum=k=>tot.cols.reduce((s,c)=>s+(c[k]||0),0);
   const tIn=sum('in'), tOut=sum('out'), tFX=tot.cols.reduce((s,c)=>s+(c.kind==='A'?c.fx||0:0),0), tNet=tIn-tOut;
@@ -1814,7 +1830,8 @@ function renderCFTable(d){
   const lbl=(inner,extra)=>`<td class="cf-lbl"${extra||''}>${inner}</td>`;
   const totTd=(cls,inner)=>`<td class="cf-tot${cls?' '+cls:''}" title="${esc(tot.tip)}">${inner}</td>`;
   let h='<thead><tr><th class="cf-lbl">Line item</th>';
-  vis.forEach(c=>h+=c.kind==='A'?`<th><span class="ba">A</span> ${mLabel(c.key)}</th>`:`<th style="opacity:.75"><span class="bf">F</span>${mLabel(c.full)}</th>`);
+  const heldTip=c=>{const x=c.held;return `${mFull(c.full)} is still in progress: inflow and outflow each show the larger of the actuals so far and the forecast (inflow ${x.inSrc==='A'?'actual':'forecast'}, outflow ${x.outSrc==='A'?'actual':'forecast'}).`;};
+  vis.forEach(c=>h+=c.kind==='A'?`<th><span class="ba">A</span> ${mLabel(c.key)}</th>`:`<th style="opacity:.75"${c.held?` title="${esc(heldTip(c))}"`:''}><span class="bf">F</span>${mLabel(c.full)}${c.held?'*':''}</th>`);
   h+=`<th class="cf-tot" title="${esc(tot.tip)}">${tot.label}</th></tr></thead><tbody>`;
   // Opening
   h+='<tr>'+lbl('Opening balance',' style="padding-left:10px;color:var(--text2)"');
@@ -2786,14 +2803,27 @@ function getFounderPayments(yr){
 
 // The forecast closing-balance chain exactly as "Actuals + Forecast" shows it: starts from the close of the
 // last completed actual month; the latest actual month is held back and forecast in full, then FCST_MONTHS.
+// The latest actual month while the calendar month is still running (its actuals are partial), else null.
+// A finished month is always shown from its actuals.
+function cfHeldMonth(){
+  const n=E.length;if(n<2)return null;
+  const now=new Date();
+  return mOrd(E[n-1])>=now.getFullYear()*12+now.getMonth()?E[n-1]:null;
+}
+// For the in-progress month, each side is the larger of the actual cash so far and the AR/AP forecast, so
+// cash that has already moved is never dropped (e.g. payments made that aren't in the AP schedule).
+function cfHeldFlows(d,held){
+  const ai=E.indexOf(held), m=mFull(held), fIn=getFcastInflow(m), fOut=getFcastOutflow(m), aIn=d.in[ai]||0, aOut=d.out[ai]||0;
+  return {m,in:Math.max(fIn,aIn),out:Math.max(fOut,aOut),inSrc:aIn>fIn?'A':'F',outSrc:aOut>fOut?'A':'F',aIn,aOut,fIn,fOut};
+}
 function cfForecastChain(d){
   d=d||getD();
-  const n=E.length, hold=n>1, nAct=hold?n-1:n;
+  const n=E.length, held=cfHeldMonth(), nAct=held?n-1:n;
   let run=nAct?d.close[nAct-1]:d.open;
-  return (hold?[mFull(E[n-1]),...FCST_MONTHS]:FCST_MONTHS.slice()).map(m=>{
-    const open=run,fin=getFcastInflow(m),fout=getFcastOutflow(m);run=open+fin-fout;
-    return {m,open,in:fin,out:fout,close:run};
-  });
+  const out=[];
+  if(held){const h=cfHeldFlows(d,held);out.push({m:h.m,open:run,in:h.in,out:h.out,close:run+h.in-h.out,held:h});run+=h.in-h.out;}
+  FCST_MONTHS.forEach(m=>{const open=run,fin=getFcastInflow(m),fout=getFcastOutflow(m);run=open+fin-fout;out.push({m,open,in:fin,out:fout,close:run});});
+  return out;
 }
 function getDecClosingBalance(yr){
   // Closing cash at December of the reporting year: the actual close once that December is imported,
