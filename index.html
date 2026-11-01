@@ -2405,6 +2405,12 @@ function _consoBSRows(){
 // BH_BANKS/BC_BANKS series (which reconcile with the CF closing balance), then ADD any bank
 // account that only exists in the imported BS bank subsection (new accounts like Fixed Deposit
 // or FX Clearing). Net effect: every account shows, and the total still ties to cash flow.
+// The accounts the bank breakdown shows for the current entity: every account in the imported Balance Sheets
+// (template accounts plus Balance-Sheet-only ones), each {name, entity, v: balances aligned with E}.
+function bankBreakdownRows(){
+  const showBH=ent!=='bc', showBC=ent!=='bh', imp=_bankRowsFromImport();
+  return imp.filter(r=>(r.entity==='BH'&&showBH)||(r.entity==='BC'&&showBC));
+}
 function _bankRowsFromImport(){
   const out=[];
   [['BH',BH_BANKS,(window._importedFin||{})['bh_bs']],['BC',BC_BANKS,(window._importedFin||{})['bc_bs']]].forEach(([ent,BANKS,p])=>{
@@ -4122,8 +4128,11 @@ function exportBankBreakdown(){
     const idx=cfBankIdx()||[];const mHdrs=idx.map(i=>mFull(E[i])); // same months as the on-screen breakdown
     const fmt=v=>typeof v==='number'?Math.round(v*100)/100:v;
     const bnkRows=[['Bank Account','Entity',...mHdrs]];
-    Object.entries(BH_BANKS).forEach(([k,v])=>bnkRows.push([k,'BH',...idx.map(i=>fmt(v[i]||0))]));
-    Object.entries(BC_BANKS).forEach(([k,v])=>bnkRows.push([k,'BC',...idx.map(i=>fmt(v[i]||0))]));
+    // Same accounts as the on-screen breakdown — including ones that exist only in the Xero Balance Sheet
+    // (e.g. Fixed Deposit - WIO, WIO - US Dollar, Stripe - USD), which the template BH_BANKS/BC_BANKS lack.
+    const accts=bankBreakdownRows(), tot=idx.map(()=>0);
+    accts.forEach(r=>{bnkRows.push([r.name,r.entity,...idx.map((i,j)=>{tot[j]+=r.v[i]||0;return fmt(r.v[i]||0);})]);});
+    bnkRows.push(['Total',ent==='conso'?'BH+BC':ent.toUpperCase(),...tot.map(fmt)]);
     XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(bnkRows),'Bank Balances');
     XLSX.writeFile(wb,`Bank_Breakdown_${new Date().toISOString().slice(0,10)}.xlsx`);
   });
