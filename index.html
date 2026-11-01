@@ -1778,10 +1778,10 @@ const cfDrillSort={};
 // (click cycles 👤 untagged → FT → PT → untagged) and stored in the shared contact map (key
 // "__people__||<group>") so they sync to everyone like mappings do. A tag saved before the FT/PT split
 // (people:true, no kind) counts as full-time. Untagged groups fall back to a guess: writer/freelance-type
-// names are part-time; salary/payroll-type names and vendors forecast as paid via Skuad are full-time.
+// names are part-time; salary/founder-type names and vendors forecast as paid via Skuad are full-time.
 const PEOPLE_KEY=g=>'__people__||'+g;
 const PEOPLE_PT_RX=/writers?\b|freelance|part[- ]?time|intern/i;
-const PEOPLE_FT_RX=/salary|payroll|founder|team cost|contractor|employee|skuad/i;
+const PEOPLE_FT_RX=/salary|founder|team cost|contractor|employee/i; // not 'skuad'/'payroll': those name the payroll vendor, not a person
 function peopleKind(g){
   const t=CT_MAP[PEOPLE_KEY(g)];
   if(t&&typeof t.people==='boolean')return t.people?(t.kind==='pt'?'pt':'ft'):null;
@@ -2667,8 +2667,15 @@ function renderDash(){
   const fcstRevMonths=FCST_MONTHS.slice(0,FCST_MONTHS.findIndex(m=>m.startsWith('Dec'))+1||undefined);
   const fcstRevTotal=fcstRevMonths.reduce((s,m)=>s+getFcastInflow(m),0);
   const fullYearRev=pl.ytdRev+fcstRevTotal;
+  // Revenue per full-time person: 2026 revenue (YTD + forecast to Dec, the card beside it) ÷ the display groups
+  // tagged full-time (FT) in Cash flow → outflow by group, counting any that appear in actual or forecast outflows.
+  const ftPeople=[...new Set([...buildCFGroups(false),...buildFcastCFGroups(false,FCST_MONTHS)].map(g=>g.group))]
+    .filter(g=>peopleKind(g)==='ft').sort();
+  const revPerFT=ftPeople.length?fullYearRev/ftPeople.length:0;
+  const ftTip=ftPeople.length?esc('Full-time: '+ftPeople.join(', ')):'Tag full-time people in Cash flow → outflow by group';
   document.getElementById('dash-pl').innerHTML=`
     <div class="mc"><div class="mc-label">2026 revenue${cBtn('dash|pl|2026-revenue','Dashboard · 2026 revenue')}</div><div class="mc-value neu">${$f(fullYearRev)}</div><div class="mc-sub">YTD + forecast to Dec</div></div>
+    <div class="mc" title="${ftTip}"><div class="mc-label">Revenue per full-time person${cBtn('dash|pl|rev-per-ft','Dashboard · Revenue per full-time person')}</div><div class="mc-value neu">${ftPeople.length?$f(revPerFT):'—'}</div><div class="mc-sub">2026 revenue ÷ ${ftPeople.length} full-time ${ftPeople.length===1?'person':'people'}</div></div>
     <div class="mc"><div class="mc-label">YTD revenue${cBtn('dash|pl|ytd-revenue','Dashboard · YTD revenue')}</div><div class="mc-value neu">${$f(pl.ytdRev)}</div><div class="mc-sub">${ytdLbl}</div></div>
     <div class="mc"><div class="mc-label">YTD gross profit${cBtn('dash|pl|ytd-gp','Dashboard · YTD gross profit')}</div><div class="mc-value pos">${$f(pl.ytdGP)}</div><div class="mc-sub">${ytdLbl}</div></div>
     <div class="mc"><div class="mc-label">Gross profit %${cBtn('dash|pl|gp-pct','Dashboard · Gross profit %')}</div><div class="mc-value pos">${pct(pl.gpPct)}</div><div class="mc-sub">GP / Revenue</div></div>
