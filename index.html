@@ -1557,8 +1557,8 @@ const toDateInput=(v)=>{
   // ISO: 2026-04-28 or 2026-04-28T...
   const iso=s.match(/^(\d{4}-\d{2}-\d{2})/);
   if(iso)return iso[1];
-  // Human: "28 Apr 2026" or "28 April 2026"
-  const hr=s.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/);
+  // Human: "28 Apr 2026", "28 April 2026", or this app's export format "28-Apr-2026"
+  const hr=s.match(/^(\d{1,2})[\s\-]+([A-Za-z]+)[\s\-]+(\d{4})/);
   if(hr){
     const MOS=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
     const mi=MOS.indexOf(hr[2].toLowerCase().slice(0,3));
@@ -1781,7 +1781,8 @@ function renderCFTable(d){
   }else{
     const ly=actCols.length?mYear(actCols[actCols.length-1].key):null, yc=actCols.filter(c=>mYear(c.key)===ly);
     const multi=actCols.some(c=>mYear(c.key)!==ly);
-    tot={label:multi?`YTD ${ly}`:'YTD',tip:`Actuals to date${ly?' for '+ly:''}`,cols:yc,
+    const past=ly!==null&&ly<dashYear(); // hybrid in January: the held-back month is the new year, 2026 is complete
+    tot={label:past?`FY ${ly}`:multi?`YTD ${ly}`:'YTD',tip:past?`Actuals for ${ly}`:`Actuals to date${ly?' for '+ly:''}`,cols:yc,
       open:yc.length?yc[0].open:d.open,close:yc.length?yc[yc.length-1].close:d.open};
   }
   _cfActMonths=vis.filter(c=>c.kind==='A').map(c=>c.key);
@@ -2971,7 +2972,7 @@ function processImport(file,entity){
         importState[entity+'-'+ftype]=parsed;
         renderImportPreview(entity,parsed,ftype);
         if(stEl()){
-          const ml=parsed.months.join(', ')||'none';
+          const ml=parsed.months.map(mLabel).join(', ')||'none';
           stEl().innerHTML=parsed.months.length?`<span style="color:var(--green)">✓ ${ml}</span>`:`<span style="color:var(--amber)">⚠ No data found — check file is a Xero export</span>`;
         }
       }catch(err){
@@ -3002,16 +3003,18 @@ function parseXeroAccountTx(rows,entity){
     const s=String(v).trim();
     // Excel serial date (e.g. 46032 = a date in 2026)
     const num=parseFloat(s);
+    // All branches build LOCAL dates, so the caller's local getMonth()/getFullYear() read the calendar date in
+    // any timezone (UTC-parsed dates read locally shift 1 Jan to 31 Dec west of UTC).
     if(!isNaN(num)&&s===String(Math.round(num))&&num>40000&&num<60000){
-      const d=new Date(Math.round((num-25569)*86400000));
-      if(!isNaN(d))return d;
+      const u=new Date(Math.round((num-25569)*86400000));
+      if(!isNaN(u))return new Date(u.getUTCFullYear(),u.getUTCMonth(),u.getUTCDate());
     }
     const m1=s.match(/^(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})$/);
     if(m1){const d=new Date(`${m1[2]} ${m1[1]}, ${m1[3]}`);if(!isNaN(d))return d;}
     const m2=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if(m2){const d=new Date(`${m2[3]}-${m2[2].padStart(2,'0')}-${m2[1].padStart(2,'0')}`);if(!isNaN(d))return d;}
-    const m3=s.match(/^\d{4}-\d{2}-\d{2}/);
-    if(m3){const d=new Date(s);if(!isNaN(d))return d;}
+    if(m2){const d=new Date(+m2[3],+m2[2]-1,+m2[1]);if(!isNaN(d))return d;}
+    const m3=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if(m3){const d=new Date(+m3[1],+m3[2]-1,+m3[3]);if(!isNaN(d))return d;}
     const m4=s.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/);
     if(m4){const d=new Date(`${m4[2]} ${m4[1]}, ${m4[3]}`);if(!isNaN(d))return d;}
     return null;
@@ -3022,7 +3025,7 @@ function parseXeroAccountTx(rows,entity){
   function finalizeSection(acct,openBal){
     if(!acct||!sectionMonthlyNet[acct])return;
     let running=openBal;
-    const sorted=Object.keys(sectionMonthlyNet[acct]).sort((a,b)=>MO.indexOf(a)-MO.indexOf(b));
+    const sorted=Object.keys(sectionMonthlyNet[acct]).sort((a,b)=>mOrd(a)-mOrd(b));
     if(!result.bankClose[acct])result.bankClose[acct]={};
     sorted.forEach(m=>{running+=sectionMonthlyNet[acct][m];result.bankClose[acct][m]=running;});
   }
@@ -3080,7 +3083,7 @@ function parseXeroAccountTx(rows,entity){
       const cv=parseFl(row[cDebit])||parseFl(row[cCredit]);
       if(cv){
         // Override computed closing for the last month with Xero's reported total
-        const lastMo=Object.keys(sectionMonthlyNet[curAcct]||{}).sort((a,b)=>MO.indexOf(a)-MO.indexOf(b)).pop();
+        const lastMo=Object.keys(sectionMonthlyNet[curAcct]||{}).sort((a,b)=>mOrd(a)-mOrd(b)).pop();
         if(lastMo){
           // Recompute all months first, then override last
           finalizeSection(curAcct,curOpenBal);
@@ -3112,7 +3115,10 @@ function parseXeroAccountTx(rows,entity){
     const dt=parseDt(dateVal);if(!dt)continue;
     // Skip non-cash entries: internal bank transfers and manual journal adjustments
     if(cSource>=0&&/^(bank transfer|manual journal)$/i.test(rs[cSource]))continue;
-    const month=MO[dt.getMonth()];
+    // Rows dated before the base year (an export that starts in 2025) are outside the portal's range: their bank
+    // movement belongs in the opening balance, not in a 2026 month.
+    if(dt.getFullYear()<BASE_YEAR){if(isBank&&cDebit>=0)curOpenBal+=parseFl(row[cDebit])-parseFl(row[cCredit]);continue;}
+    const month=mKey(`${MO[dt.getMonth()]} ${dt.getFullYear()}`); // 'Jan' for 2026 (keys unchanged), 'Jan 2027' otherwise
     result.months.add(month);
 
     if(isBank){
@@ -3231,7 +3237,7 @@ function parseXeroAccountTx(rows,entity){
     });
   });
 
-  result.months=Array.from(result.months).sort((a,b)=>MO.indexOf(a)-MO.indexOf(b));
+  result.months=Array.from(result.months).sort((a,b)=>mOrd(a)-mOrd(b));
   return result;
 }
 
@@ -3252,7 +3258,9 @@ function _parseFinancialReport(rows,entity,ftype){
     return isNaN(n)?0:(neg?-n:n);
   }
 
-  // Return 3-letter month abbr if cell looks like a date, else null.
+  // Return the month KEY ('Jan' for 2026, 'Jan 2027' otherwise — see mKey) if the cell looks like a date,
+  // else null. The year comes from the same cell ('31 Jan 2027', 'Jan 2027', 'Jan 5, 2027', 'Jan-27', ISO,
+  // d/m/yyyy); a cell with no year counts as the base year.
   // IMPORTANT: only match EXACT 3-letter abbreviations (Jan/Feb/Mar…) or full
   // month names (January/February/March…).  Never take a prefix of a longer
   // word — that would misfire on "Marketing"→Mar, "Depreciation"→Dec, etc.
@@ -3261,16 +3269,20 @@ function _parseFinancialReport(rows,entity,ftype){
     if(!s)return null;
     const mFull=['January','February','March','April','May','June','July',
                  'August','September','October','November','December'];
+    const key=(mi,y)=>mKey(`${MO3X[mi]} ${y||BASE_YEAR}`);
     const words=s.match(/[A-Za-z]+/g)||[];
     for(const w of words){
       const wl=w.toLowerCase();
       const idx=MO3X.findIndex((m,i)=>m.toLowerCase()===wl||mFull[i].toLowerCase()===wl);
-      if(idx>=0)return MO3X[idx];
+      if(idx>=0){
+        const y4=s.match(/\b(?:19|20)\d{2}\b/), y2=s.match(/^[A-Za-z]{3,9}\.?[\-'’]\s?(\d{2})$/);
+        return key(idx,y4?+y4[0]:y2?2000+(+y2[1]):null);
+      }
     }
     const sl=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
-    if(sl){const a=parseInt(sl[1]),b=parseInt(sl[2]),c=parseInt(sl[3]);if(c>31){const mm=a>12?b:b>12?a:b;if(mm>=1&&mm<=12)return MO3X[mm-1];}else if(a>31){if(b>=1&&b<=12)return MO3X[b-1];}}
+    if(sl){const a=parseInt(sl[1]),b=parseInt(sl[2]),c=parseInt(sl[3]);if(c>31){const mm=a>12?b:b>12?a:b;if(mm>=1&&mm<=12)return key(mm-1,c<100?2000+c:c);}else if(a>31){if(b>=1&&b<=12)return key(b-1,2000+a);}}
     const iso=s.match(/^(\d{4})-(\d{2})-\d{2}/);
-    if(iso){const mm=parseInt(iso[2]);if(mm>=1&&mm<=12)return MO3X[mm-1];}
+    if(iso){const mm=parseInt(iso[2]);if(mm>=1&&mm<=12)return key(mm-1,+iso[1]);}
     return null;
   }
 
@@ -3302,7 +3314,11 @@ function _parseFinancialReport(rows,entity,ftype){
   if(bestRow){
     headerRow=parseInt(bestRow[0]);
     const seenM=new Set();
-    colMonths=bestRow[1].filter(d=>!seenM.has(d.month)&&seenM.add(d.month)).map(d=>({ci:d.c,month:d.month}));
+    // One column per month (year included); columns before the base year (e.g. Xero's year-on-year
+    // comparative '31 Oct 2025') are outside the portal's range and dropped.
+    colMonths=bestRow[1].filter(d=>!seenM.has(d.month)&&seenM.add(d.month)).map(d=>({ci:d.c,month:d.month}))
+      .filter(c=>mOrd(c.month)>=BASE_YEAR*12);
+    if(!colMonths.length)return result; // only pre-base-year columns
   }
 
   if(!colMonths.length){
@@ -3315,9 +3331,11 @@ function _parseFinancialReport(rows,entity,ftype){
       if(!lbl||monthOf(lbl))continue;
       for(let ci=1;ci<Math.max(row.length,6);ci++){if(pf(row[ci])!==0){dataCi=ci;break outer2;}}
     }
+    if(mOrd(td.month)<BASE_YEAR*12)return result;
     colMonths=[{ci:dataCi,month:td.month}];
   }
   colMonths.forEach(({month})=>{if(!result.months.includes(month))result.months.push(month);});
+  result.months.sort((a,b)=>mOrd(a)-mOrd(b)); // Xero lists columns newest-first
 
   // ── Step 3: Parse ALL rows (headers, totals, accounts) ──
   let _curSection='';
@@ -3424,7 +3442,7 @@ function renderImportPreview(entity,parsed,ftype){
         <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:8px">
           <thead><tr>
             <th style="text-align:left;padding:3px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">Xero label → pick dashboard label → ✓ Map</th>
-            ${months.map(m=>`<th style="text-align:right;padding:3px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">${m}</th>`).join('')}
+            ${months.map(m=>`<th style="text-align:right;padding:3px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">${mLabel(m)}</th>`).join('')}
           </tr></thead><tbody>${rows}</tbody>
         </table>
         <div style="font-size:12px;color:var(--text3);margin-top:8px">Select the matching dashboard label and click ✓ Map — saved permanently and applied instantly.</div>
@@ -3436,12 +3454,12 @@ function renderImportPreview(entity,parsed,ftype){
 
   const ftLabel={gl:'Account Transactions',bs:'Balance Sheet',pl:'Profit & Loss'}[ftype]||ftype.toUpperCase();
   el.innerHTML=`<div style="margin-top:12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px">
-    <div style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">${ftLabel} Preview — ${months.join(', ')}</div>
+    <div style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">${ftLabel} Preview — ${months.map(mLabel).join(', ')}</div>
     <table style="width:100%;border-collapse:collapse;font-size:14.5px">
       <thead><tr>
         <th style="text-align:left;padding:4px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)"></th>
-        ${months.map(m=>`<th style="text-align:right;padding:4px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">${m}</th>`).join('')}
-        <th style="text-align:right;padding:4px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">${ftype==='bs'?'':'YTD'}</th>
+        ${months.map(m=>`<th style="text-align:right;padding:4px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">${mLabel(m)}</th>`).join('')}
+        <th style="text-align:right;padding:4px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">${ftype==='bs'?'':new Set(months.map(mYear)).size>1?'Total':'YTD'}</th>
       </tr></thead><tbody>${rowsHtml}</tbody></table>
     ${matchHtml}
     <div style="text-align:right;margin-top:12px">
@@ -3506,6 +3524,34 @@ function recalcPLTotals(arr){
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Merge a newly imported Balance Sheet / P&L into the stored one, by month: months in the new file overwrite,
+// months only in the stored report are kept. Xero exports at most 12 columns, so from 2027 every export drops
+// its oldest months — replacing the report would lose them after a reload. Rows are matched by section +
+// label (+ occurrence); rows only in the stored report keep their place.
+function _mergeFinReport(prev,next){
+  if(!prev||!prev.rows||!(prev.months||[]).length||!next||!next.rows)return next;
+  const newM=new Set(next.months||[]), keepM=prev.months.filter(m=>!newM.has(m));
+  if(!keepM.length)return next;
+  const keyer=()=>{const seen={};return r=>{const b=`${r.type==='h'?'h':r.type==='t'||r.type==='gt'?'t':'x'}|${r.section||''}|${normKey(r.label)}`;seen[b]=(seen[b]||0)+1;return b+'#'+seen[b];};};
+  const kPrev=keyer(), prevByKey=new Map(prev.rows.map(r=>[kPrev(r),r]));
+  const copyKept=(dst,src)=>keepM.forEach(m=>{if(src.vals&&src.vals[m]!==undefined)dst.vals[m]=src.vals[m];});
+  const kNext=keyer(), used=new Set(), rows=[];
+  next.rows.forEach(r=>{
+    const k=kNext(r), o=prevByKey.get(k), nr={...r,vals:{...(r.vals||{})}};
+    if(o){used.add(k);copyKept(nr,o);if(nr.type==='sh'&&Object.values(nr.vals).some(v=>v))nr.type='i';}
+    rows.push({k,r:nr});
+  });
+  const kPrev2=keyer();let at=-1;
+  prev.rows.forEach(r=>{
+    const k=kPrev2(r);
+    if(used.has(k)){at=rows.findIndex(x=>x.k===k);return;}
+    const nr={...r,vals:{}};copyKept(nr,r);rows.splice(++at,0,{k,r:nr});
+  });
+  const out={...next,rows:rows.map(x=>x.r),months:[...new Set([...prev.months,...next.months])].sort((a,b)=>mOrd(a)-mOrd(b))};
+  if(next.ftype==='bs'||out.ftype==='bs')_fillBSTotals(out.rows);
+  return out;
+}
+
 function applyImport(entity,ftype){
   ftype=ftype||(importState[entity+'-gl']?'gl':importState[entity+'-bs']?'bs':'pl');
   const parsed=importState[entity+'-'+ftype];
@@ -3514,7 +3560,7 @@ function applyImport(entity,ftype){
   // Extend E + all parallel arrays for any new months
   parsed.months.forEach(m=>{
     if(E.includes(m))return;
-    let insertAt=E.findIndex(em=>MO.indexOf(em)>MO.indexOf(m));
+    let insertAt=E.findIndex(em=>mOrd(em)>mOrd(m)); // chronological across years
     if(insertAt<0)insertAt=E.length;
     E.splice(insertAt,0,m);
     [BH_IN,BH_OUT,BC_IN,BC_OUT,BH_FX,BC_FX,BH_CLOSE,BC_CLOSE].forEach(a=>a.splice(insertAt,0,0));
@@ -3581,7 +3627,7 @@ function applyImport(entity,ftype){
   if(ftype==='bs'||ftype==='pl'){
     // 1. Store for direct Financials tab rendering
     if(!window._importedFin)window._importedFin={};
-    window._importedFin[entity+'_'+ftype]=parsed;
+    window._importedFin[entity+'_'+ftype]=_mergeFinReport(window._importedFin[entity+'_'+ftype],parsed);
 
     // 2. Also update the hardcoded KPI arrays so Dashboard / P&L metrics stay live.
     //    Use flexible label matching — imported label just needs to contain or be contained by
@@ -3693,7 +3739,7 @@ function applyImport(entity,ftype){
 
   const prev=document.getElementById('import-preview-'+entity);
   const ftLabel={gl:'Account Transactions',bs:'Balance Sheet',pl:'P&L'}[ftype]||ftype;
-  if(prev)prev.innerHTML=`<div class="es" style="border-color:var(--accent-border);background:var(--accent-light);margin-top:10px"><span style="color:var(--green)">✓</span> &nbsp;${ftLabel}: ${parsed.months.length} month(s) applied — ${parsed.months.join(', ')}</div>`;
+  if(prev)prev.innerHTML=`<div class="es" style="border-color:var(--accent-border);background:var(--accent-light);margin-top:10px"><span style="color:var(--green)">✓</span> &nbsp;${ftLabel}: ${parsed.months.length} month(s) applied — ${parsed.months.map(mLabel).join(', ')}</div>`;
 
   renderCF();renderDash();renderFin();
   // Snapshot before deleting, so saveActuals can persist it
@@ -3704,14 +3750,16 @@ function applyImport(entity,ftype){
     // Merge by month: months present in the new file overwrite, previously-loaded months stay.
     // So a full YTD import refreshes everything, and a partial (e.g. single-month) import can
     // never wipe the other months that were already loaded.
-    const _MOx=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     const merged=JSON.parse(JSON.stringify(_prevSnap));
-    merged.months=[...new Set([...(_prevSnap.months||[]),...(parsed.months||[])])].sort((a,b)=>_MOx.indexOf(a)-_MOx.indexOf(b));
+    merged.months=[...new Set([...(_prevSnap.months||[]),...(parsed.months||[])])].sort((a,b)=>mOrd(a)-mOrd(b));
     ['inflow','outflow'].forEach(k=>{merged[k]=merged[k]||{};(parsed.months||[]).forEach(m=>{merged[k][m]=(parsed[k]||{})[m]||[];});});
     merged.bankClose=merged.bankClose||{};
     Object.entries(parsed.bankClose||{}).forEach(([acct,mMap])=>{merged.bankClose[acct]={...(merged.bankClose[acct]||{}),...mMap};});
     merged.nettedFees={...(_prevSnap.nettedFees||{}),...(parsed.nettedFees||{})};
     window._actualsSnap[_snapKey]=merged;
+  }else if((ftype==='bs'||ftype==='pl')&&window._importedFin&&window._importedFin[entity+'_'+ftype]){
+    // Persist the month-merged report, so a reload replays every month ever imported, not just the last file's.
+    window._actualsSnap[_snapKey]=JSON.parse(JSON.stringify(window._importedFin[entity+'_'+ftype]));
   }else{
     window._actualsSnap[_snapKey]=JSON.parse(JSON.stringify(parsed));
   }
@@ -4400,14 +4448,17 @@ function saveInlineMapping(entity,ftype,xeroLabel,tmplLabel){
 function normalizeToISO(v){
   // Returns YYYY-MM-DD string or original value if not parseable
   if(!v||v==='—')return v;
+  // Date cell from an xlsx import (SheetJS gives local-midnight Dates): read it locally, never via toISOString,
+  // which would shift it to the previous day east of UTC (1 Jan 2027 → 2026-12-31 in Dubai).
+  if(v instanceof Date)return isNaN(v)?'':`${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')}`;
   const s=String(v).trim(); // trim first: forecast dates arrive as " 7 September 2026" (leading space)
   if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.slice(0,10); // already ISO
   // Day-first slash/dot/dash: DD/MM/YY or DD/MM/YYYY (UAE convention, e.g. 15/09/26 -> 2026-09-15)
   const dmy=s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/);
   if(dmy){let d=+dmy[1],mo=+dmy[2],y=dmy[3];if(y.length===2)y='20'+y;
     if(d>=1&&d<=31&&mo>=1&&mo<=12)return`${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;}
-  // Human: "28 Apr 2026" or "28 April 2026"
-  const hr=s.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/);
+  // Human: "28 Apr 2026", "28 April 2026", or this app's export format "28-Apr-2026"
+  const hr=s.match(/^(\d{1,2})[\s\-]+([A-Za-z]+)[\s\-]+(\d{4})/);
   if(hr){
     const MOS=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
     const mi=MOS.indexOf(hr[2].toLowerCase().slice(0,3));
@@ -4456,16 +4507,18 @@ function recalcARRow(r){
     if(r.dueDate)r.dueDate=normalizeToISO(r.dueDate);
     if(r.paymentDate)r.paymentDate=normalizeToISO(r.paymentDate);
     // invoiceMonth: derive from invoiceDate with year
+    // (read the ISO parts directly: new Date('2027-01-01') is UTC and reads as Dec 2026 west of UTC)
+    const isoYM=v=>/^(\d{4})-(\d{2})/.exec(String(v||''));
     if(r.invoiceDate){
-      const d=new Date(r.invoiceDate);
-      if(!isNaN(d))r.invoiceMonth=`${_MO_NAMES[d.getMonth()]} ${d.getFullYear()}`;
+      const d=isoYM(r.invoiceDate);
+      if(d)r.invoiceMonth=`${_MO_NAMES[+d[2]-1]} ${d[1]}`;
     }
     // cashMonth: upgrade legacy "Jun" → "Jun 2026" using payment/invoice date year
     if(r.cashMonth){
       const cm=r.cashMonth;
-      if(!/\d{4}/.test(String(cm))){
-        const refDate=r.paymentDate||r.invoiceDate;
-        const yr=refDate&&!isNaN(new Date(refDate))?new Date(refDate).getFullYear():FCST_YEAR;
+      if(!(cm instanceof Date)&&!/\d{4}/.test(String(cm))&&!/[\-'’]\s?\d{2}$/.test(String(cm))){
+        const ref=isoYM(r.paymentDate)||isoYM(r.invoiceDate);
+        const yr=ref?ref[1]:FCST_YEAR;
         r.cashMonth=normalizeCashMonth(cm,yr);
       } else {
         r.cashMonth=normalizeCashMonth(cm);
@@ -4571,6 +4624,7 @@ function deleteSelectedAP(){
 
 function normalizeCashMonth(val,fallbackYear){
   if(!val)return'';
+  if(val instanceof Date)return isNaN(val)?'':`${ALL_MONTHS[val.getMonth()]} ${val.getFullYear()}`; // xlsx date cell
   const raw=String(val).trim();
   const lv=raw.toLowerCase();
   const abbrMap={jan:'Jan',feb:'Feb',mar:'Mar',apr:'Apr',may:'May',jun:'Jun',
@@ -4584,6 +4638,12 @@ function normalizeCashMonth(val,fallbackYear){
     if(m)return`${m} ${withYr[2]}`;
     for(const[k,mv] of Object.entries(fullMap)){if(withYr[1].toLowerCase()===k)return`${mv} ${withYr[2]}`;}
   }
+  // "Jan-27", "Jan '27", "January-2027", "2027-01", "01/2027"
+  const yy=/^([a-z]+)\.?\s*[\-'’\/]\s*(\d{2}|\d{4})$/i.exec(raw);
+  if(yy){const m=abbrMap[yy[1].toLowerCase().slice(0,3)];if(m&&(fullMap[yy[1].toLowerCase()]||yy[1].length===3))return`${m} ${yy[2].length===2?'20'+yy[2]:yy[2]}`;}
+  let ym=/^(\d{4})[\-\/](\d{1,2})$/.exec(raw);
+  if(!ym){const r2=/^(\d{1,2})[\-\/](\d{4})$/.exec(raw);if(r2)ym=[r2[0],r2[2],r2[1]];}
+  if(ym&&+ym[2]>=1&&+ym[2]<=12)return`${ALL_MONTHS[+ym[2]-1]} ${ym[1]}`;
   // Legacy: "Jun" or "June" — append fallback year
   const fy=fallbackYear||FCST_YEAR;
   for(const[k,mv] of Object.entries(fullMap)){if(lv.startsWith(k)){const a=abbrMap[lv.slice(0,3)];return`${a||mv} ${fy}`;}}
@@ -5361,7 +5421,7 @@ function importARFile(file){
           if(!r.client&&!r.invoiceNo)return; // skip blank rows
           // normalize entity and cashMonth
           r.entity=normalizeEntity(r.entity);
-          if(r.cashMonth)r.cashMonth=normalizeCashMonth(r.cashMonth);
+          // cashMonth is normalized by recalcARRow below, which takes a missing year from the row's dates
           // numeric coercion
           ['amount','fx','usdValue','fee','interbank','ibPct','cash'].forEach(k=>{
             if(r[k]!==undefined)r[k]=parseFloat(String(r[k]).replace(/[^0-9.\-]/g,''))||0;
@@ -5413,16 +5473,17 @@ function recalcAPRow(r){
     const d=new Date(Math.round((r.paymentDate-25569)*86400000));
     r.paymentDate=d.toISOString().slice(0,10);
   } else if(r.paymentDate instanceof Date){
-    r.paymentDate=r.paymentDate.toISOString().slice(0,10);
+    r.paymentDate=normalizeToISO(r.paymentDate); // local date (toISOString would shift it a day back in Dubai)
   }
+  // Year of the payment date, for month values typed without one ('Jan' paid in Jan 2027 is Jan 2027)
+  const pIso=/^(\d{4})-(\d{2})/.exec(String(normalizeToISO(r.paymentDate)||''));
   // workMonth normalization
-  if(r.workMonth)r.workMonth=normalizeCashMonth(r.workMonth);
+  if(r.workMonth)r.workMonth=normalizeCashMonth(r.workMonth,pIso&&pIso[1]);
   // cashMonth: auto-fill from paymentDate if missing or upgrade legacy
-  if(!r.cashMonth&&r.paymentDate){
-    const d=new Date(r.paymentDate);
-    if(!isNaN(d))r.cashMonth=`${ALL_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  if(!r.cashMonth&&pIso){
+    r.cashMonth=`${ALL_MONTHS[+pIso[2]-1]} ${pIso[1]}`;
   } else if(r.cashMonth){
-    r.cashMonth=normalizeCashMonth(r.cashMonth);
+    r.cashMonth=normalizeCashMonth(r.cashMonth,pIso&&pIso[1]);
   }
 }
 
