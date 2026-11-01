@@ -120,6 +120,9 @@ table.drt tr.cfs-sec td{font-size:11.5px;font-weight:700;text-transform:uppercas
 .cfs-pp{display:inline-block;width:18px;margin-right:4px;border:none;background:none;padding:0;cursor:pointer;font-size:12px;opacity:.18;filter:grayscale(1);transition:opacity .15s}
 .cfs-pp:hover,.cfs-pp:focus-visible{opacity:.6;outline:none}
 .cfs-pp.on{opacity:1;filter:none}
+.cfs-pp.ft,.cfs-pp.pt{width:auto;min-width:22px;font-size:9.5px;font-weight:700;letter-spacing:.04em;padding:1px 4px;border-radius:4px;opacity:1;filter:none;vertical-align:1px}
+.cfs-pp.ft{color:var(--accent);background:var(--accent-light);border:1px solid var(--accent)}
+.cfs-pp.pt{color:var(--amber);background:rgba(251,191,36,0.10);border:1px solid var(--amber)}
 /* data table */
 table.dt{width:100%;border-collapse:collapse;font-size:15.5px}
 table.dt th{padding:8px 10px;text-align:left;color:var(--text3);font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap;font-size:13.5px;text-transform:uppercase;letter-spacing:.06em;background:var(--surface2)}
@@ -1770,22 +1773,27 @@ const ENT_SHORT={BH:'Braveheart',BC:'Bravecore'};
 // in it go to the bottom, dimmed — never hidden, so every column still adds up to its Total); click it again
 // (or "YTD") to return to the default. Remembered per drill-down for the session.
 const cfDrillSort={};
-// People costs: outflow groups tagged as people (team, contractors, founder salary) can be listed first, in
-// their own section with a subtotal. Tags are set per display group with the 👤 button in the drill-down and
-// stored in the shared contact map (key "__people__||<group>") so they sync to everyone like mappings do.
-// Untagged groups fall back to a guess: payroll/salary-type names, or vendors forecast as paid via Skuad.
+// People costs: outflow groups tagged as full-time ('ft') or part-time ('pt') people can be listed first, in
+// their own sections with subtotals. Tags are set per display group with the tag button in the drill-down
+// (click cycles 👤 untagged → FT → PT → untagged) and stored in the shared contact map (key
+// "__people__||<group>") so they sync to everyone like mappings do. A tag saved before the FT/PT split
+// (people:true, no kind) counts as full-time. Untagged groups fall back to a guess: writer/freelance-type
+// names are part-time; salary/payroll-type names and vendors forecast as paid via Skuad are full-time.
 const PEOPLE_KEY=g=>'__people__||'+g;
-const PEOPLE_RX=/salary|payroll|founder|team cost|contractor|employee|writers?\b|skuad/i;
-function isPeopleGroup(g){
+const PEOPLE_PT_RX=/writers?\b|freelance|part[- ]?time|intern/i;
+const PEOPLE_FT_RX=/salary|payroll|founder|team cost|contractor|employee|skuad/i;
+function peopleKind(g){
   const t=CT_MAP[PEOPLE_KEY(g)];
-  if(t&&typeof t.people==='boolean')return t.people;
-  if(PEOPLE_RX.test(g))return true;
+  if(t&&typeof t.people==='boolean')return t.people?(t.kind==='pt'?'pt':'ft'):null;
+  if(PEOPLE_PT_RX.test(g))return 'pt';
+  if(PEOPLE_FT_RX.test(g))return 'ft';
   const merged=getMergedMap();
-  return AP_FCST.some(r=>/skuad/i.test(r.paymentMode||'')&&(merged[(r.vendor||'')+'||'+(r.entity||'BH').toUpperCase()]?.group||r.vendor)===g);
+  return AP_FCST.some(r=>/skuad/i.test(r.paymentMode||'')&&(merged[(r.vendor||'')+'||'+(r.entity||'BH').toUpperCase()]?.group||r.vendor)===g)?'ft':null;
 }
+const PEOPLE_RANK={ft:2,pt:1};
 function togPeopleGroup(g,drId,isIn){
-  const k=PEOPLE_KEY(g), now=!isPeopleGroup(g);
-  CT_MAP[k]={group:g,type:'people',people:now};
+  const k=PEOPLE_KEY(g), cur=peopleKind(g), next=cur===null?'ft':cur==='ft'?'pt':null;
+  CT_MAP[k]=next?{group:g,type:'people',people:true,kind:next}:{group:g,type:'people',people:false};
   markMapDirty('ct_map',k,false);
   try{localStorage.setItem('ct_map',JSON.stringify(CT_MAP));}catch(e){}
   renderCFDrill(drId,isIn);
@@ -1842,8 +1850,8 @@ function renderCFDrill(drId,isIn){
   const ranked=all.filter(mg=>hasAny(mg.actVals,mg.fcstVals,totalOf(mg)))
     .sort((a,b)=>(valOf(b,sortKey)-valOf(a,sortKey))||(totalOf(b)-totalOf(a)));
   if(peopleFirst){ // stable: keeps the chosen month/YTD order inside each section
-    ranked.forEach(mg=>mg.isPpl=isPeopleGroup(mg.group));
-    ranked.sort((a,b)=>(b.isPpl?1:0)-(a.isPpl?1:0));
+    ranked.forEach(mg=>mg.pk=peopleKind(mg.group));
+    ranked.sort((a,b)=>(PEOPLE_RANK[b.pk]||0)-(PEOPLE_RANK[a.pk]||0));
   }
   const hl=key=>key===sortKey?' cfs-col':'';
   const th=(key,inner,style)=>{
@@ -1853,7 +1861,7 @@ function renderCFDrill(drId,isIn){
       ` onclick="${call}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${call}}"${style?` style="${style}"`:''}>${inner}${on?' ▾':''}</th>`;
   };
   const label=isIn?'Cash inflow by group':'Cash outflow by group';
-  let h=`<div class="dt-hd"><span>↳ ${label}${monthPicked?` · ${pickedLbl}, highest first`:''}<span class="cfs-hint">Click a month to sort by it</span>${isIn?'':`<button class="cfs-pf${peopleFirst?' on':''}" aria-pressed="${peopleFirst}" title="List people costs (tag groups with 👤) first, with a subtotal" onclick="togCFPeopleFirst('${drId}',${isIn})">👤 People first</button>`}</span><span class="dc" onclick="clDrill('${drId}')">✕</span></div>`;
+  let h=`<div class="dt-hd"><span>↳ ${label}${monthPicked?` · ${pickedLbl}, highest first`:''}<span class="cfs-hint">Click a month to sort by it</span>${isIn?'':`<button class="cfs-pf${peopleFirst?' on':''}" aria-pressed="${peopleFirst}" title="List full-time, then part-time people first (tag groups with 👤), each with a subtotal" onclick="togCFPeopleFirst('${drId}',${isIn})">👤 People first</button>`}</span><span class="dc" onclick="clDrill('${drId}')">✕</span></div>`;
   h+=`<table class="drt"><thead><tr><th>Display group</th><th>Entity</th>`;
   _cfActMonths.forEach(m=>h+=th('A|'+m,`<span class="ba" style="font-size:9px">A</span> ${m}`));
   _cfFcstMonths.forEach(m=>h+=th('F|'+m,`<span class="bf" style="font-size:9px">F</span> ${fmtFcstMonth(m)}`,'opacity:.85'));
@@ -1872,10 +1880,12 @@ function renderCFDrill(drId,isIn){
     _cfFcstMonths.forEach(m=>sf[m]=list.reduce((s,mg)=>s+(mg.fcstVals[m]||0),0));
     return `<tr class="cfs-sec"><td>${title}</td><td></td>${cells(sa,sf,list.reduce((s,mg)=>s+totalOf(mg),0),true)}</tr>`;
   };
-  const pplList=peopleFirst?ranked.filter(mg=>mg.isPpl):[];
+  const SEC={ft:'Full-time people',pt:'Part-time people'};
   ranked.forEach((mg,gi)=>{
-    if(peopleFirst&&gi===0&&pplList.length)h+=secRow(`People (${pplList.length})`,pplList);
-    if(peopleFirst&&!mg.isPpl&&(gi===0||ranked[gi-1].isPpl))h+=secRow('Everything else',ranked.filter(x=>!x.isPpl));
+    if(peopleFirst&&(gi===0||ranked[gi-1].pk!==mg.pk)){
+      const list=ranked.filter(x=>x.pk===mg.pk);
+      h+=secRow(mg.pk?`${SEC[mg.pk]} (${list.length})`:'Everything else',list);
+    }
     const total=totalOf(mg);
     const dim=monthPicked&&!nz(valOf(mg,sortKey)); // nothing in the picked month: sorted to the bottom, dimmed
     const hasBH=_cfActMonths.some(m=>mg.actEnt.BH?.vals[m])||_cfFcstMonths.some(m=>mg.fcstEnt.BH?.vals[m]);
@@ -1889,8 +1899,9 @@ function renderCFDrill(drId,isIn){
     else entBadge=eb('BC');
     const rowId='cfent-'+drId+'-'+gi;
     h+=`<tr${dim?' class="cfs-dim"':''}${isMulti&&ent==='conso'?' style="cursor:pointer" onclick="togEntDrill(\''+rowId+'\')"':''}>`;
-    const ppl=!isIn&&isPeopleGroup(mg.group), gq=esc(JSON.stringify(mg.group));
-    const pBtn=isIn?'':`<button class="cfs-pp${ppl?' on':''}" aria-pressed="${ppl}" title="${ppl?'People cost — click to untag':'Tag as a people cost'}" onclick="event.stopPropagation();togPeopleGroup(${gq},'${drId}',${isIn})">👤</button>`;
+    const pk=isIn?null:peopleKind(mg.group), gq=esc(JSON.stringify(mg.group));
+    const pTip=pk==='ft'?'Full-time — click to mark part-time':pk==='pt'?'Part-time — click to untag':'Tag as a full-time person (click again for part-time)';
+    const pBtn=isIn?'':`<button class="cfs-pp${pk?' '+pk:''}" title="${pTip}" aria-label="${pTip}" onclick="event.stopPropagation();togPeopleGroup(${gq},'${drId}',${isIn})">${pk?pk.toUpperCase():'👤'}</button>`;
     h+=`<td style="font-weight:600">${pBtn}${isMulti&&ent==='conso'?'▸ ':''}${esc(mg.group)}</td><td>${entBadge}</td>`;
     h+=cells(mg.actVals,mg.fcstVals,total,false)+`</tr>`;
     if(isMulti&&ent==='conso'){
