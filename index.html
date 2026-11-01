@@ -141,6 +141,7 @@ body.light .cfp-chip.on{background:var(--accent-dark);border-color:var(--accent-
 .cfp-bc select{font-family:var(--sans);font-size:12.5px;padding:3px 6px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text)}
 .cfp-bc b{color:var(--text)}
 .cfp-warn{color:var(--amber);font-weight:600;cursor:help}
+.row-warn{color:var(--amber);font-weight:700;cursor:help}
 .stale-banner{position:sticky;top:0;z-index:500;display:flex;align-items:center;gap:14px;justify-content:space-between;padding:10px 18px;background:var(--amber-dim);border-bottom:1px solid var(--amber);color:var(--text);font-size:14px}
 .stale-banner[hidden]{display:none}
 .stale-banner button{font-family:var(--sans);font-weight:700;font-size:13px;padding:5px 14px;border-radius:7px;border:1px solid var(--amber);background:var(--amber);color:#1a1205;cursor:pointer;white-space:nowrap}
@@ -1756,7 +1757,9 @@ function buildFcastCFGroups(isIn,months){
 // every month, so a filtered view still shows each month's true opening and closing.
 function cfColumns(d){
   const n=E.length, hyb=cfMode==='hybrid', nAct=hyb?closedCount():n, cols=[];
-  for(let i=0;i<nAct;i++)cols.push({kind:'A',key:E[i],full:mFull(E[i]),open:i===0?d.open:d.close[i-1],in:d.in[i],out:d.out[i],fx:d.fx[i],close:d.close[i]});
+  // Actual months: 'Transfers / FX / other' is whatever opening + inflow − outflow doesn't explain of the closing
+  // (value lost on transfers between own accounts, deposit interest, FX), so every column balances exactly.
+  for(let i=0;i<nAct;i++){const open=i===0?d.open:d.close[i-1];cols.push({kind:'A',key:E[i],full:mFull(E[i]),open,in:d.in[i],out:d.out[i],fx:d.close[i]-open-d.in[i]+d.out[i],close:d.close[i]});}
   // Hybrid: closed months are actuals; everything after is forecast from the pipeline (cfForecastChain).
   if(hyb)cfForecastChain(d).forEach(c=>cols.push({kind:'F',key:c.m,full:c.m,open:c.open,in:c.in,out:c.out,fx:0,close:c.close,partial:c.partial,held:c.partial||null}));
   return cols;
@@ -1856,9 +1859,9 @@ function renderCFTable(d){
   vis.forEach(c=>h+=netTd(c.in-c.out,c.kind==='F'));
   h+=netTd(tNet,false,true)+'</tr>';
   // FX (actuals only)
-  if(vis.some(c=>c.kind==='A'&&c.fx!==0)){
-    h+='<tr class="fx">'+lbl('FX / revaluation (non-cash)',' style="padding-left:10px"');
-    vis.forEach(c=>h+=c.kind==='A'?`<td>${c.fx?$f(c.fx):'—'}</td>`:`<td class="fc">—</td>`);
+  if(vis.some(c=>c.kind==='A')){
+    h+='<tr class="fx">'+lbl('Transfers / FX / other',' style="padding-left:10px" title="Closing − opening − inflow + outflow: value moved or lost between own accounts, deposit interest, FX revaluation. Actual months only."');
+    vis.forEach(c=>h+=c.kind==='A'?`<td>${Math.abs(c.fx)>=0.005?$f(c.fx):'—'}</td>`:`<td class="fc">—</td>`);
     h+=totTd('',tFX?$f(tFX):'—')+'</tr>';
   }
   // Closing bank balance
@@ -4177,7 +4180,7 @@ function exportCFStatement(){
     cfRows.push(['Opening Cash',...vis.map(c=>fmt(c.open)),t.open===null?'':fmt(t.open)]);
     cfRows.push(['Total Inflows',...vis.map(c=>fmt(c.in)),fmt(t.in)]);
     cfRows.push(['Total Outflows',...vis.map(c=>fmt(-c.out)),fmt(-t.out)]);
-    cfRows.push(['FX / Other',...vis.map(c=>fmt(c.kind==='A'?c.fx:0)),fmt(t.fx)]);
+    cfRows.push(['Transfers / FX / other',...vis.map(c=>fmt(c.kind==='A'?c.fx:0)),fmt(t.fx)]);
     cfRows.push(['Closing Cash',...vis.map(c=>fmt(c.close)),t.close===null?'':fmt(t.close)]);
     XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(cfRows),'CF Summary');
     const sheet=(actG,fcG,name)=>{
@@ -4626,6 +4629,7 @@ function toExportDate(v){
 function recalcARRow(r){
   try{
     if(!r.invoiceType)r.invoiceType='Retainer';
+    if(!r.status)r.status='Draft'; // a blank status is Draft: only Invoiced/Partial/Overdue/Paid count as booked
     if(!r.fx)r.fx=1;
     if(r.amount){r.usdValue=parseFloat((r.amount*r.fx).toFixed(2));}
     const ibPct=r.ibPct!==undefined?r.ibPct:1;
@@ -4647,7 +4651,7 @@ function recalcARRow(r){
     // cashMonth: upgrade legacy "Jun" → "Jun 2026" using payment/invoice date year
     if(r.cashMonth){
       const cm=r.cashMonth;
-      if(!(cm instanceof Date)&&!/\d{4}/.test(String(cm))&&!/[\-'’]\s?\d{2}$/.test(String(cm))){
+      if(!(cm instanceof Date)&&!/\d{4}/.test(String(cm))){
         const ref=isoYM(r.paymentDate)||isoYM(r.invoiceDate);
         const yr=ref?ref[1]:FCST_YEAR;
         r.cashMonth=normalizeCashMonth(cm,yr);
@@ -4755,6 +4759,25 @@ function deleteSelectedAP(){
   saveFcastAP();renderFcastAP();renderCF();
 }
 
+// Strict month input for imports and the MCP: 'Mon YYYY', 'Month YYYY' or an ISO date ('YYYY-MM',
+// 'YYYY-MM-DD'; a spreadsheet date cell counts). Returns 'Mon YYYY', '' for blank, or null to REJECT —
+// ambiguous forms like 'Jan-27' (27 Jan, or Jan 2027?), a bare 'Jun' or '01/27' have been misread into the
+// wrong year before.
+function strictMonth(v){
+  if(v instanceof Date)return isNaN(v)?null:`${_MN[v.getMonth()]} ${v.getFullYear()}`;
+  const s=String(v==null?'':v).trim();if(!s)return '';
+  let m=/^([A-Za-z]+)\s+(\d{4})$/.exec(s);
+  if(m){const w=m[1].toLowerCase(),i=_MN.findIndex((x,j)=>w===x.toLowerCase()||w===_MNF[j]);return i<0?null:`${_MN[i]} ${m[2]}`;}
+  m=/^(\d{4})-(\d{2})(?:-(\d{2}))?$/.exec(s);
+  return m&&+m[2]>=1&&+m[2]<=12?`${_MN[+m[2]-1]} ${m[1]}`:null;
+}
+// Sanity warnings for a forecast row: cash before its invoice/work month, or cash dated in a closed month.
+function rowWarnings(side,r){
+  const w=[], cm=mOrd(normalizeCashMonth(r.cashMonth)), ref=mOrd(normalizeCashMonth(side==='AR'?r.invoiceMonth:r.workMonth));
+  if(!isNaN(cm)&&!isNaN(ref)&&cm<ref)w.push(`cash month ${mFromOrd(cm)} is before its ${side==='AR'?'invoice':'work'} month ${mFromOrd(ref)}`);
+  if(!isNaN(cm)&&cm<=booksClosedOrd()&&!(side==='AR'&&r.status==='Paid'))w.push(`cash month ${mFromOrd(cm)} is in a closed month (books closed through ${mFromOrd(booksClosedOrd())}), so it is not in the forecast`);
+  return w;
+}
 function normalizeCashMonth(val,fallbackYear){
   if(!val)return'';
   if(val instanceof Date)return isNaN(val)?'':`${ALL_MONTHS[val.getMonth()]} ${val.getFullYear()}`; // xlsx date cell
@@ -4771,12 +4794,15 @@ function normalizeCashMonth(val,fallbackYear){
     if(m)return`${m} ${withYr[2]}`;
     for(const[k,mv] of Object.entries(fullMap)){if(withYr[1].toLowerCase()===k)return`${mv} ${withYr[2]}`;}
   }
-  // "Jan-27", "Jan '27", "January-2027", "2027-01", "01/2027"
-  const yy=/^([a-z]+)\.?\s*[\-'’\/]\s*(\d{2}|\d{4})$/i.exec(raw);
-  if(yy){const m=abbrMap[yy[1].toLowerCase().slice(0,3)];if(m&&(fullMap[yy[1].toLowerCase()]||yy[1].length===3))return`${m} ${yy[2].length===2?'20'+yy[2]:yy[2]}`;}
+  // "January-2027", "2027-01", "01/2027" (4-digit years only: a 2-digit 'Jan-27' is ambiguous and not guessed)
+  const yy=/^([a-z]+)\.?\s*[\-\/]\s*(\d{4})$/i.exec(raw);
+  if(yy){const m=abbrMap[yy[1].toLowerCase().slice(0,3)];if(m&&(fullMap[yy[1].toLowerCase()]||yy[1].length===3))return`${m} ${yy[2]}`;}
   let ym=/^(\d{4})[\-\/](\d{1,2})$/.exec(raw);
   if(!ym){const r2=/^(\d{1,2})[\-\/](\d{4})$/.exec(raw);if(r2)ym=[r2[0],r2[2],r2[1]];}
   if(ym&&+ym[2]>=1&&+ym[2]<=12)return`${ALL_MONTHS[+ym[2]-1]} ${ym[1]}`;
+  // "Jan-27" / "Jan '27" / "Nov-26": day or 2-digit year? Never guess — left as typed, so it matches no month
+  // and stays visible instead of silently landing in the wrong year.
+  if(/^[a-z]+\.?\s*[\-'’\/]\s*\d{1,2}$/i.test(raw))return raw;
   // Legacy: "Jun" or "June" — append fallback year
   const fy=fallbackYear||FCST_YEAR;
   for(const[k,mv] of Object.entries(fullMap)){if(lv.startsWith(k)){const a=abbrMap[lv.slice(0,3)];return`${a||mv} ${fy}`;}}
@@ -4956,7 +4982,7 @@ function renderFcastAR(){
           <td style="text-align:right">${r.fee?$f(r.fee):'—'}</td>
           <td style="text-align:right">${r.interbank?$f(r.interbank):'—'}</td>
           <td style="text-align:right;color:var(--green);font-weight:600">${r.cash?$f(r.cash):'—'}</td>
-          <td>${esc(normalizeCashMonth(r.cashMonth))||'—'}</td>
+          <td>${esc(normalizeCashMonth(r.cashMonth))||'—'}${(w=>w.length?` <span class="row-warn" title="${esc(w.join('\n'))}">⚠</span>`:'')(rowWarnings(AR_FCST.includes(r)?'AR':'AP',r))}</td>
           <td><span class="st-badge ${sc}">${esc(r.status)||'Draft'}</span></td>
           <td><span style="display:inline-block;padding:2px 7px;border-radius:4px;font-size:12px;font-weight:600;${(r.invoiceType||'Retainer')==='Retainer'?'background:rgba(87,215,226,0.10);color:var(--accent)':'background:rgba(251,191,36,0.10);color:var(--amber)'}">${esc(r.invoiceType||'Retainer')}</span></td>
           <td style="max-width:180px;white-space:normal;font-size:13px;color:var(--text2)">${esc(r.notes)||''}</td>
@@ -5065,7 +5091,7 @@ function renderFcastAP(){
           <td>${r.entity?eb(esc(r.entity)):'—'}</td>
           <td style="font-size:14px">${esc(normalizeCashMonth(r.workMonth))||'—'}</td>
           <td style="font-size:14px">${fmtDate(r.paymentDate)}</td>
-          <td>${esc(normalizeCashMonth(r.cashMonth))||'—'}</td>
+          <td>${esc(normalizeCashMonth(r.cashMonth))||'—'}${(w=>w.length?` <span class="row-warn" title="${esc(w.join('\n'))}">⚠</span>`:'')(rowWarnings(AR_FCST.includes(r)?'AR':'AP',r))}</td>
           <td style="text-align:right;color:var(--red);font-weight:500">${r.amount?'('+$f(r.amount)+')':'—'}</td>
           <td>${spendBadge(r.spendType)}</td>
           <td>${catBadge(r.expenseCategory)}</td>
@@ -5332,11 +5358,13 @@ function saveARModal(id){
     invoiceType:get('far-type')||'Retainer',
     notes:document.getElementById('far-notes')?.value?.trim()||''
   };
+  const prevAR=id&&AR_FCST.find(r=>String(r.id)===String(id));row.source=(prevAR&&prevAR.source)||'manual';
   if(id){const i=AR_FCST.findIndex(r=>String(r.id)===String(id));if(i>=0)AR_FCST[i]=row;else AR_FCST.push(row);}
   else AR_FCST.push(row);
   saveFcastAR();
   closeFcstModal();
   renderFcastAR();
+  const w=rowWarnings('AR',row);if(w.length)alert('Saved, but please check:\n• '+w.join('\n• '));
 }
 
 // ── AP Modal ──
@@ -5454,11 +5482,13 @@ function saveAPModal(id){
     paymentMode:get('fap-paymode'),
     notes:document.getElementById('fap-notes')?.value?.trim()||''
   };
+  const prevAP=id&&AP_FCST.find(r=>String(r.id)===String(id));row.source=(prevAP&&prevAP.source)||'manual';
   if(id){const i=AP_FCST.findIndex(r=>String(r.id)===String(id));if(i>=0)AP_FCST[i]=row;else AP_FCST.push(row);}
   else AP_FCST.push(row);
   saveFcastAP();
   closeFcstModal();
   renderFcastAP();
+  const w=rowWarnings('AP',row);if(w.length)alert('Saved, but please check:\n• '+w.join('\n• '));
 }
 
 function deleteFcastRow(type,id){
@@ -5539,6 +5569,12 @@ function mapRow(raw,colMap){
   return out;
 }
 
+function _importReport(rejected,warns){
+  let t='';
+  if(rejected.length)t+=`\n\n${rejected.length} row(s) NOT imported — month must be 'Mon YYYY', 'Month YYYY' or a date (ambiguous forms like 'Jan-27' are rejected):\n`+rejected.slice(0,15).join('\n')+(rejected.length>15?`\n…and ${rejected.length-15} more`:'');
+  if(warns.length)t+=`\n\n⚠ ${warns.length} warning(s):\n`+warns.slice(0,15).join('\n')+(warns.length>15?`\n…and ${warns.length-15} more`:'');
+  return t;
+}
 function importARFile(file){
   if(!file)return;
   loadSheetJS(()=>{
@@ -5549,10 +5585,13 @@ function importARFile(file){
         const wb=window.XLSX.read(data,{type:'array',cellDates:true});
         const jsonRows=parseSheetRows(wb,0);
         if(!jsonRows.length){alert('No data rows found.');return;}
-        let added=0,updated=0;
-        jsonRows.forEach(raw=>{
+        let added=0,updated=0;const rejected=[],warns=[];
+        jsonRows.forEach((raw,ri)=>{
           const r=mapRow(raw,AR_COL_MAP);
           if(!r.client&&!r.invoiceNo)return; // skip blank rows
+          const bad=['cashMonth','invoiceMonth'].filter(k=>r[k]!==undefined&&r[k]!==''&&strictMonth(r[k])===null);
+          if(bad.length){rejected.push(`row ${ri+2} (${r.client||r.invoiceNo}): ${bad.map(k=>`${k} "${r[k]}"`).join(', ')}`);return;}
+          ['cashMonth','invoiceMonth'].forEach(k=>{if(r[k])r[k]=strictMonth(r[k]);});
           // normalize entity and cashMonth
           r.entity=normalizeEntity(r.entity);
           // cashMonth is normalized by recalcARRow below, which takes a missing year from the row's dates
@@ -5564,10 +5603,11 @@ function importARFile(file){
           // find existing by invoiceNo or append
           const existing=r.invoiceNo?AR_FCST.findIndex(x=>x.invoiceNo&&x.invoiceNo===r.invoiceNo):-1;
           if(existing>=0){AR_FCST[existing]={...AR_FCST[existing],...r};updated++;}
-          else{AR_FCST.push({id:Date.now()+Math.random(),...r});added++;}
+          else{AR_FCST.push({id:Date.now()+Math.random(),source:'manual',...r});added++;}
+          rowWarnings('AR',r).forEach(w=>warns.push(`${r.client||r.invoiceNo}: ${w}`));
         });
         saveFcastAR();renderFcastAR();renderCF();
-        alert(`Import complete: ${added} added, ${updated} updated.`);
+        alert(`Import complete: ${added} added, ${updated} updated.`+_importReport(rejected,warns));
       }catch(err){alert('Import failed: '+err.message);}
     };
     reader.readAsArrayBuffer(file);
@@ -5631,16 +5671,20 @@ function importAPFile(file){
         const wb=window.XLSX.read(data,{type:'array',cellDates:true});
         const jsonRows=parseSheetRows(wb,0);
         if(!jsonRows.length){alert('No data rows found.');return;}
-        let added=0;
-        jsonRows.forEach(raw=>{
+        let added=0;const rejected=[],warns=[];
+        jsonRows.forEach((raw,ri)=>{
           const r=mapRow(raw,AP_COL_MAP);
           if(!r.vendor)return; // skip blank rows
+          const bad=['cashMonth','workMonth'].filter(k=>r[k]!==undefined&&r[k]!==''&&strictMonth(r[k])===null);
+          if(bad.length){rejected.push(`row ${ri+2} (${r.vendor}): ${bad.map(k=>`${k} "${r[k]}"`).join(', ')}`);return;}
+          ['cashMonth','workMonth'].forEach(k=>{if(r[k])r[k]=strictMonth(r[k]);});
           recalcAPRow(r);
-          AP_FCST.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),...r});
+          AP_FCST.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),source:'manual',...r});
           added++;
+          rowWarnings('AP',r).forEach(w=>warns.push(`${r.vendor}: ${w}`));
         });
         saveFcastAP();renderFcastAP();renderCF();
-        alert(`Import complete: ${added} rows added.`);
+        alert(`Import complete: ${added} rows added.`+_importReport(rejected,warns));
       }catch(err){alert('Import failed: '+err.message);}
     };
     reader.readAsArrayBuffer(file);
