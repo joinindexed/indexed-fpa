@@ -89,13 +89,13 @@ table.cf .cf-lbl{position:sticky;left:0;z-index:2;background:var(--surface);box-
 table.cf .cf-tot{position:sticky;right:0;z-index:2;background:var(--surface);box-shadow:inset 1px 0 0 var(--border2)}
 table.cf th.cf-lbl,table.cf th.cf-tot{background:var(--surface2);z-index:3}
 table.cf tr.br td.cf-lbl,table.cf tr.br td.cf-tot{background:linear-gradient(var(--accent-light),var(--accent-light)),var(--surface)}
-table.cf td.fc{background:rgba(251,191,36,0.04)}
+table.cf td.fc,table.cf tr.tr td.fc,table.cf tr.br td.fc{background:rgba(251,191,36,0.04)}
 table.cf td:first-child{text-align:left}
 table.cf tr.sr td{background:var(--surface3);color:rgba(255,255,255,0.35);font-weight:700;font-size:12.0px;text-transform:uppercase;letter-spacing:.10em}
 table.cf tr.indent td:first-child{padding-left:22px;cursor:pointer}
 table.cf tr.indent td:first-child:hover{color:var(--accent)}
 table.cf tr.tr td{color:var(--text);font-weight:700;border-top:1px solid var(--border2);background:var(--surface2)}
-table.cf tr.br td{color:var(--accent);font-weight:800;font-size:16.0px;border-top:2px solid var(--accent-border);background:var(--accent-light)}
+table.cf tr.br td{color:var(--accent);font-weight:800;font-size:1.03em;border-top:2px solid var(--accent-border);background:var(--accent-light)}
 table.cf tr.fx td{color:var(--text3);font-style:italic;font-size:15.0px}
 table.cf td.pos{color:var(--green)}
 table.cf td.neg{color:var(--red)}
@@ -105,7 +105,8 @@ tr.drill-row{display:none}
 tr.drill-row.open{display:table-row}
 tr.drill-row td{padding:0;background:var(--accent-light);border-bottom:1px solid var(--accent-border)}
 .di{padding:12px 16px 12px 24px}
-.dt-hd{font-size:12.0px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.10em;margin-bottom:8px;display:flex;justify-content:space-between}
+.dt-hd{font-size:12.0px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.10em;margin-bottom:8px;display:flex;align-items:center;gap:18px;width:max-content;position:sticky;left:16px}
+.cf-stick{display:inline-block;position:sticky;left:10px}
 .dc{cursor:pointer;color:var(--text3);font-size:18.0px}
 table.drt{width:max-content;min-width:100%;border-collapse:separate;border-spacing:0;font-size:.97em;table-layout:auto;font-variant-numeric:tabular-nums}
 table.drt th{padding:5px clamp(5px,0.45vw,8px);text-align:right;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border);font-size:.93em;white-space:nowrap}
@@ -120,15 +121,15 @@ table.drt td.dtot.cfs-col{background:linear-gradient(rgba(87,215,226,0.14),rgba(
 body.light table.drt td.dtot.cfs-col{background:linear-gradient(rgba(11,165,180,0.14),rgba(11,165,180,0.14)),var(--surface)}
 /* Month filter (Cash flow) */
 .cfp{display:flex;flex-direction:column;gap:6px;margin:0 0 14px;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:10px}
-.cfp-row{display:flex;flex-wrap:wrap;align-items:center;gap:5px}
+.cfp-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
 .cfp-lbl{font-size:11.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.09em;min-width:52px}
 .cfp-yr{font-size:13px;font-weight:700;color:var(--text2);min-width:52px;font-variant-numeric:tabular-nums}
 .cfp-sep{width:1px;height:16px;background:var(--border2);margin:0 4px}
-.cfp-chip{font-family:var(--sans);font-size:13px;font-weight:600;line-height:1;padding:5px 9px;border-radius:7px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;display:inline-flex;align-items:center;gap:5px;transition:background .12s,border-color .12s,color .12s}
+.cfp-chip{font-family:var(--sans);font-size:clamp(12px,0.25vw + 9px,13px);font-weight:600;line-height:1;padding:5px clamp(6px,0.45vw,9px);border-radius:7px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;display:inline-flex;align-items:center;gap:5px;transition:background .12s,border-color .12s,color .12s}
 .cfp-chip:hover{border-color:var(--accent);color:var(--text)}
 .cfp-chip:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .cfp-chip.on{background:var(--accent);border-color:var(--accent);color:#06292c}
-body.light .cfp-chip.on{color:#fff}
+body.light .cfp-chip.on{background:var(--accent-dark);border-color:var(--accent-dark);color:#fff} /* ≥4.5:1 */
 .cfp-chip:disabled{opacity:.3;cursor:default;border-color:var(--border)}
 .cfp-chip .dot{width:6px;height:6px;border-radius:50%;background:var(--accent)}
 .cfp-chip .dot.f{background:var(--amber)}
@@ -147,6 +148,10 @@ body.light table.drt td.cfs-col{background:rgba(11,165,180,0.14)}
 table.drt tr.cfs-tot td{font-weight:700;color:var(--text);border-top:1px solid var(--border2)}
 .cfs-hint{font-weight:500;text-transform:none;letter-spacing:0;color:var(--text3);font-size:12px;margin-left:10px}
 table.drt tr.cfs-dim td{opacity:.45}
+/* pinned cells stay opaque in dimmed rows (else the scrolled numbers show through); dim their content instead */
+table.drt tr.cfs-dim td:first-child,table.drt tr.cfs-dim td.dtot{opacity:1}
+table.drt tr.cfs-dim td:first-child>*,table.drt tr.cfs-dim td.dtot>*{opacity:.45}
+table.drt tr.cfs-dim td:first-child,table.drt tr.cfs-dim td.dtot{color:var(--text3)}
 table.drt tr.cfs-sec td{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text2);background:var(--surface2);padding-top:7px;padding-bottom:7px}
 .cfs-pf{font-weight:600;text-transform:none;letter-spacing:0;font-size:12px;margin-left:12px;padding:2px 9px;border-radius:10px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:var(--sans)}
 .cfs-pf.on{border-color:var(--accent);color:var(--accent);background:var(--accent-light)}
@@ -1767,16 +1772,19 @@ function renderCFTable(d){
   if(cfMonthSel){
     const sel=new Set(cfMonthSel);
     vis=cols.filter(c=>sel.has(c.full));
-    if(!vis.length){vis=cols;note=`${cfSelLabel(cfMonthSel)} has no ${cfMode==='actuals'?'actuals':'months'} in this view — showing all months.`;}
+    const what=cfMode==='actuals'?'actuals':'months';
+    if(!vis.length){vis=cols;note=`${cfSelLabel(cfMonthSel)} has no ${what} in this view — showing all months.`;}
+    else if(vis.length<sel.size){const miss=cfMonthSel.filter(m=>!vis.some(c=>c.full===m));
+      note=`${cfSelLabel(miss)} ${miss.length>1?'have':'has'} no ${what} in this view — showing ${cfSelLabel(vis.map(c=>c.full))} only.`;}
   }
-  const filtered=vis!==cols;
+  const filtered=vis!==cols, shownSel=filtered?vis.map(c=>c.full):null; // the months actually on screen
   const actCols=cols.filter(c=>c.kind==='A'), fcCols=cols.filter(c=>c.kind==='F');
   // Last column. Unfiltered: YTD = this year's actual months (as before). Filtered: the total of the months shown;
   // its opening/closing are shown only when those months are back to back.
   let tot;
   if(filtered){
     const pos=vis.map(c=>cols.indexOf(c)), contiguous=pos.every((p,i)=>!i||p===pos[i-1]+1);
-    tot={label:'Total',tip:`Total of ${cfSelLabel(cfMonthSel)} (actual + forecast months shown)`+(contiguous?'':' — opening/closing omitted: the months aren\'t consecutive'),
+    tot={label:'Total',tip:`Total of ${cfSelLabel(shownSel)} (actual + forecast months shown)`+(contiguous?'':' — opening/closing omitted: the months aren\'t consecutive'),
       cols:vis,open:contiguous?vis[0].open:null,close:contiguous?vis[vis.length-1].close:null};
   }else{
     const ly=actCols.length?mYear(actCols[actCols.length-1].key):null, yc=actCols.filter(c=>mYear(c.key)===ly);
@@ -1798,8 +1806,8 @@ function renderCFTable(d){
   const dc=fcCols.find(c=>c.full==='Dec '+dashYear());if(dc)_cfDecClose=dc.close; // back-compat; getDecClosingBalance computes its own
   const sum=k=>tot.cols.reduce((s,c)=>s+(c[k]||0),0);
   const tIn=sum('in'), tOut=sum('out'), tFX=tot.cols.reduce((s,c)=>s+(c.kind==='A'?c.fx||0:0),0), tNet=tIn-tOut;
-  _cfView={cols,vis,tot:{...tot,in:tIn,out:tOut,fx:tFX}};
-  renderCFPeriod(cols,note);
+  _cfView={cols,vis,sel:shownSel,tot:{...tot,in:tIn,out:tOut,fx:tFX}};
+  renderCFPeriod(cols,note,shownSel);
   const cfCols=vis.length+2;
   const neg=v=>'($'+$f(Math.abs(v)).replace('$','')+')';
   const fc=c=>c.kind==='F'?' fc':'';
@@ -1814,7 +1822,7 @@ function renderCFTable(d){
   h+=totTd('',tot.open===null?'—':$f(tot.open))+'</tr>';
   // Inflow
   const inCell=c=>c.kind==='A'?`<td class="pos">${$f(c.in)}</td>`:`<td class="pos fc">${c.in?$f(c.in):'—'}</td>`;
-  h+=`<tr class="sr"><td colspan="${cfCols}" style="padding-left:10px">↑ Cash inflow</td></tr>`;
+  h+=`<tr class="sr"><td colspan="${cfCols}" style="padding-left:10px"><span class="cf-stick">↑ Cash inflow</span></td></tr>`;
   h+=`<tr class="indent" style="cursor:pointer" onclick="togCFDrill('inflow',true)">`+lbl('Cash received from clients ▸',' style="padding-left:22px"');
   vis.forEach(c=>h+=inCell(c));
   h+=totTd('pos',$f(tIn))+'</tr>';
@@ -1823,15 +1831,16 @@ function renderCFTable(d){
   vis.forEach(c=>h+=inCell(c));
   h+=totTd('pos',$f(tIn))+'</tr>';
   // Outflow
-  const outCell=c=>c.kind==='A'?`<td class="neg">${neg(c.out)}</td>`:`<td class="neg fc">${c.out?neg(c.out):'—'}</td>`;
-  h+=`<tr class="sr"><td colspan="${cfCols}" style="padding-left:10px">↓ Cash outflow</td></tr>`;
+  const outFmt=v=>v<0?$f(-v):neg(v); // outflows in brackets; a net credit (refund > payments) shows as a positive amount
+  const outCell=c=>c.kind==='A'?`<td class="neg">${outFmt(c.out)}</td>`:`<td class="neg fc">${c.out?outFmt(c.out):'—'}</td>`;
+  h+=`<tr class="sr"><td colspan="${cfCols}" style="padding-left:10px"><span class="cf-stick">↓ Cash outflow</span></td></tr>`;
   h+=`<tr class="indent" style="cursor:pointer" onclick="togCFDrill('outflow',false)">`+lbl('Payments to vendors &amp; expenses ▸',' style="padding-left:22px"');
   vis.forEach(c=>h+=outCell(c));
-  h+=totTd('neg',neg(tOut))+'</tr>';
+  h+=totTd('neg',outFmt(tOut))+'</tr>';
   h+=`<tr class="drill-row" id="dr-outflow"><td colspan="${cfCols}"><div class="di" id="dc-outflow"></div></td></tr>`;
   h+='<tr class="tr">'+lbl(`Total outflow${cBtn('cf|main|total-outflow','CF · Total outflow')}`,' style="padding-left:10px"');
   vis.forEach(c=>h+=outCell(c));
-  h+=totTd('neg',neg(tOut))+'</tr>';
+  h+=totTd('neg',outFmt(tOut))+'</tr>';
   // Net movement
   const netTd=(v,f,isTot)=>{const cls=(v>=0?'pos':'neg')+(f?' fc':'');const inner=v>=0?$f(v):neg(v);return isTot?totTd(v>=0?'pos':'neg',inner):`<td class="${cls}">${inner}</td>`;};
   h+='<tr class="tr">'+lbl(`Net movement${cBtn('cf|main|net-movement','CF · Net movement')}`,' style="padding-left:10px"');
@@ -1851,32 +1860,32 @@ function renderCFTable(d){
 }
 
 // ── Month filter bar ──
-function renderCFPeriod(cols,note){
+function renderCFPeriod(cols,note,shown){
   const el=document.getElementById('cf-period');
   if(!el||typeof el.innerHTML!=='string')return; // headless (MCP) — nothing to draw
   const avail=new Map(cols.map(c=>[c.full,c.kind]));
   const sel=new Set(cfMonthSel||[]);
   const years=[...new Set(cols.map(c=>mYear(c.full)))].sort((a,b)=>a-b);
   const has=ms=>ms.length&&ms.every(m=>sel.has(m));
-  const chip=(on,label,call,extra,title)=>`<button type="button" class="cfp-chip${on?' on':''}" aria-pressed="${!!on}" onclick="${call}"${title?` title="${title}"`:''}${extra||''}>${label}</button>`;
-  const selLbl=cfMonthSel&&cfSelLabel(cfMonthSel), n=cfMonthSel&&cfMonthSel.length;
-  const desc=cfMonthSel?`<span class="cfp-sum">Showing <b>${selLbl}</b>${n>1&&!/,|months/.test(selLbl)?` · ${n} months`:''}</span>`
+  const chip=(on,label,call,extra,title,k,aria)=>`<button type="button" class="cfp-chip${on?' on':''}" data-k="${k}" aria-pressed="${!!on}" aria-label="${aria||label}" onclick="${call}"${title?` title="${title}"`:''}${extra||''}>${label}</button>`;
+  const selLbl=shown&&cfSelLabel(shown), n=shown&&shown.length;
+  const desc=shown?`<span class="cfp-sum">Showing <b>${selLbl}</b>${n>1&&!/,|months/.test(selLbl)?` · ${n} months`:''}</span>`
     :`<span class="cfp-sum">Showing <b>all months</b> · click a year, quarter or months to narrow it (⌘/Ctrl-click to combine)</span>`;
-  let h=`<div class="cfp-row"><span class="cfp-lbl">Months</span>${chip(!cfMonthSel,'All','cfSetMonths(null,event)')}${desc}${note?`<span class="cfp-note">${esc(note)}</span>`:''}</div>`;
+  let h=`<div class="cfp-row"><span class="cfp-lbl">Months</span>${chip(!shown,'All','cfSetMonths(null,event)','','','all','All months')}${desc}${note?`<span class="cfp-note">${esc(note)}</span>`:''}</div>`;
   years.forEach(y=>{
     const yM=_MN.map(m=>`${m} ${y}`).filter(m=>avail.has(m));
     h+=`<div class="cfp-row"><span class="cfp-yr">${y}</span>`;
-    h+=chip(has(yM),'Full year',`cfSetMonths(${esc(JSON.stringify(yM))},event)`);
+    h+=chip(has(yM),'Full year',`cfSetMonths(${esc(JSON.stringify(yM))},event)`,'','',`y${y}`,`Full year ${y}`);
     h+='<span class="cfp-sep" aria-hidden="true"></span>';
     [0,1,2,3].forEach(q=>{
       const qM=_MN.slice(q*3,q*3+3).map(m=>`${m} ${y}`).filter(m=>avail.has(m));
-      h+=chip(has(qM),`Q${q+1}`,`cfSetMonths(${esc(JSON.stringify(qM))},event)`,qM.length?'':' disabled');
+      h+=chip(has(qM),`Q${q+1}`,`cfSetMonths(${esc(JSON.stringify(qM))},event)`,qM.length?'':' disabled','',`q${y}${q}`,`Q${q+1} ${y}`);
     });
     h+='<span class="cfp-sep" aria-hidden="true"></span>';
     _MN.forEach(mn=>{
       const m=`${mn} ${y}`, k=avail.get(m);
       const dot=k?`<span class="dot${k==='F'?' f':''}" aria-hidden="true"></span>`:'';
-      h+=chip(sel.has(m),dot+mn,`cfToggleMonth('${m}')`,k?'':' disabled',k==='A'?'Actual':k==='F'?'Forecast':'');
+      h+=chip(sel.has(m)&&!!k,dot+mn,`cfToggleMonth('${m}')`,k?'':' disabled',k==='A'?'Actual':k==='F'?'Forecast':'',`m${m}`,`${m}${k==='A'?' (actual)':k==='F'?' (forecast)':''}`);
     });
     h+='</div>';
   });
@@ -1896,9 +1905,10 @@ function cfToggleMonth(m){
 function _cfApplySel(ms){
   cfMonthSel=ms?[...ms].sort((a,b)=>mOrd(a)-mOrd(b)):null;
   try{cfMonthSel?localStorage.setItem('cf_month_sel',JSON.stringify(cfMonthSel)):localStorage.removeItem('cf_month_sel');}catch(e){}
-  const reopen=[...openDrill];
+  const reopen=[...openDrill], ae=document.activeElement, fk=ae&&ae.dataset&&ae.dataset.k;
   renderCF();
-  reopen.forEach(id=>togCFDrill(id,id==='inflow'));
+  reopen.forEach(id=>{const row=document.getElementById('dr-'+id);if(!row)return;openDrill.add(id);row.classList.add('open');renderCFDrill(id,id==='inflow');});
+  if(fk){const b=document.querySelector(`#cf-period [data-k="${CSS.escape(fk)}"]`);if(b&&!b.disabled)b.focus({preventScroll:true});}
 }
 
 const ENT_FULL={BH:'Braveheart FZ LLC',BC:'Bravecore FZ LLC'};
@@ -2070,7 +2080,7 @@ function clDrill(drId){
 
 // Month-end bank balances for the actual months in the month filter (all actual months when unfiltered).
 function cfBankIdx(){
-  const sel=cfMonthSel&&new Set(cfMonthSel), all=E.map((_,i)=>i);
+  const s=_cfView?_cfView.sel:cfMonthSel, sel=s&&new Set(s), all=E.map((_,i)=>i);
   if(!sel)return all;
   const idx=all.filter(i=>sel.has(mFull(E[i])));
   return idx.length?idx:null; // null = the selection has no actual months
@@ -2078,7 +2088,7 @@ function cfBankIdx(){
 function renderBnk(){
   const idx=cfBankIdx();
   if(!idx){
-    document.getElementById('bnk-table').innerHTML=`<tbody><tr><td class="cf-lbl" style="color:var(--text3)">No actual bank balances in ${esc(cfSelLabel(cfMonthSel))} — balances exist only for months already imported from Xero.</td></tr></tbody>`;
+    document.getElementById('bnk-table').innerHTML=`<tbody><tr><td class="cf-lbl" style="color:var(--text3)">No actual bank balances in ${esc(cfSelLabel(_cfView?_cfView.sel:cfMonthSel))} — balances exist only for months already imported from Xero.</td></tr></tbody>`;
     return;
   }
   let h='<thead><tr><th class="cf-lbl">Account</th>';
@@ -2792,8 +2802,10 @@ function getDecClosingBalance(yr){
   yr=yr||dashYear();
   const k=mKey('Dec '+yr);
   if(E.includes(k)){const d=getD();return d.close[E.indexOf(k)];}
-  const c=cfForecastChain().find(x=>x.m==='Dec '+yr);
-  return c?c.close:0;
+  const ch=cfForecastChain(), c=ch.find(x=>x.m==='Dec '+yr);
+  if(c)return c.close;
+  const before=ch.filter(x=>mOrd(x.m)<mOrd('Dec '+yr)); // horizon ends earlier: no flows after it, cash carries
+  return before.length?before[before.length-1].close:(E.length?getD().close[E.length-1]:0);
 }
 // Opening cash of a year: the Jan opening for the base year, otherwise the previous December's close.
 function getYearOpening(yr){
@@ -3773,10 +3785,12 @@ const FCST_YEAR = '2026'; // base year of bare actual-month keys; default/fallba
 const FCST_HORIZON_END = 'Dec 2027'; // forecast columns run through this month (later months appear only if they have data)
 const ALL_MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-// FCST_MONTHS: every month from the one after the last actual through FCST_HORIZON_END (months with no AR/AP
+// FCST_MONTHS: every month from the one after the last actual through FCST_HORIZON_END, or December of the
+// latest actual year if that is later (months with no AR/AP
 // rows show as 0), plus any later month that has AR/AP rows. Full 'Mon YYYY' strings, chronological.
 function recomputeFcstMonths(){
-  const last=E.length?mOrd(E[E.length-1]):BASE_YEAR*12-1, end=mOrd(FCST_HORIZON_END);
+  const last=E.length?mOrd(E[E.length-1]):BASE_YEAR*12-1;
+  const end=Math.max(mOrd(FCST_HORIZON_END),Math.floor(last/12)*12+11); // never short of December of the latest actual year
   const out=[];
   for(let o=last+1;o<=end;o++)out.push(mFromOrd(o));
   const later=new Set();
@@ -4067,7 +4081,7 @@ function exportCFStatement(){
     };
     sheet(_cfInGroups,_cfInFcstGroups,'CF Inflows');
     sheet(_cfOutGroups,_cfOutFcstGroups,'CF Outflows');
-    const tag=cfMonthSel?'_'+cfSelLabel(cfMonthSel).replace(/[^A-Za-z0-9]+/g,'-'):'';
+    const tag=v.sel?'_'+cfSelLabel(v.sel).replace(/[^A-Za-z0-9]+/g,'-'):'';
     XLSX.writeFile(wb,`CF_Statement${tag}_${new Date().toISOString().slice(0,10)}.xlsx`);
   });
 }
@@ -5804,10 +5818,11 @@ async function initAuth(){
 // ── Comments ──
 let _cpCellId=null,_cpCtx=null;
 
+var _openCmtCells=null; // cells with unresolved comments, from the last refreshCommentDots()
 function cBtn(cellId,ctx){
   // Returns dot + trigger icon HTML to embed in a table cell or card
   const id=escAttr(cellId),c=escAttr(ctx);
-  return `<span class="cdot" data-cell="${id}" title="Open comment" onclick="event.stopPropagation();cpOpen('${id}','${c}')"></span><button class="ct-btn" onclick="event.stopPropagation();cpOpen('${id}','${c}')" title="Add comment"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>`;
+  return `<span class="cdot" data-cell="${id}"${_openCmtCells&&_openCmtCells.has(cellId)?' style="display:inline-block"':''} title="Open comment" onclick="event.stopPropagation();cpOpen('${id}','${c}')"></span><button class="ct-btn" onclick="event.stopPropagation();cpOpen('${id}','${c}')" title="Add comment"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>`;
 }
 
 function cpOpen(cellId,ctx,evt){
@@ -5919,6 +5934,7 @@ async function refreshCommentDots(){
     });
     const rows=await r.json();
     const openSet=new Set(rows.map(r=>r.cell_id));
+    _openCmtCells=openSet;
     document.querySelectorAll('.cdot').forEach(el=>{
       el.style.display=openSet.has(el.dataset.cell)?'inline-block':'none';
     });
