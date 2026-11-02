@@ -1572,12 +1572,12 @@ const toDateInput=(v)=>{
   // ISO: 2026-04-28 or 2026-04-28T...
   const iso=s.match(/^(\d{4}-\d{2}-\d{2})/);
   if(iso)return iso[1];
-  // Human: "28 Apr 2026", "28 April 2026", or this app's export format "28-Apr-2026"
-  const hr=s.match(/^(\d{1,2})[\s\-]+([A-Za-z]+)[\s\-]+(\d{4})/);
+  // Human: "28 Apr 2026", "28 April 2026", this app's export format "28-Apr-2026", or Xero's "23-Sep-26"
+  const hr=s.match(/^(\d{1,2})[\s\-]+([A-Za-z]+)[\s\-]+(\d{4}|\d{2})(?!\d)/);
   if(hr){
     const MOS=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
     const mi=MOS.indexOf(hr[2].toLowerCase().slice(0,3));
-    if(mi>=0)return`${hr[3]}-${String(mi+1).padStart(2,'0')}-${String(hr[1]).padStart(2,'0')}`;
+    if(mi>=0)return`${hr[3].length===2?'20'+hr[3]:hr[3]}-${String(mi+1).padStart(2,'0')}-${String(hr[1]).padStart(2,'0')}`;
   }
   // Excel serial
   const n=Number(s);
@@ -4591,12 +4591,13 @@ function normalizeToISO(v){
   const dmy=s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/);
   if(dmy){let d=+dmy[1],mo=+dmy[2],y=dmy[3];if(y.length===2)y='20'+y;
     if(d>=1&&d<=31&&mo>=1&&mo<=12)return`${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;}
-  // Human: "28 Apr 2026", "28 April 2026", or this app's export format "28-Apr-2026"
-  const hr=s.match(/^(\d{1,2})[\s\-]+([A-Za-z]+)[\s\-]+(\d{4})/);
+  // Human: "28 Apr 2026", "28 April 2026", this app's export format "28-Apr-2026", or a 2-digit year "23-Sep-26"
+  // (Xero's format; the month is named, so it is unambiguous). 4 digits are tried first so "2026" is never cut short.
+  const hr=s.match(/^(\d{1,2})[\s\-]+([A-Za-z]+)[\s\-]+(\d{4}|\d{2})(?!\d)/);
   if(hr){
     const MOS=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
     const mi=MOS.indexOf(hr[2].toLowerCase().slice(0,3));
-    if(mi>=0)return`${hr[3]}-${String(mi+1).padStart(2,'0')}-${String(hr[1]).padStart(2,'0')}`;
+    if(mi>=0)return`${hr[3].length===2?'20'+hr[3]:hr[3]}-${String(mi+1).padStart(2,'0')}-${String(hr[1]).padStart(2,'0')}`;
   }
   // Month-only: "September 2026" / "Sep 2026" -> first of month. AP forecast payments are scheduled
   // at month level; export them as a real date so Google Sheets parses/sorts them (the Cash Month
@@ -4658,6 +4659,11 @@ function recalcARRow(r){
       } else {
         r.cashMonth=normalizeCashMonth(cm);
       }
+    } else {
+      // no cash month: take it from the payment date, as recalcAPRow does (an imported invoice would otherwise
+      // sit in no forecast month); the invoice date says nothing about when cash arrives
+      const ref=isoYM(r.paymentDate);
+      if(ref)r.cashMonth=`${_MO_NAMES[+ref[2]-1]} ${ref[1]}`;
     }
   }catch(e){}
   return r;
@@ -4670,10 +4676,15 @@ function saveFcastAR(){ try{localStorage.setItem('ar_fcst',JSON.stringify(AR_FCS
 function saveFcastAP(){ try{localStorage.setItem('ap_fcst',JSON.stringify(AP_FCST));}catch(e){} recomputeFcstMonths(); if(!_sbPulling){markDsDirty('ap_fcst');sbPush();} }
 
 // ── Row selection ──
+// Ids (String(r.id)) of ticked rows. A filter change clears the selection and every render drops rows that are no
+// longer on screen (deleted, or hidden by a filter), so 'Delete selected' only ever reaches rows you can see.
 let AR_SELECTED=new Set();
 let AP_SELECTED=new Set();
+let _arShown=new Set(), _apShown=new Set();   // ids of the rows the last render drew
+let _arSelFilter=null, _apSelFilter=null;     // filter state the selection was made under
 
 function toggleARSel(id){
+  id=String(id);
   if(AR_SELECTED.has(id))AR_SELECTED.delete(id);else AR_SELECTED.add(id);
   updateARSelUI();
 }
@@ -4684,49 +4695,39 @@ function toggleARSelAll(cb){
     c.checked=check;
     if(check)AR_SELECTED.add(c.dataset.id);
   });
-  const btn=document.getElementById('ar-del-sel');
-  if(btn){btn.style.display=check&&AR_SELECTED.size?'':'none';const sp=btn.querySelector('span');if(sp)sp.textContent=AR_SELECTED.size;}
+  _selCount('ar',AR_SELECTED.size);
 }
 function updateARSelUI(){
   const n=AR_SELECTED.size;
-  const btn=document.getElementById('ar-del-sel');
-  if(btn){btn.style.display=n?'':'none';const sp=btn.querySelector('span');if(sp)sp.textContent=n;}
+  _selCount('ar',n);
   document.querySelectorAll('#fcar-table tbody input[type="checkbox"]').forEach(c=>{c.checked=AR_SELECTED.has(c.dataset.id);});
   const allCb=document.getElementById('ar-sel-all');
-  if(allCb){const tot=document.querySelectorAll('#fcar-table tbody input[type="checkbox"]').length;allCb.checked=n>0&&n>=tot;allCb.indeterminate=n>0&&n<tot;}
+  if(allCb){const tot=_arShown.size;allCb.checked=n>0&&n>=tot;allCb.indeterminate=n>0&&n<tot;}
 }
 function deleteSelectedAR(){
-  const n=AR_SELECTED.size;
+  const ids=[...AR_SELECTED].filter(id=>_arShown.has(id)), n=ids.length; // ticked AND on screen
   if(!n)return;
   if(!confirm(`Delete ${n} selected invoice${n>1?'s':''}? This cannot be undone.`))return;
-  AR_SELECTED.forEach(id=>_deletedRowIds.add(String(id)));
-  addTombs('ar_fcst',[...AR_SELECTED]);
-  AR_FCST=AR_FCST.filter(r=>!AR_SELECTED.has(String(r.id)));
+  const del=new Set(ids);
+  ids.forEach(id=>_deletedRowIds.add(id));
+  addTombs('ar_fcst',ids);
+  AR_FCST=AR_FCST.filter(r=>!del.has(String(r.id)));
   AR_SELECTED.clear();
   saveFcastAR();renderFcastAR();renderCF();
 }
+// Duplicate opens the modal pre-filled from the row; the copy is only created on Save (Cancel leaves nothing behind)
 function duplicateARRow(id){
-  const src=AR_FCST.find(r=>String(r.id)===String(id));
-  if(!src)return;
-  const copy={...src,id:Date.now().toString(36)+Math.random().toString(36).slice(2,6)};
-  const idx=AR_FCST.findIndex(r=>String(r.id)===String(id));
-  AR_FCST.splice(idx+1,0,copy);
-  saveFcastAR();renderFcastAR();
-  // Open the copy immediately so the user can adjust it
-  openARModal(copy.id);
+  if(!AR_FCST.some(r=>String(r.id)===String(id)))return;
+  openARModal(null,id);
 }
 
 function duplicateAPRow(id){
-  const src=AP_FCST.find(r=>String(r.id)===String(id));
-  if(!src)return;
-  const copy={...src,id:Date.now().toString(36)+Math.random().toString(36).slice(2,6)};
-  const idx=AP_FCST.findIndex(r=>String(r.id)===String(id));
-  AP_FCST.splice(idx+1,0,copy);
-  saveFcastAP();renderFcastAP();
-  openAPModal(copy.id);
+  if(!AP_FCST.some(r=>String(r.id)===String(id)))return;
+  openAPModal(null,id);
 }
 
 function toggleAPSel(id){
+  id=String(id);
   if(AP_SELECTED.has(id))AP_SELECTED.delete(id);else AP_SELECTED.add(id);
   updateAPSelUI();
 }
@@ -4737,26 +4738,39 @@ function toggleAPSelAll(cb){
     c.checked=check;
     if(check)AP_SELECTED.add(c.dataset.id);
   });
-  const btn=document.getElementById('ap-del-sel');
-  if(btn){btn.style.display=check&&AP_SELECTED.size?'':'none';const sp=btn.querySelector('span');if(sp)sp.textContent=AP_SELECTED.size;}
+  _selCount('ap',AP_SELECTED.size);
 }
 function updateAPSelUI(){
   const n=AP_SELECTED.size;
-  const btn=document.getElementById('ap-del-sel');
-  if(btn){btn.style.display=n?'':'none';const sp=btn.querySelector('span');if(sp)sp.textContent=n;}
+  _selCount('ap',n);
   document.querySelectorAll('#fcap-table tbody input[type="checkbox"]').forEach(c=>{c.checked=AP_SELECTED.has(c.dataset.id);});
   const allCb=document.getElementById('ap-sel-all');
-  if(allCb){const tot=document.querySelectorAll('#fcap-table tbody input[type="checkbox"]').length;allCb.checked=n>0&&n>=tot;allCb.indeterminate=n>0&&n<tot;}
+  if(allCb){const tot=_apShown.size;allCb.checked=n>0&&n>=tot;allCb.indeterminate=n>0&&n<tot;}
 }
 function deleteSelectedAP(){
-  const n=AP_SELECTED.size;
+  const ids=[...AP_SELECTED].filter(id=>_apShown.has(id)), n=ids.length; // ticked AND on screen
   if(!n)return;
   if(!confirm(`Delete ${n} selected payment${n>1?'s':''}? This cannot be undone.`))return;
-  AP_SELECTED.forEach(id=>_deletedRowIds.add(String(id)));
-  addTombs('ap_fcst',[...AP_SELECTED]);
-  AP_FCST=AP_FCST.filter(r=>!AP_SELECTED.has(String(r.id)));
+  const del=new Set(ids);
+  ids.forEach(id=>_deletedRowIds.add(id));
+  addTombs('ap_fcst',ids);
+  AP_FCST=AP_FCST.filter(r=>!del.has(String(r.id)));
   AP_SELECTED.clear();
   saveFcastAP();renderFcastAP();renderCF();
+}
+// 'Delete selected (n)' button: shown with the count while rows are ticked
+function _selCount(k,n){
+  const btn=document.getElementById(k+'-del-sel'), sp=document.getElementById(k+'-sel-count');
+  if(btn&&btn.style)btn.style.display=n?'':'none';
+  if(sp)sp.textContent=n;
+}
+// Keep the selection to the rows a render draws: a filter change starts a fresh selection, and rows that are gone
+// (deleted, or now hidden) drop out. Called by renderFcastAR/AP before they draw the rows.
+function _syncSel(sel,fKey,prevKey,rows){
+  if(fKey!==prevKey)sel.clear();
+  const shown=new Set(rows.map(r=>String(r.id)));
+  [...sel].forEach(id=>{if(!shown.has(id))sel.delete(id);});
+  return shown;
 }
 
 // Strict month input for imports and the MCP: 'Mon YYYY', 'Month YYYY' or an ISO date ('YYYY-MM',
@@ -4891,7 +4905,7 @@ function renderFcastAR(){
   if(fClientEl){
     const curClient=fClientEl.value;
     const clients=[...new Set(AR_FCST.map(r=>r.client||'').filter(Boolean))].sort();
-    fClientEl.innerHTML=`<option value="">All</option>`+clients.map(c=>`<option${c===curClient?' selected':''}>${c}</option>`).join('');
+    fClientEl.innerHTML=`<option value="">All</option>`+clients.map(c=>`<option value="${esc(c)}"${c===curClient?' selected':''}>${esc(c)}</option>`).join('');
   }
   if(fMonthEl){
     const curMonth=fMonthEl.value;
@@ -4899,7 +4913,7 @@ function renderFcastAR(){
       const parse=s=>{const p=s.split(' ');return(parseInt(p[1]||FCST_YEAR))*100+ALL_MONTHS.indexOf(p[0]);};
       return parse(a)-parse(b);
     });
-    fMonthEl.innerHTML=`<option value="">All</option>`+allCMs.map(m=>`<option${m===curMonth?' selected':''}>${m}</option>`).join('');
+    fMonthEl.innerHTML=`<option value="">All</option>`+allCMs.map(m=>`<option value="${esc(m)}"${m===curMonth?' selected':''}>${esc(m)}</option>`).join('');
   }
   // Read active filters
   const fClient=fClientEl?fClientEl.value:'';
@@ -4922,9 +4936,12 @@ function renderFcastAR(){
   // Summary bar — reflects active filters
   const sumEl=document.getElementById('fcar-summary');
   if(sumEl){
+    // Same rows as the Cash Flow forecast (getFcastInflow): collected (Paid) invoices still count in their month,
+    // so the cards match the statement; the collected part is shown underneath.
     sumEl.innerHTML=FCST_MONTHS.map(m=>{
-      const v=filtered.filter(r=>normalizeCashMonth(r.cashMonth)===m&&r.status!=='Paid').reduce((s,r)=>s+(r.cash||0),0);
-      return `<div class="fsum-card"><div class="fsc-m">${fmtFcstMonth(m)}</div><div class="fsc-v">${v?$f(v):'—'}</div></div>`;
+      const rs=filtered.filter(r=>normalizeCashMonth(r.cashMonth)===m);
+      const v=rs.reduce((s,r)=>s+(r.cash||0),0), paid=rs.reduce((s,r)=>r.status==='Paid'?s+(r.cash||0):s,0);
+      return `<div class="fsum-card"><div class="fsc-m">${fmtFcstMonth(m)}</div><div class="fsc-v">${v?$f(v):'—'}</div>${paid?`<div style="font-size:11px;color:var(--text3);margin-top:2px" title="Already collected (status Paid); still part of this month's forecast inflow">incl. ${$f(paid)} collected</div>`:''}</div>`;
     }).join('');
   }
   // Table
@@ -4956,6 +4973,8 @@ function renderFcastAR(){
     <th>Actions</th>
   </tr></thead><tbody>`;
   const displayRows=sortedRows(filtered,AR_SORT,AR_NUM_COLS,AR_DATE_COLS,AR_MONTH_COLS);
+  const fKey=[fClient,fEntity,fMonth,fType].join('|');
+  _arShown=_syncSel(AR_SELECTED,fKey,_arSelFilter,displayRows);_arSelFilter=fKey;
   if(displayRows.length===0){
     h+=`<tr><td colspan="22" style="text-align:center;color:var(--text3);padding:28px">${AR_FCST.length?'No rows match the current filters — click ✕ Clear filters to reset':'No forecast invoices yet — click ＋ Add invoice to get started'}</td></tr>`;
   } else {
@@ -4963,20 +4982,21 @@ function renderFcastAR(){
     displayRows.forEach(r=>{
       try{
         const sc=stClass[r.status]||'st-draft';
-        const rid=esc(String(r.id||''));
-        const checked=AR_SELECTED.has(rid)?' checked':'';
+        // ids reach the handlers through data-id (never spliced into JS source)
+        const rid=esc(String(r.id??''));
+        const checked=AR_SELECTED.has(String(r.id??''))?' checked':'';
         h+=`<tr>
-          <td style="padding:8px 6px"><input type="checkbox" data-id="${rid}" onchange="toggleARSel('${rid}')"${checked} style="cursor:pointer;accent-color:var(--accent)"></td>
+          <td style="padding:8px 6px"><input type="checkbox" data-id="${rid}" onchange="toggleARSel(this.dataset.id)"${checked} style="cursor:pointer;accent-color:var(--accent)"></td>
           <td style="font-weight:600">${esc(r.client)||'—'}</td>
           <td>${r.entity?`<span class="ent-badge">${esc(r.entity)}</span>`:'—'}</td>
           <td style="color:var(--text2)">${esc(r.invoiceNo)||'—'}</td>
-          <td style="font-size:14px">${fmtDate(r.invoiceDate)}</td>
+          <td style="font-size:14px">${esc(fmtDate(r.invoiceDate))}</td>
           <td style="font-size:14px">${esc(r.invoiceMonth)||'—'}</td>
-          <td style="font-size:14px">${fmtDate(r.dueDate)}</td>
-          <td style="font-size:14px">${fmtDate(r.paymentDate)}</td>
+          <td style="font-size:14px">${esc(fmtDate(r.dueDate))}</td>
+          <td style="font-size:14px">${esc(fmtDate(r.paymentDate))}</td>
           <td>${esc(r.currency)||'USD'}</td>
           <td style="text-align:right">${r.amount?$f(r.amount):'—'}</td>
-          <td style="text-align:right">${r.fx||1}</td>
+          <td style="text-align:right">${esc(r.fx||1)}</td>
           <td style="text-align:right">${r.usdValue?$f(r.usdValue):'—'}</td>
           <td style="font-size:14px">${esc(r.mode)||'—'}</td>
           <td style="text-align:right">${r.fee?$f(r.fee):'—'}</td>
@@ -4987,9 +5007,9 @@ function renderFcastAR(){
           <td><span style="display:inline-block;padding:2px 7px;border-radius:4px;font-size:12px;font-weight:600;${(r.invoiceType||'Retainer')==='Retainer'?'background:rgba(87,215,226,0.10);color:var(--accent)':'background:rgba(251,191,36,0.10);color:var(--amber)'}">${esc(r.invoiceType||'Retainer')}</span></td>
           <td style="max-width:180px;white-space:normal;font-size:13px;color:var(--text2)">${esc(r.notes)||''}</td>
           <td style="white-space:nowrap">
-            <button onclick="openARModal('${rid}')" style="background:none;border:none;cursor:pointer;color:var(--text3);padding:3px 6px;font-size:15px" title="Edit">✎</button>
-            <button onclick="duplicateARRow('${rid}')" style="background:none;border:none;cursor:pointer;color:var(--text3);padding:3px 6px;font-size:15px" title="Duplicate">⧉</button>
-            <button onclick="deleteFcastRow('ar','${rid}')" style="background:none;border:none;cursor:pointer;color:var(--red);padding:3px 6px;font-size:15px" title="Delete">🗑</button>
+            <button data-id="${rid}" onclick="openARModal(this.dataset.id)" style="background:none;border:none;cursor:pointer;color:var(--text3);padding:3px 6px;font-size:15px" title="Edit">✎</button>
+            <button data-id="${rid}" onclick="duplicateARRow(this.dataset.id)" style="background:none;border:none;cursor:pointer;color:var(--text3);padding:3px 6px;font-size:15px" title="Duplicate">⧉</button>
+            <button data-id="${rid}" onclick="deleteFcastRow('ar',this.dataset.id)" style="background:none;border:none;cursor:pointer;color:var(--red);padding:3px 6px;font-size:15px" title="Delete">🗑</button>
           </td>
         </tr>`;
       }catch(e){rowErr=e.message;}
@@ -4998,9 +5018,8 @@ function renderFcastAR(){
   }
   h+='</tbody>';
   tEl.innerHTML=h;
-  // Sync header checkbox state
-  const allCb=document.getElementById('ar-sel-all');
-  if(allCb){const n=AR_SELECTED.size,tot=displayRows.length;allCb.checked=n>0&&n>=tot;allCb.indeterminate=n>0&&n<tot;}
+  // Sync the header checkbox and the 'Delete selected (n)' button with the (filtered) selection
+  updateARSelUI();
 }
 
 // ── Forecast AP render ──
@@ -5019,7 +5038,7 @@ function renderFcastAP(){
   if(fVendorEl){
     const cur=fVendorEl.value;
     const vendors=[...new Set(AP_FCST.map(r=>r.vendor||'').filter(Boolean))].sort();
-    fVendorEl.innerHTML=`<option value="">All</option>`+vendors.map(v=>`<option${v===cur?' selected':''}>${esc(v)}</option>`).join('');
+    fVendorEl.innerHTML=`<option value="">All</option>`+vendors.map(v=>`<option value="${esc(v)}"${v===cur?' selected':''}>${esc(v)}</option>`).join('');
   }
   if(fMonthEl){
     const cur=fMonthEl.value;
@@ -5027,7 +5046,7 @@ function renderFcastAP(){
       const parse=s=>{const p=s.split(' ');return(parseInt(p[1]||FCST_YEAR))*100+ALL_MONTHS.indexOf(p[0]);};
       return parse(a)-parse(b);
     });
-    fMonthEl.innerHTML=`<option value="">All</option>`+allCMs.map(m=>`<option${m===cur?' selected':''}>${m}</option>`).join('');
+    fMonthEl.innerHTML=`<option value="">All</option>`+allCMs.map(m=>`<option value="${esc(m)}"${m===cur?' selected':''}>${esc(m)}</option>`).join('');
   }
   // Read active filters
   const fVendor=fVendorEl?fVendorEl.value:'';
@@ -5078,19 +5097,21 @@ function renderFcastAP(){
     <th>Actions</th>
   </tr></thead><tbody>`;
   const displayAP=sortedRows(filtered,AP_SORT,AP_NUM_COLS,AP_DATE_COLS,AP_MONTH_COLS);
+  const fKey=[fVendor,fEntity,fMonth,fSpend,fCat].join('|');
+  _apShown=_syncSel(AP_SELECTED,fKey,_apSelFilter,displayAP);_apSelFilter=fKey;
   if(displayAP.length===0){
     h+=`<tr><td colspan="13" style="text-align:center;color:var(--text3);padding:28px">${AP_FCST.length?'No rows match the current filters — click ✕ Clear filters to reset':'No forecast payments yet — click ＋ Add payment to get started'}</td></tr>`;
   } else {
     displayAP.forEach(r=>{
       try{
-        const rid=esc(String(r.id||''));
-        const checked=AP_SELECTED.has(rid)?' checked':'';
+        const rid=esc(String(r.id??''));
+        const checked=AP_SELECTED.has(String(r.id??''))?' checked':'';
         h+=`<tr>
-          <td style="padding:8px 6px"><input type="checkbox" data-id="${rid}" onclick="toggleAPSel('${rid}')"${checked} style="cursor:pointer;accent-color:var(--accent)"></td>
+          <td style="padding:8px 6px"><input type="checkbox" data-id="${rid}" onclick="toggleAPSel(this.dataset.id)"${checked} style="cursor:pointer;accent-color:var(--accent)"></td>
           <td style="font-weight:600">${esc(r.vendor)||'—'}</td>
           <td>${r.entity?eb(esc(r.entity)):'—'}</td>
           <td style="font-size:14px">${esc(normalizeCashMonth(r.workMonth))||'—'}</td>
-          <td style="font-size:14px">${fmtDate(r.paymentDate)}</td>
+          <td style="font-size:14px">${esc(fmtDate(r.paymentDate))}</td>
           <td>${esc(normalizeCashMonth(r.cashMonth))||'—'}${(w=>w.length?` <span class="row-warn" title="${esc(w.join('\n'))}">⚠</span>`:'')(rowWarnings(AR_FCST.includes(r)?'AR':'AP',r))}</td>
           <td style="text-align:right;color:var(--red);font-weight:500">${r.amount?'('+$f(r.amount)+')':'—'}</td>
           <td>${spendBadge(r.spendType)}</td>
@@ -5098,9 +5119,9 @@ function renderFcastAP(){
           <td style="font-size:14px">${esc(r.paymentMode)||'—'}</td>
           <td style="max-width:160px;white-space:normal;font-size:13px;color:var(--text2)">${esc(r.notes)||''}</td>
           <td style="white-space:nowrap">
-            <button onclick="openAPModal('${rid}')" style="background:none;border:none;cursor:pointer;color:var(--text3);padding:3px 6px;font-size:15px" title="Edit">✎</button>
-            <button onclick="duplicateAPRow('${rid}')" style="background:none;border:none;cursor:pointer;color:var(--text3);padding:3px 6px;font-size:15px" title="Duplicate">⧉</button>
-            <button onclick="deleteFcastRow('ap','${rid}')" style="background:none;border:none;cursor:pointer;color:var(--red);padding:3px 6px;font-size:15px" title="Delete">🗑</button>
+            <button data-id="${rid}" onclick="openAPModal(this.dataset.id)" style="background:none;border:none;cursor:pointer;color:var(--text3);padding:3px 6px;font-size:15px" title="Edit">✎</button>
+            <button data-id="${rid}" onclick="duplicateAPRow(this.dataset.id)" style="background:none;border:none;cursor:pointer;color:var(--text3);padding:3px 6px;font-size:15px" title="Duplicate">⧉</button>
+            <button data-id="${rid}" onclick="deleteFcastRow('ap',this.dataset.id)" style="background:none;border:none;cursor:pointer;color:var(--red);padding:3px 6px;font-size:15px" title="Delete">🗑</button>
           </td>
         </tr>`;
       }catch(e){}
@@ -5108,9 +5129,8 @@ function renderFcastAP(){
   }
   h+='</tbody>';
   tEl.innerHTML=h;
-  // Sync header checkbox state
-  const allCb2=document.getElementById('ap-sel-all');
-  if(allCb2){const n=AP_SELECTED.size,tot=displayAP.length;allCb2.checked=n>0&&n>=tot;allCb2.indeterminate=n>0&&n<tot;}
+  // Sync the header checkbox and the 'Delete selected (n)' button with the (filtered) selection
+  updateAPSelUI();
 }
 
 // ── Date display normalizer ──
@@ -5137,8 +5157,31 @@ function fmtDate(v){
 }
 
 // ── Forecast modal helpers ──
+// The open AR/AP modal: the row it edits (or duplicates) and its field values as first shown. Save writes only the
+// fields the user changed, so Edit → Save with no changes leaves the row exactly as stored (dates, mode, notes…).
+let _fcstForm=null;
 function closeFcstModal(){
+  _fcstForm=null;
   document.getElementById('fcst-modal').style.display='none';
+}
+// A new row id (8 random characters, so rows imported in the same millisecond never collide)
+function _newRowId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,10);}
+// 'YYYY-MM-DD' (a date input's value) → 'Mon YYYY', read from the text: new Date('2026-11-01') is UTC midnight,
+// which west of UTC is still 31 October.
+function _isoMonth(v){const m=/^(\d{4})-(\d{2})/.exec(String(v||''));return m&&+m[2]>=1&&+m[2]<=12?`${ALL_MONTHS[+m[2]-1]} ${m[1]}`:'';}
+// <option>s for a modal select. A stored value missing from the list is kept as an extra first option, so Save
+// never silently swaps it for the list's first entry ('Bank Transfer' → 'Payoneer'). blank: label of an empty option.
+function _fcstOpts(list,cur,blank){
+  cur=cur==null?'':String(cur);
+  const l=cur&&!list.includes(cur)?[cur,...list]:list;
+  return (blank!=null?`<option value=""${cur?'':' selected'}>${blank}</option>`:'')+
+    l.map(x=>`<option value="${esc(x)}"${x===cur?' selected':''}>${esc(x)}</option>`).join('');
+}
+// Months offered by the modal month selects: Jan 2025 through the end of the forecast horizon (2028 at least)
+function _fcstMonthList(){
+  const last=FCST_MONTHS.length?mOrd(FCST_MONTHS[FCST_MONTHS.length-1]):NaN, out=[];
+  for(let o=2025*12;o<=Math.max(2028*12+11,isNaN(last)?0:last);o++)out.push(mFromOrd(o));
+  return out;
 }
 
 function calcARAutoFields(){
@@ -5158,24 +5201,20 @@ function calcARAutoFields(){
 }
 
 function autoFillMonth(){
-  const v=document.getElementById('far-invoicedate')?.value;
   const mEl=document.getElementById('far-invoicemonth');
-  if(!v||!mEl)return;
-  const d=new Date(v);
-  if(isNaN(d))return;
-  mEl.value=`${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]} ${d.getFullYear()}`;
+  const val=_isoMonth(document.getElementById('far-invoicedate')?.value);
+  if(val&&mEl)mEl.value=val;
 }
-function autoFillCashMonth(){
-  const pdEl=document.getElementById('far-paymentdate');
-  const cmEl=document.getElementById('far-cashmonth');
-  if(!pdEl||!cmEl||!pdEl.value)return;
-  const d=new Date(pdEl.value);
-  if(isNaN(d))return;
-  const val=`${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]} ${d.getFullYear()}`;
+// Select a month in a cash-month <select>, adding the option if the list doesn't have it
+function _selectMonth(cmEl,val){
   for(let i=0;i<cmEl.options.length;i++){if(cmEl.options[i].value===val||cmEl.options[i].text===val){cmEl.selectedIndex=i;return;}}
-  // Option not in list — add it and select it
   const opt=document.createElement('option');opt.value=val;opt.text=val;opt.selected=true;
   cmEl.insertBefore(opt,cmEl.firstChild);
+}
+function autoFillCashMonth(){
+  const cmEl=document.getElementById('far-cashmonth');
+  const val=_isoMonth(document.getElementById('far-paymentdate')?.value);
+  if(val&&cmEl)_selectMonth(cmEl,val);
 }
 
 function autoFillFX(){
@@ -5210,21 +5249,25 @@ function getCategories(){
 }
 
 // ── AR Modal ──
-function openARModal(id){
-  const row=id?AR_FCST.find(r=>String(r.id)===String(id)):null;
-  const v=k=>row?row[k]:'';
-  const _curCM=normalizeCashMonth(v('cashMonth'));
-  let monthOpts='';
-  for(let y=2025;y<=2028;y++)ALL_MONTHS.forEach(m=>{const val=`${m} ${y}`;monthOpts+=`<option${_curCM===val?' selected':''}>${val}</option>`;});
+// openARModal(id) edits a row; openARModal(null) adds one; openARModal(null,srcId) duplicates srcId (the copy is
+// created on Save, right after the source row).
+function openARModal(id,dupOf){
+  const src=id||dupOf, row=src!=null&&src!==''?AR_FCST.find(r=>String(r.id)===String(src))||null:null;
+  if(!row)id=dupOf=null;
+  const isDup=!id&&!!dupOf;
+  const v=k=>row?(row[k]??''):''; // never undefined: esc(undefined) is '—', which Save would store
+  // Cash month: the row's own, else for a new invoice the first open forecast month (not Jan 2025, the list's first)
+  const curCM=row?normalizeCashMonth(v('cashMonth')):(cfForecastMonths()[0]||'');
+  const monthOpts=_fcstOpts(_fcstMonthList(),curCM,curCM?null:'— Select —');
   const currencies=['USD','AED','GBP','EUR','INR'];
-  const modes=['Payoneer','Stripe','Wire/SWIFT','Upwork','Other'];
+  const modes=['Payoneer','Stripe','Wire/SWIFT','Bank Transfer','Upwork','Other'];
   const statuses=['Draft','Invoiced','Partial','Paid','Overdue'];
-  const clientNames=getClientNames();
-  const clientList=clientNames.map(n=>`<option value="${n.replace(/"/g,'&quot;')}">`).join('');
+  const clientList=getClientNames().filter(Boolean).map(n=>`<option value="${esc(n)}">`).join('');
+  const btn='padding:8px 20px;border-radius:6px;font-size:15px;cursor:pointer;font-family:var(--sans)';
 
   const h=`
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-      <div style="font-size:19px;font-weight:700">${id?'Edit Invoice':'New AR Forecast Invoice'}</div>
+      <div style="font-size:19px;font-weight:700">${id?'Edit Invoice':isDup?'Duplicate Invoice':'New AR Forecast Invoice'}</div>
       <button onclick="closeFcstModal()" style="background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;line-height:1">✕</button>
     </div>
     <datalist id="far-clients-list">${clientList}</datalist>
@@ -5235,10 +5278,7 @@ function openARModal(id){
       </div>
       <div>
         <label>Entity</label>
-        <select id="far-entity">
-          <option${v('entity')==='BH'?' selected':''}>BH</option>
-          <option${v('entity')==='BC'?' selected':''}>BC</option>
-        </select>
+        <select id="far-entity">${_fcstOpts(['BH','BC'],v('entity'))}</select>
       </div>
       <div>
         <label>Invoice #</label>
@@ -5262,43 +5302,39 @@ function openARModal(id){
       </div>
       <div>
         <label>Currency</label>
-        <select id="far-currency" onchange="autoFillFX()">
-          ${currencies.map(c=>`<option${v('currency')===c?' selected':''}>${c}</option>`).join('')}
-        </select>
+        <select id="far-currency" onchange="autoFillFX()">${_fcstOpts(currencies,v('currency'))}</select>
       </div>
       <div>
         <label>Amount</label>
-        <input id="far-amount" type="number" value="${v('amount')}" placeholder="0" oninput="calcARAutoFields()">
+        <input id="far-amount" type="number" value="${esc(v('amount'))}" placeholder="0" oninput="calcARAutoFields()">
       </div>
       <div>
         <label>FX Rate</label>
-        <input id="far-fx" type="number" value="${v('fx')||1}" placeholder="1.0" step="0.0001" oninput="calcARAutoFields()">
+        <input id="far-fx" type="number" value="${esc(v('fx')||1)}" placeholder="1.0" step="0.0001" oninput="calcARAutoFields()">
       </div>
       <div>
         <label>USD Value</label>
-        <input id="far-usdvalue" type="number" value="${v('usdValue')}" readonly placeholder="Auto">
+        <input id="far-usdvalue" type="number" value="${esc(v('usdValue'))}" readonly placeholder="Auto">
       </div>
       <div>
         <label>Mode</label>
-        <select id="far-mode">
-          ${modes.map(m=>`<option${v('mode')===m?' selected':''}>${m}</option>`).join('')}
-        </select>
+        <select id="far-mode">${_fcstOpts(modes,v('mode'))}</select>
       </div>
       <div>
         <label>Fee (USD)</label>
-        <input id="far-fee" type="number" value="${v('fee')||0}" placeholder="0" step="0.01" oninput="calcARAutoFields()">
+        <input id="far-fee" type="number" value="${esc(v('fee')||0)}" placeholder="0" step="0.01" oninput="calcARAutoFields()">
       </div>
       <div>
         <label>Interbank %</label>
-        <input id="far-ibpct" type="number" value="${v('ibPct')!==undefined&&v('ibPct')!==''?v('ibPct'):1}" placeholder="1" step="0.01" min="0" oninput="calcARAutoFields()">
+        <input id="far-ibpct" type="number" value="${esc(v('ibPct')!==''?v('ibPct'):1)}" placeholder="1" step="0.01" min="0" oninput="calcARAutoFields()">
       </div>
       <div>
         <label>Interbank (auto)</label>
-        <input id="far-interbank" type="number" value="${v('interbank')||0}" readonly placeholder="Auto" style="opacity:.7">
+        <input id="far-interbank" type="number" value="${esc(v('interbank')||0)}" readonly placeholder="Auto" style="opacity:.7">
       </div>
       <div>
         <label>Cash (auto)</label>
-        <input id="far-cash" type="number" value="${v('cash')}" readonly placeholder="Auto">
+        <input id="far-cash" type="number" value="${esc(v('cash'))}" readonly placeholder="Auto">
       </div>
       <div>
         <label>Cash Month</label>
@@ -5306,37 +5342,33 @@ function openARModal(id){
       </div>
       <div>
         <label>Status</label>
-        <select id="far-status">
-          ${statuses.map(s=>`<option${v('status')===s?' selected':''}>${s}</option>`).join('')}
-        </select>
+        <select id="far-status">${_fcstOpts(statuses,v('status'))}</select>
       </div>
       <div>
         <label>Type</label>
-        <select id="far-type">
-          <option${(v('invoiceType')||'Retainer')==='Retainer'?' selected':''}>Retainer</option>
-          <option${v('invoiceType')==='One-time'?' selected':''}>One-time</option>
-        </select>
+        <select id="far-type">${_fcstOpts(['Retainer','One-time'],v('invoiceType')||'Retainer')}</select>
       </div>
       <div class="full">
         <label>Notes</label>
-        <textarea id="far-notes" rows="2" placeholder="Optional notes…" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:14px;font-family:var(--sans);resize:vertical;box-sizing:border-box">${v('notes')||''}</textarea>
+        <textarea id="far-notes" rows="2" placeholder="Optional notes…" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:14px;font-family:var(--sans);resize:vertical;box-sizing:border-box">${esc(v('notes'))}</textarea>
       </div>
       <div class="full" style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px">
-        <button onclick="closeFcstModal()" style="padding:8px 20px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:15px;cursor:pointer;font-family:var(--sans)">Cancel</button>
-        <button onclick="saveARModal('${id||''}')" style="padding:8px 20px;border-radius:6px;border:none;background:var(--accent);color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:var(--sans)">Save</button>
+        <button onclick="closeFcstModal()" style="${btn};border:1px solid var(--border2);background:var(--surface2);color:var(--text)">Cancel</button>
+        <button onclick="saveARModal(${esc(JSON.stringify(String(id||'')))})" style="${btn};border:none;background:var(--accent);color:#fff;font-weight:600">${isDup?'Save copy':'Save'}</button>
       </div>
     </div>`;
   document.getElementById('fcst-modal-body').innerHTML=h;
   document.getElementById('fcst-modal').style.display='flex';
-  // Init auto-calc
+  // Init auto-calc, then remember the form as shown
   calcARAutoFields();
+  _fcstForm={kind:'ar',id:String(id||''),dupOf:isDup?String(dupOf):'',init:_arFormRow()};
 }
 
-function saveARModal(id){
+// The AR modal's fields as a row (shared by the as-shown snapshot and Save)
+function _arFormRow(){
   const get=k=>document.getElementById(k)?.value?.trim()||'';
   const getN=k=>parseFloat(document.getElementById(k)?.value)||0;
-  const row={
-    id:id||Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+  return {
     client:get('far-client'),
     entity:get('far-entity')||'BH',
     invoiceNo:get('far-invoiceno'),
@@ -5358,44 +5390,65 @@ function saveARModal(id){
     invoiceType:get('far-type')||'Retainer',
     notes:document.getElementById('far-notes')?.value?.trim()||''
   };
-  const prevAR=id&&AR_FCST.find(r=>String(r.id)===String(id));row.source=(prevAR&&prevAR.source)||'manual';
-  if(id){const i=AR_FCST.findIndex(r=>String(r.id)===String(id));if(i>=0)AR_FCST[i]=row;else AR_FCST.push(row);}
-  else AR_FCST.push(row);
+}
+// Fields of form row f that differ from the modal as first shown (all of them without a snapshot)
+function _fcstChanged(f,kind,id){
+  const st=_fcstForm&&_fcstForm.kind===kind&&_fcstForm.id===String(id||'')?_fcstForm:null;
+  return Object.keys(f).filter(k=>!st||String(f[k])!==String(st.init[k]));
+}
+// Save warnings: rowWarnings plus a row that lands in no forecast month
+function _saveWarn(side,row){
+  const w=rowWarnings(side,row);
+  if(!normalizeCashMonth(row.cashMonth))w.push('it has no cash month, so it is in no forecast month');
+  if(w.length)alert('Saved, but please check:\n• '+w.join('\n• '));
+}
+
+function saveARModal(id){
+  const f=_arFormRow(), ch=_fcstChanged(f,'ar',id), dupOf=_fcstForm&&_fcstForm.kind==='ar'?_fcstForm.dupOf:'';
+  const i=id?AR_FCST.findIndex(r=>String(r.id)===String(id)):-1;
+  let row;
+  if(i>=0){
+    // Edit: apply only what the user changed; every other field keeps its stored value exactly
+    if(!ch.length){closeFcstModal();return;}
+    const prev=AR_FCST[i];
+    row={...prev};ch.forEach(k=>{row[k]=f[k];});
+    row.source=prev.source||'manual';
+    AR_FCST[i]=recalcARRow(row);
+  } else {
+    row=recalcARRow({id:id||_newRowId(),...f,source:'manual'});
+    const at=dupOf?AR_FCST.findIndex(r=>String(r.id)===dupOf):-1; // a duplicate goes right after its source
+    if(at>=0)AR_FCST.splice(at+1,0,row);else AR_FCST.push(row);
+  }
   saveFcastAR();
   closeFcstModal();
   renderFcastAR();
-  const w=rowWarnings('AR',row);if(w.length)alert('Saved, but please check:\n• '+w.join('\n• '));
+  _saveWarn('AR',row);
 }
 
 // ── AP Modal ──
 function autoFillAPCashMonth(){
-  const pdEl=document.getElementById('fap-paymentdate');
   const cmEl=document.getElementById('fap-cashmonth');
-  if(!pdEl||!cmEl||!pdEl.value)return;
-  const d=new Date(pdEl.value);
-  if(isNaN(d))return;
-  const val=`${ALL_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
-  for(let i=0;i<cmEl.options.length;i++){if(cmEl.options[i].text===val){cmEl.selectedIndex=i;return;}}
-  const opt=document.createElement('option');opt.value=val;opt.text=val;opt.selected=true;cmEl.insertBefore(opt,cmEl.firstChild);
+  const val=_isoMonth(document.getElementById('fap-paymentdate')?.value);
+  if(val&&cmEl)_selectMonth(cmEl,val);
 }
 
-function openAPModal(id){
-  const row=id?AP_FCST.find(r=>String(r.id)===String(id)):null;
-  const v=k=>row?row[k]:'';
-  const _curCM=normalizeCashMonth(v('cashMonth'));
-  const _curWM=normalizeCashMonth(v('workMonth'));
-  let monthOpts='',workOpts='';
-  for(let y=2025;y<=2028;y++)ALL_MONTHS.forEach(m=>{
-    const val=`${m} ${y}`;
-    monthOpts+=`<option${_curCM===val?' selected':''}>${val}</option>`;
-    workOpts+=`<option${_curWM===val?' selected':''}>${val}</option>`;
-  });
-  const vendorNames=getVendorNames();
-  const vendorList=vendorNames.map(n=>`<option value="${n.replace(/"/g,'&quot;')}">`).join('');
+// openAPModal(id) edits a row; openAPModal(null) adds one; openAPModal(null,srcId) duplicates srcId (created on Save)
+function openAPModal(id,dupOf){
+  const src=id||dupOf, row=src!=null&&src!==''?AP_FCST.find(r=>String(r.id)===String(src))||null:null;
+  if(!row)id=dupOf=null;
+  const isDup=!id&&!!dupOf;
+  const v=k=>row?(row[k]??''):''; // never undefined: esc(undefined) is '—', which Save would store
+  const months=_fcstMonthList();
+  // Cash month: the row's own, else for a new payment the first open forecast month (not Jan 2025)
+  const curCM=row?normalizeCashMonth(v('cashMonth')):(cfForecastMonths()[0]||'');
+  const monthOpts=_fcstOpts(months,curCM,curCM?null:'— Select —');
+  const workOpts=_fcstOpts(months,normalizeCashMonth(v('workMonth')),'— Select —');
+  const vendorList=getVendorNames().filter(Boolean).map(n=>`<option value="${esc(n)}">`).join('');
+  const btn='padding:8px 20px;border-radius:6px;font-size:15px;cursor:pointer;font-family:var(--sans)';
 
   const h=`
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-      <div style="font-size:19px;font-weight:700">${id?'Edit Payment':'New AP Forecast Payment'}</div>
+      <div style="font-size:19px;font-weight:700">${id?'Edit Payment':isDup?'Duplicate Payment':'New AP Forecast Payment'}</div>
       <button onclick="closeFcstModal()" style="background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;line-height:1">✕</button>
     </div>
     <datalist id="fap-vendors-list">${vendorList}</datalist>
@@ -5406,10 +5459,7 @@ function openAPModal(id){
       </div>
       <div>
         <label>Entity</label>
-        <select id="fap-entity">
-          <option${(v('entity')||'BH')==='BH'?' selected':''}>BH</option>
-          <option${v('entity')==='BC'?' selected':''}>BC</option>
-        </select>
+        <select id="fap-entity">${_fcstOpts(['BH','BC'],v('entity')||'BH')}</select>
       </div>
       <div>
         <label>Month of Work</label>
@@ -5425,52 +5475,39 @@ function openAPModal(id){
       </div>
       <div>
         <label>Amount (USD)</label>
-        <input id="fap-amount" type="number" value="${v('amount')}" placeholder="0" step="0.01">
+        <input id="fap-amount" type="number" value="${esc(v('amount'))}" placeholder="0" step="0.01">
       </div>
       <div>
         <label>Spend Type</label>
-        <select id="fap-spendtype">
-          <option value="">— Select —</option>
-          <option${v('spendType')==='Variable'?' selected':''}>Variable</option>
-          <option${v('spendType')==='Fixed'?' selected':''}>Fixed</option>
-        </select>
+        <select id="fap-spendtype">${_fcstOpts(['Variable','Fixed'],v('spendType'),'— Select —')}</select>
       </div>
       <div>
         <label>Expense Category</label>
-        <select id="fap-expcategory">
-          <option value="">— Select —</option>
-          <option${v('expenseCategory')==='COS'?' selected':''}>COS</option>
-          <option${v('expenseCategory')==='OPEX'?' selected':''}>OPEX</option>
-          <option${v('expenseCategory')==='TAX'?' selected':''}>TAX</option>
-        </select>
+        <select id="fap-expcategory">${_fcstOpts(['COS','OPEX','TAX'],v('expenseCategory'),'— Select —')}</select>
       </div>
       <div>
         <label>Payment Mode</label>
-        <select id="fap-paymode">
-          <option value="">— Select —</option>
-          <option${v('paymentMode')==='Skuad'?' selected':''}>Skuad</option>
-          <option${v('paymentMode')==='Bank Transfer'?' selected':''}>Bank Transfer</option>
-          <option${v('paymentMode')==='Alaan Pay'?' selected':''}>Alaan Pay</option>
-        </select>
+        <select id="fap-paymode">${_fcstOpts(['Skuad','Bank Transfer','Alaan Pay'],v('paymentMode'),'— Select —')}</select>
       </div>
       <div class="full">
         <label>Notes</label>
         <textarea id="fap-notes" rows="2" placeholder="Optional notes…" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:14px;font-family:var(--sans);resize:vertical;box-sizing:border-box">${esc(v('notes'))}</textarea>
       </div>
       <div class="full" style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px">
-        <button onclick="closeFcstModal()" style="padding:8px 20px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:15px;cursor:pointer;font-family:var(--sans)">Cancel</button>
-        <button onclick="saveAPModal('${id||''}')" style="padding:8px 20px;border-radius:6px;border:none;background:var(--accent);color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:var(--sans)">Save</button>
+        <button onclick="closeFcstModal()" style="${btn};border:1px solid var(--border2);background:var(--surface2);color:var(--text)">Cancel</button>
+        <button onclick="saveAPModal(${esc(JSON.stringify(String(id||'')))})" style="${btn};border:none;background:var(--accent);color:#fff;font-weight:600">${isDup?'Save copy':'Save'}</button>
       </div>
     </div>`;
   document.getElementById('fcst-modal-body').innerHTML=h;
   document.getElementById('fcst-modal').style.display='flex';
+  _fcstForm={kind:'ap',id:String(id||''),dupOf:isDup?String(dupOf):'',init:_apFormRow()};
 }
 
-function saveAPModal(id){
+// The AP modal's fields as a row (shared by the as-shown snapshot and Save)
+function _apFormRow(){
   const get=k=>document.getElementById(k)?.value?.trim()||'';
   const getN=k=>parseFloat(document.getElementById(k)?.value)||0;
-  const row={
-    id:id||Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+  return {
     vendor:get('fap-vendor'),
     entity:get('fap-entity')||'BH',
     workMonth:get('fap-workmonth'),
@@ -5482,21 +5519,37 @@ function saveAPModal(id){
     paymentMode:get('fap-paymode'),
     notes:document.getElementById('fap-notes')?.value?.trim()||''
   };
-  const prevAP=id&&AP_FCST.find(r=>String(r.id)===String(id));row.source=(prevAP&&prevAP.source)||'manual';
-  if(id){const i=AP_FCST.findIndex(r=>String(r.id)===String(id));if(i>=0)AP_FCST[i]=row;else AP_FCST.push(row);}
-  else AP_FCST.push(row);
+}
+
+function saveAPModal(id){
+  const f=_apFormRow(), ch=_fcstChanged(f,'ap',id), dupOf=_fcstForm&&_fcstForm.kind==='ap'?_fcstForm.dupOf:'';
+  const i=id?AP_FCST.findIndex(r=>String(r.id)===String(id)):-1;
+  let row;
+  if(i>=0){
+    // Edit: apply only what the user changed; every other field keeps its stored value exactly
+    if(!ch.length){closeFcstModal();return;}
+    const prev=AP_FCST[i];
+    row={...prev};ch.forEach(k=>{row[k]=f[k];});
+    row.source=prev.source||'manual';
+    recalcAPRow(row);AP_FCST[i]=row;
+  } else {
+    row={id:id||_newRowId(),...f,source:'manual'};
+    recalcAPRow(row); // a blank cash month comes from the payment date
+    const at=dupOf?AP_FCST.findIndex(r=>String(r.id)===dupOf):-1; // a duplicate goes right after its source
+    if(at>=0)AP_FCST.splice(at+1,0,row);else AP_FCST.push(row);
+  }
   saveFcastAP();
   closeFcstModal();
   renderFcastAP();
-  const w=rowWarnings('AP',row);if(w.length)alert('Saved, but please check:\n• '+w.join('\n• '));
+  _saveWarn('AP',row);
 }
 
 function deleteFcastRow(type,id){
   if(!confirm('Delete this row?'))return;
   _deletedRowIds.add(String(id));
   addTombs(type==='ar'?'ar_fcst':'ap_fcst',[id]);
-  if(type==='ar'){AR_FCST=AR_FCST.filter(r=>String(r.id)!==String(id));saveFcastAR();renderFcastAR();renderCF();}
-  else{AP_FCST=AP_FCST.filter(r=>String(r.id)!==String(id));saveFcastAP();renderFcastAP();renderCF();}
+  if(type==='ar'){AR_SELECTED.delete(String(id));AR_FCST=AR_FCST.filter(r=>String(r.id)!==String(id));saveFcastAR();renderFcastAR();renderCF();}
+  else{AP_SELECTED.delete(String(id));AP_FCST=AP_FCST.filter(r=>String(r.id)!==String(id));saveFcastAP();renderFcastAP();renderCF();}
 }
 
 // ── Export CSV helpers ──
@@ -5514,20 +5567,21 @@ function dlCSV(filename,rows){
 }
 
 function exportARCSV(){
-  const headers=['Client','Entity','Invoice #','Invoice Date','Invoice Month','Due Date','Payment Date','Currency','Amount','FX Rate','USD Value','Mode','Fee','Interbank','Cash','Cash Month','Status','Type','Notes'];
+  // ID lets a re-import update these rows in place; Interbank % keeps each row's rate (Stripe rows are 5%)
+  const headers=['ID','Client','Entity','Invoice #','Invoice Date','Invoice Month','Due Date','Payment Date','Currency','Amount','FX Rate','USD Value','Mode','Fee','Interbank %','Interbank','Cash','Cash Month','Status','Type','Notes'];
   const rows=[headers,...AR_FCST.map(r=>[
-    r.client||'',r.entity||'BH',r.invoiceNo||'',toExportDate(r.invoiceDate||''),r.invoiceMonth||'',
+    r.id??'',r.client||'',r.entity||'BH',r.invoiceNo||'',toExportDate(r.invoiceDate||''),r.invoiceMonth||'',
     toExportDate(r.dueDate||''),toExportDate(r.paymentDate||''),r.currency||'',r.amount||'',r.fx||'',r.usdValue||'',
-    r.mode||'',r.fee||'',r.interbank||'',r.cash||'',r.cashMonth||'',r.status||'',
+    r.mode||'',r.fee||'',r.ibPct??'',r.interbank||'',r.cash||'',r.cashMonth||'',r.status||'',
     r.invoiceType||'Retainer',r.notes||''
   ])];
   dlCSV('ar_pipeline_'+new Date().toISOString().slice(0,10)+'.csv',rows);
 }
 
 function exportAPCSV(){
-  const headers=['Vendor','Entity','Work Month','Payment Date','Cash Month','Amount (USD)','Spend Type','Expense Category','Payment Mode','Notes'];
+  const headers=['ID','Vendor','Entity','Work Month','Payment Date','Cash Month','Amount (USD)','Spend Type','Expense Category','Payment Mode','Notes'];
   const rows=[headers,...AP_FCST.map(r=>[
-    r.vendor||'',r.entity||'BH',r.workMonth||'',toExportDate(r.paymentDate||''),r.cashMonth||'',
+    r.id??'',r.vendor||'',r.entity||'BH',r.workMonth||'',toExportDate(r.paymentDate||''),r.cashMonth||'',
     r.amount||'',r.spendType||'',r.expenseCategory||'',r.paymentMode||'',r.notes||''
   ])];
   dlCSV('ap_schedule_'+new Date().toISOString().slice(0,10)+'.csv',rows);
@@ -5535,14 +5589,18 @@ function exportAPCSV(){
 
 // ── Import helpers ──
 const AR_COL_MAP={
+  'id':'id','row id':'id',
   'client':'client','entity':'entity',
   'invoice #':'invoiceNo','invoice no':'invoiceNo','invoice number':'invoiceNo',
   'invoice date':'invoiceDate','due date':'dueDate','payment date':'paymentDate',
   'currency':'currency','amount':'amount','fx rate':'fx','fx':'fx',
   'usd value':'usdValue','mode':'mode','fee':'fee','interbank':'interbank',
-  'cash':'cash','cash month':'cashMonth','status':'status'
+  'interbank %':'ibPct','interbank pct':'ibPct',
+  'cash':'cash','cash month':'cashMonth','status':'status',
+  'type':'invoiceType','invoice type':'invoiceType','notes':'notes','note':'notes'
 };
 const AP_COL_MAP={
+  'id':'id','row id':'id',
   'vendor':'vendor','entity':'entity',
   'work month':'workMonth','month of work':'workMonth','month':'workMonth','work':'workMonth','spending month':'workMonth',
   'payment date':'paymentDate','date':'paymentDate',
@@ -5575,6 +5633,65 @@ function _importReport(rejected,warns){
   if(warns.length)t+=`\n\n⚠ ${warns.length} warning(s):\n`+warns.slice(0,15).join('\n')+(warns.length>15?`\n…and ${warns.length-15} more`:'');
   return t;
 }
+
+// ── Import: update rows in place ──
+// Re-importing an export (edited or not) must never add its rows a second time. Each file row updates, in order:
+// the row with its ID (exports carry it); for AR, the row with the same entity + invoice # (each existing row is
+// matched once, preferring the same cash month, so instalments and the other entity's invoice with the same number
+// stay separate); or an existing row identical to it. Anything else is added as a new row.
+const _IMP_DATE=['invoiceDate','dueDate','paymentDate'], _IMP_MONTH=['cashMonth','workMonth','invoiceMonth'];
+const _IMP_NUM=['amount','fx','usdValue','fee','interbank','ibPct','cash'];
+const _AR_SIG=['entity','client','invoiceNo','invoiceDate','dueDate','paymentDate','currency','amount','fx','mode','fee','cashMonth','status','invoiceType','notes'];
+const _AP_SIG=['entity','vendor','workMonth','paymentDate','cashMonth','amount','spendType','expenseCategory','paymentMode','notes'];
+// A field's comparable form: dates as ISO, months as 'Mon YYYY', numbers as numbers, text trimmed
+function _impNorm(k,v){
+  if(k==='entity')return String(v||'BH').trim().toUpperCase();
+  if(v==null)v='';
+  if(_IMP_DATE.includes(k))return String(normalizeToISO(v)||'').trim();
+  if(_IMP_MONTH.includes(k))return normalizeCashMonth(v);
+  if(_IMP_NUM.includes(k))return String(Math.round((parseFloat(v)||0)*1e6)/1e6);
+  return String(v).trim();
+}
+const _impSig=(keys,x)=>keys.map(k=>_impNorm(k,x[k])).join('\u0001');
+const _invKey=x=>{const n=String(x.invoiceNo??'').trim().toUpperCase();return n&&n!=='—'?_impNorm('entity',x.entity)+'|'+n:'';};
+// Pair file rows (items[].r) with existing rows (arr): by ID, then (byInv: AR) entity + invoice #, then identical
+// content (probe normalizes a file row like a stored one). Sets items[].i; each existing row is matched at most once.
+function _impMatch(items,arr,sigKeys,probe,byInv){
+  const used=new Set(), byId=new Map();
+  arr.forEach((x,i)=>{if(!byId.has(String(x.id)))byId.set(String(x.id),i);});
+  const take=(it,i)=>{it.i=i;used.add(i);};
+  items.forEach(it=>{const k=String(it.r.id??'').trim(),i=k?byId.get(k):undefined;if(i!==undefined&&!used.has(i))take(it,i);});
+  if(byInv)items.forEach(it=>{
+    const k=it.i===undefined&&_invKey(it.r);if(!k)return;
+    const cm=normalizeCashMonth(it.r.cashMonth);let best=-1;
+    for(let i=0;i<arr.length;i++){
+      if(used.has(i)||_invKey(arr[i])!==k)continue;
+      if(best<0)best=i;
+      if(normalizeCashMonth(arr[i].cashMonth)===cm){best=i;break;}
+    }
+    if(best>=0)take(it,best);
+  });
+  const sigs=arr.map(x=>_impSig(sigKeys,x));
+  items.forEach(it=>{
+    if(it.i!==undefined)return;
+    const s=_impSig(sigKeys,probe({...it.r})), i=sigs.findIndex((x,j)=>!used.has(j)&&x===s);
+    if(i>=0)take(it,i);
+  });
+}
+// Update existing row prev from file row r: a field the file leaves as it is keeps its stored value exactly.
+// skip: fields never taken from the file. Returns the updated row, or null when nothing changes.
+function _impMerge(prev,r,skip,recalc){
+  const out={...prev};let ch=false;
+  Object.keys(r).forEach(k=>{if(!skip.includes(k)&&_impNorm(k,r[k])!==_impNorm(k,prev[k])){out[k]=r[k];ch=true;}});
+  if(!ch)return null;
+  recalc(out);
+  return JSON.stringify(out)===JSON.stringify(prev)?null:out;
+}
+function _impSummary(added,updated,same,noCM,hasId,how){
+  return `Import complete: ${added} added, ${updated} updated, ${same} unchanged.`+
+    (noCM.length?`\n\n⚠ ${noCM.length} row(s) have no Cash Month or Payment Date, so they are in no forecast month: ${noCM.slice(0,10).join(', ')}${noCM.length>10?'…':''}`:'')+
+    (!hasId&&added?`\n\nThis file has no ID column, so rows were matched ${how}; the ${added} added row(s) matched none. If any of them are edited copies of existing rows, delete the old ones.`:'');
+}
 function importARFile(file){
   if(!file)return;
   loadSheetJS(()=>{
@@ -5585,29 +5702,50 @@ function importARFile(file){
         const wb=window.XLSX.read(data,{type:'array',cellDates:true});
         const jsonRows=parseSheetRows(wb,0);
         if(!jsonRows.length){alert('No data rows found.');return;}
-        let added=0,updated=0;const rejected=[],warns=[];
+        let added=0,updated=0,same=0;const rejected=[],warns=[],items=[],done=[],noCM=[];
         jsonRows.forEach((raw,ri)=>{
           const r=mapRow(raw,AR_COL_MAP);
           if(!r.client&&!r.invoiceNo)return; // skip blank rows
           const bad=['cashMonth','invoiceMonth'].filter(k=>r[k]!==undefined&&r[k]!==''&&strictMonth(r[k])===null);
           if(bad.length){rejected.push(`row ${ri+2} (${r.client||r.invoiceNo}): ${bad.map(k=>`${k} "${r[k]}"`).join(', ')}`);return;}
           ['cashMonth','invoiceMonth'].forEach(k=>{if(r[k])r[k]=strictMonth(r[k]);});
-          // normalize entity and cashMonth
-          r.entity=normalizeEntity(r.entity);
-          // cashMonth is normalized by recalcARRow below, which takes a missing year from the row's dates
+          const blank=k=>r[k]===undefined||String(r[k]).trim()==='', keep=[]; // keep: blank in the file → an update keeps the row's value
+          if(blank('entity')){r.entity='BH';keep.push('entity');}else r.entity=normalizeEntity(r.entity);
+          if(blank('client'))keep.push('client');
+          if(blank('ibPct'))delete r.ibPct; // no Interbank %: the row keeps its rate (a new row works it out, or 1%)
+          if(blank('invoiceType'))delete r.invoiceType;
+          else{const t=String(r.invoiceType).trim(),tl=t.toLowerCase().replace(/[\s_-]/g,'');r.invoiceType=tl==='onetime'?'One-time':tl==='retainer'?'Retainer':t;}
+          if(r.invoiceNo!==undefined)r.invoiceNo=String(r.invoiceNo).trim();
           // numeric coercion
-          ['amount','fx','usdValue','fee','interbank','ibPct','cash'].forEach(k=>{
+          _IMP_NUM.forEach(k=>{
             if(r[k]!==undefined)r[k]=parseFloat(String(r[k]).replace(/[^0-9.\-]/g,''))||0;
           });
-          recalcARRow(r);
-          // find existing by invoiceNo or append
-          const existing=r.invoiceNo?AR_FCST.findIndex(x=>x.invoiceNo&&x.invoiceNo===r.invoiceNo):-1;
-          if(existing>=0){AR_FCST[existing]={...AR_FCST[existing],...r};updated++;}
-          else{AR_FCST.push({id:Date.now()+Math.random(),source:'manual',...r});added++;}
-          rowWarnings('AR',r).forEach(w=>warns.push(`${r.client||r.invoiceNo}: ${w}`));
+          // no cash month: take it from the payment date, as the modal and the AP import do
+          if(!r.cashMonth){const pm=_isoMonth(normalizeToISO(r.paymentDate));if(pm)r.cashMonth=pm;else{delete r.cashMonth;keep.push('cashMonth');}}
+          items.push({r,keep});
+        });
+        _impMatch(items,AR_FCST,_AR_SIG,recalcARRow,true);
+        items.forEach(({r,keep,i})=>{
+          if(i!==undefined){
+            // derived fields (USD value, interbank, cash) are recomputed from the row, never taken from the file
+            const m=_impMerge(AR_FCST[i],r,['id','source','usdValue','interbank','cash',...keep],recalcARRow);
+            if(m){AR_FCST[i]=m;updated++;done.push(m);}else same++;
+            return;
+          }
+          // an export without the Interbank % column: work the rate out from its Interbank and USD value
+          if(r.ibPct===undefined&&r.interbank>0){const usd=r.amount?r.amount*(r.fx||1):(r.usdValue||0);if(usd>0)r.ibPct=Math.round(r.interbank/usd*1e4)/100;}
+          delete r.id;
+          const row=recalcARRow({id:_newRowId(),source:'manual',...r});
+          AR_FCST.push(row);added++;done.push(row);
+        });
+        done.forEach(row=>{
+          const name=row.client||row.invoiceNo;
+          rowWarnings('AR',row).forEach(w=>warns.push(`${name}: ${w}`));
+          if(!normalizeCashMonth(row.cashMonth))noCM.push(name);
         });
         saveFcastAR();renderFcastAR();renderCF();
-        alert(`Import complete: ${added} added, ${updated} updated.`+_importReport(rejected,warns));
+        const hasId=jsonRows.some(raw=>Object.keys(raw).some(k=>AR_COL_MAP[k.trim().toLowerCase()]==='id'));
+        alert(_impSummary(added,updated,same,noCM,hasId,'by entity + invoice # or to an identical existing row')+_importReport(rejected,warns));
       }catch(err){alert('Import failed: '+err.message);}
     };
     reader.readAsArrayBuffer(file);
@@ -5671,20 +5809,38 @@ function importAPFile(file){
         const wb=window.XLSX.read(data,{type:'array',cellDates:true});
         const jsonRows=parseSheetRows(wb,0);
         if(!jsonRows.length){alert('No data rows found.');return;}
-        let added=0;const rejected=[],warns=[];
+        let added=0,updated=0,same=0;const rejected=[],warns=[],items=[],done=[],noCM=[];
         jsonRows.forEach((raw,ri)=>{
           const r=mapRow(raw,AP_COL_MAP);
           if(!r.vendor)return; // skip blank rows
           const bad=['cashMonth','workMonth'].filter(k=>r[k]!==undefined&&r[k]!==''&&strictMonth(r[k])===null);
           if(bad.length){rejected.push(`row ${ri+2} (${r.vendor}): ${bad.map(k=>`${k} "${r[k]}"`).join(', ')}`);return;}
           ['cashMonth','workMonth'].forEach(k=>{if(r[k])r[k]=strictMonth(r[k]);});
+          const keep=String(r.entity??'').trim()?[]:['entity']; // no entity in the file: an update keeps the row's
           recalcAPRow(r);
-          AP_FCST.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),source:'manual',...r});
-          added++;
-          rowWarnings('AP',r).forEach(w=>warns.push(`${r.vendor}: ${w}`));
+          // a full date is stored as ISO (a month-only 'September 2026' stays as it is)
+          if(typeof r.paymentDate==='string'&&!/^[A-Za-z]+\s+\d{4}$/.test(r.paymentDate.trim())){const iso=normalizeToISO(r.paymentDate);if(/^\d{4}-\d{2}-\d{2}$/.test(iso))r.paymentDate=iso;}
+          if(!r.cashMonth){delete r.cashMonth;keep.push('cashMonth');}
+          items.push({r,keep});
+        });
+        _impMatch(items,AP_FCST,_AP_SIG,x=>(recalcAPRow(x),x));
+        items.forEach(({r,keep,i})=>{
+          if(i!==undefined){
+            const m=_impMerge(AP_FCST[i],r,['id','source',...keep],recalcAPRow);
+            if(m){AP_FCST[i]=m;updated++;done.push(m);}else same++;
+            return;
+          }
+          delete r.id;
+          const row={id:_newRowId(),source:'manual',...r};
+          AP_FCST.push(row);added++;done.push(row);
+        });
+        done.forEach(row=>{
+          rowWarnings('AP',row).forEach(w=>warns.push(`${row.vendor}: ${w}`));
+          if(!normalizeCashMonth(row.cashMonth))noCM.push(row.vendor);
         });
         saveFcastAP();renderFcastAP();renderCF();
-        alert(`Import complete: ${added} rows added.`+_importReport(rejected,warns));
+        const hasId=jsonRows.some(raw=>Object.keys(raw).some(k=>AP_COL_MAP[k.trim().toLowerCase()]==='id'));
+        alert(_impSummary(added,updated,same,noCM,hasId,'only to identical existing rows')+_importReport(rejected,warns));
       }catch(err){alert('Import failed: '+err.message);}
     };
     reader.readAsArrayBuffer(file);
@@ -5762,7 +5918,7 @@ function _applyCloud(d){
     _migrateTxOverrides(d);
     if(d.cf_tx_overrides)_setMapStore('cf_tx_overrides',_overlayDirty('cf_tx_overrides',d.cf_tx_overrides,CF_TX_OVERRIDES));
     if(d.cf_net_overrides)_setMapStore('cf_net_overrides',_overlayDirty('cf_net_overrides',d.cf_net_overrides,CF_NET_OVERRIDES));
-    if(!keep.ar_fcst&&Array.isArray(d.ar_fcst)){AR_FCST=dropTombed('ar_fcst',d.ar_fcst).map(recalcARRow);try{localStorage.setItem('ar_fcst',JSON.stringify(AR_FCST));}catch(e){}}
+    if(!keep.ar_fcst&&Array.isArray(d.ar_fcst)){AR_FCST=dropTombed('ar_fcst',d.ar_fcst).map(r=>recalcARRow({...r}));try{localStorage.setItem('ar_fcst',JSON.stringify(AR_FCST));}catch(e){}} // recalc copies: d.ar_fcst stays as stored for its version below
     if(!keep.ap_fcst&&Array.isArray(d.ap_fcst)){AP_FCST=dropTombed('ap_fcst',d.ap_fcst);try{localStorage.setItem('ap_fcst',JSON.stringify(AP_FCST));}catch(e){}}
     if(!keep.gl_mappings&&d.gl_mappings&&typeof d.gl_mappings==='object'){GL_MAPPINGS=d.gl_mappings;try{localStorage.setItem('gl_mappings',JSON.stringify(GL_MAPPINGS));}catch(e){}}
     if(!keep.actuals_snap&&d.actuals_snap){try{localStorage.setItem('actuals_snap',JSON.stringify(d.actuals_snap));}catch(e){}loadActuals();}
