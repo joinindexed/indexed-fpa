@@ -8,6 +8,11 @@
 <style>
 :root{--bg:#0A0A0A;--surface:#141414;--surface2:#181818;--surface3:#1e1e1e;--border:rgba(255,255,255,0.08);--border2:rgba(255,255,255,0.12);--accent:#57D7E2;--accent-light:rgba(87,215,226,0.06);--accent-mid:#85E2E9;--accent-dark:#20B0BC;--accent-glow:rgba(87,215,226,0.25);--accent-border:rgba(87,215,226,0.20);--text:#F2F2F2;--text2:rgba(255,255,255,0.55);--text3:rgba(255,255,255,0.25);--red:#F87171;--green:#34D399;--green-dim:rgba(52,211,153,0.10);--blue:#57D7E2;--blue-dim:rgba(87,215,226,0.06);--amber:#FBBF24;--amber-dim:rgba(251,191,36,0.10);--sans:'Barlow',sans-serif}
 body.light{--bg:#ECEEF2;--surface:#FFFFFF;--surface2:#F3F5F8;--surface3:#E5E8ED;--border:rgba(0,0,0,0.09);--border2:rgba(0,0,0,0.15);--accent:#0BA5B4;--accent-light:rgba(11,165,180,0.08);--accent-mid:#0BA5B4;--accent-dark:#087A87;--accent-glow:rgba(11,165,180,0.20);--accent-border:rgba(11,165,180,0.28);--text:#0A0A0A;--text2:rgba(0,0,0,0.75);--text3:rgba(0,0,0,0.58);--red:#C41F1F;--green:#047857;--green-dim:rgba(4,120,87,0.09);--blue:#0BA5B4;--blue-dim:rgba(11,165,180,0.08);--amber:#B45309;--amber-dim:rgba(180,83,9,0.09)}
+/* Accent that holds ≥4.5:1 as text on the surfaces (incl. the light nav/tab tints) and as a fill under
+   --on-accent text (primary buttons, selected entity pill). --accent itself is too light for either: white on it
+   is 1.7:1 dark / 3.0:1 light, and #0BA5B4 text on the light surfaces is under 3:1. */
+:root{--accent-strong:#57D7E2;--on-accent:#06292c}
+body.light{--accent-strong:#077480;--on-accent:#fff}
 /* Light mode: sidebar and page-header get a subtle off-white tint */
 body.light .sidebar{background:#F7F9FB;border-right:1px solid rgba(0,0,0,0.10)}
 body.light .page-header{background:#F7F9FB;border-bottom:1px solid rgba(0,0,0,0.10)}
@@ -24,8 +29,9 @@ body.light table.dt th{background:#ECEEF2}
 body.light .ba{color:var(--accent)}
 /* Light mode: inputs and selects get a proper border */
 body.light input,body.light select,body.light textarea{color-scheme:light;border-color:rgba(0,0,0,0.18)!important}
-/* Light mode: nav active item */
-body.light .nav-item.active{background:rgba(11,165,180,0.10);color:var(--accent)}
+/* Light mode: nav active item (and the active tab) — the darker accent keeps the label ≥4.5:1 */
+body.light .nav-item.active{background:rgba(11,165,180,0.10);color:var(--accent-strong)}
+body.light .itab.active{color:var(--accent-strong);border-bottom-color:var(--accent-strong)}
 /* Light mode: logo text */
 body.light .logo-title{color:var(--accent)}
 /* Light mode: KPI metric cards */
@@ -34,27 +40,47 @@ body.light .mc{background:#FFFFFF}
 body.light .itabs{background:#F7F9FB}
 /* Light mode: drop zone */
 body.light .drop-zone{border-color:rgba(0,0,0,0.18)}
+/* Light mode: the dark theme's white scrollbar thumb is invisible on white — without it nothing shows that the
+   cash flow table scrolls right into the forecast months */
+body.light ::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.45)}
+body.light ::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,0.60)}
+/* Light mode: forecast "F" badge — #FBBF24 on white is 1.4:1. A solid dark-amber chip stays readable (4:1+)
+   even inside the forecast headers' .75 opacity. */
+body.light .bf{background:#92400E;color:#fff}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:17.0px;min-height:100vh}
 .shell{display:flex;height:100vh;overflow:hidden}
-.sidebar{width:216px;min-width:216px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column}
+/* Sidebar on short screens: the nav list scrolls so the footer (entity switch, Sign out, theme) stays pinned
+   and reachable; if even that can't fit, the whole sidebar scrolls. */
+.sidebar{width:216px;min-width:216px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto}
 .main{flex:1;overflow-y:auto}
-.logo{padding:22px 20px 18px;border-bottom:1px solid var(--border)}
+.logo{padding:22px 20px 18px;border-bottom:1px solid var(--border);flex-shrink:0}
 .logo-text{font-size:19.0px;font-weight:800;color:var(--accent);letter-spacing:-.02em}
 .logo-sub{font-size:12.0px;color:var(--text3);letter-spacing:.10em;text-transform:uppercase;margin-top:2px;font-weight:700}
-.nav{padding:12px 10px;flex:1}
+.nav{padding:12px 10px;flex:1 1 auto;min-height:150px;overflow-y:auto}
 .nav-section{font-size:12.0px;color:rgba(255,255,255,0.35);letter-spacing:.10em;text-transform:uppercase;font-weight:700;padding:0 8px;margin:14px 0 5px}
-.nav-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:7px;cursor:pointer;color:var(--text2);font-size:16.5px;font-weight:500;transition:all .13s;margin-bottom:1px}
+.nav-item{display:flex;align-items:center;gap:9px;width:100%;padding:8px 10px;border:0;border-radius:7px;background:none;cursor:pointer;color:var(--text2);font-family:inherit;font-size:16.5px;font-weight:500;text-align:left;transition:all .13s;margin-bottom:1px}
 .nav-item:hover{background:var(--surface2);color:var(--text)}
 .nav-item.active{background:var(--accent-light);color:var(--accent);font-weight:600;border:1px solid var(--accent-border)}
 .nav-item svg{width:15px;height:15px;flex-shrink:0;opacity:.6}
 .nav-item.active svg{opacity:1}
-.sidebar-footer{padding:14px;border-top:1px solid var(--border)}
+.sidebar-footer{padding:14px;border-top:1px solid var(--border);flex-shrink:0}
 .cw{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px}
 .cw-label{font-size:13.0px;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;font-weight:600;margin-bottom:7px}
 .entity-pills{display:flex;gap:4px;margin-top:8px}
-.epill{flex:1;text-align:center;padding:5px 0;border-radius:5px;font-size:14.5px;cursor:pointer;border:1px solid var(--border2);color:var(--text3);transition:all .13s}
-.epill.on{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:500}
+.epill{flex:1;min-width:0;text-align:center;padding:5px 0;border-radius:5px;background:none;font-family:inherit;font-size:14.5px;cursor:pointer;border:1px solid var(--border2);color:var(--text2);transition:all .13s}
+.epill.on{background:var(--accent-strong);color:var(--on-accent);border-color:var(--accent-strong);font-weight:500}
+/* Keyboard focus: nav items, entity pills and tabs are <button>s — give them (and the other sidebar buttons) a
+   visible accent ring, ≥3:1 against the sidebar and page in both themes */
+.sidebar button:focus-visible{outline:2px solid var(--accent-strong);outline-offset:2px}
+.itab:focus-visible{outline:2px solid var(--accent-strong);outline-offset:-2px}
+/* Primary buttons are styled inline as background:var(--accent);color:#fff — white on the accent is 1.7:1 (dark)
+   / 3.0:1 (light). Re-point them all at the AA pair here; !important because the styles are inline. A style
+   attribute reads "background: var(--accent)" once JS has touched it (Sign-in hover, Save-mappings flash). */
+button[style*="background:var(--accent)"],button[style*="background: var(--accent)"]{background:var(--accent-strong)!important;border-color:var(--accent-strong)!important;color:var(--on-accent)!important}
+/* The closed comment panel is only slid off-screen; hide it as well so its controls leave the Tab order (the
+   visibility flip waits for the slide-out to finish) */
+#cp-panel:not(.open){visibility:hidden;transition:transform .22s ease,visibility 0s .22s}
 .page-header{padding:24px 30px 16px;border-bottom:1px solid var(--border);background:var(--surface);display:flex;align-items:flex-start;justify-content:space-between}
 .page-title{font-size:26.0px;font-weight:800;color:var(--text);letter-spacing:-.02em}
 .page-title em{font-style:italic;color:var(--accent);font-weight:400}
@@ -184,7 +210,7 @@ table.dt td.r{text-align:right}
 .st-n{background:var(--surface3);color:var(--text3)}
 /* tabs */
 .itabs{display:flex;border-bottom:1px solid var(--border);padding:0 18px;background:var(--surface)}
-.itab{padding:9px 14px;font-size:15.0px;font-weight:500;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .13s}
+.itab{padding:9px 14px;font-family:inherit;font-size:15.0px;font-weight:500;color:var(--text3);cursor:pointer;background:none;border:0;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .13s}
 .itab:hover{color:var(--text)}
 .itab.active{color:var(--accent);border-bottom-color:var(--accent)}
 .itp{display:none}
@@ -284,7 +310,7 @@ tr:hover .ct-btn,.mc:hover .ct-btn{opacity:1}
 #cp-txt{width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;font-family:var(--sans);outline:none;resize:none;box-sizing:border-box;line-height:1.5}
 #cp-txt:focus{border-color:var(--accent)}
 .cp-actions{display:flex;justify-content:space-between;align-items:center}
-.cp-post-btn{padding:7px 16px;border-radius:7px;border:none;background:var(--accent);color:#fff;font-size:13px;font-weight:700;font-family:var(--sans);cursor:pointer}
+.cp-post-btn{padding:7px 16px;border-radius:7px;border:none;background:var(--accent-strong);color:var(--on-accent);font-size:13px;font-weight:700;font-family:var(--sans);cursor:pointer}
 .cp-resolve-btn{padding:7px 12px;border-radius:7px;border:1px solid var(--border2);background:transparent;color:var(--text2);font-size:12px;font-family:var(--sans);cursor:pointer;display:flex;align-items:center;gap:5px}
 .cp-resolve-btn:hover{border-color:var(--green);color:var(--green)}
 .cp-resolved-banner{display:none;align-items:center;gap:8px;padding:10px 18px;background:var(--green-dim);border-bottom:1px solid rgba(4,120,87,.15);font-size:13px;color:var(--green);font-weight:600}
@@ -326,39 +352,39 @@ tr:hover .ct-btn,.mc:hover .ct-btn{opacity:1}
     <div class="logo-text">Indexed FP&A</div>
     <div class="logo-sub">Financial planning &amp; analysis</div>
   </div>
-  <nav class="nav">
+  <nav class="nav" aria-label="Main">
     <div class="nav-section" data-roles="admin,accountant,viewer">Overview</div>
-    <div class="nav-item active" data-roles="admin,accountant,viewer" onclick="go('dash',this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Dashboard</div>
-    <div class="nav-item" data-roles="admin,viewer" onclick="go('cf',this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>Cash flow</div>
-    <div class="nav-item" data-roles="admin,accountant,viewer" onclick="go('fin',this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 17v-2m3 2v-4m3 4v-6M9 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V9l-5-6z"/></svg>Financials</div>
+    <button type="button" class="nav-item active" aria-current="page" data-roles="admin,accountant,viewer" onclick="go('dash',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Dashboard</button>
+    <button type="button" class="nav-item" data-roles="admin,viewer" onclick="go('cf',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>Cash flow</button>
+    <button type="button" class="nav-item" data-roles="admin,accountant,viewer" onclick="go('fin',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 17v-2m3 2v-4m3 4v-6M9 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V9l-5-6z"/></svg>Financials</button>
     <div class="nav-section" data-roles="admin,accountant">Forecast</div>
-    <div class="nav-item" data-roles="admin,accountant" onclick="go('fcast-ar',this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>AR Pipeline</div>
-    <div class="nav-item" data-roles="admin,accountant" onclick="go('fcast-ap',this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2M9 12h6m-6 4h6"/></svg>AP Schedule</div>
+    <button type="button" class="nav-item" data-roles="admin,accountant" onclick="go('fcast-ar',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>AR Pipeline</button>
+    <button type="button" class="nav-item" data-roles="admin,accountant" onclick="go('fcast-ap',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2M9 12h6m-6 4h6"/></svg>AP Schedule</button>
     <div class="nav-section" data-roles="admin">Mapping</div>
-    <div class="nav-item" data-roles="admin" onclick="go('contacts',this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Contacts</div>
+    <button type="button" class="nav-item" data-roles="admin" onclick="go('contacts',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Contacts</button>
     <div class="nav-section" data-roles="admin,accountant">Settings</div>
-    <div class="nav-item" data-roles="admin,accountant" onclick="go('import',this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M16 12l-4 4m0 0l-4-4m4 4V4"/></svg>Import data</div>
-    <div class="nav-item" data-roles="admin" onclick="go('cfworking',this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 10h18M3 14h18M10 3v18M14 3v18"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg>CF Working</div>
+    <button type="button" class="nav-item" data-roles="admin,accountant" onclick="go('import',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M16 12l-4 4m0 0l-4-4m4 4V4"/></svg>Import data</button>
+    <button type="button" class="nav-item" data-roles="admin" onclick="go('cfworking',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 10h18M3 14h18M10 3v18M14 3v18"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg>CF Working</button>
     <div class="nav-section" data-roles="admin,accountant,viewer">Collaboration</div>
-    <div class="nav-item" data-roles="admin,accountant,viewer" onclick="go('comments',this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Comments</div>
+    <button type="button" class="nav-item" data-roles="admin,accountant,viewer" onclick="go('comments',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Comments</button>
   </nav>
   <div class="sidebar-footer">
     <div class="cw">
       <div class="cw-label">Actuals through</div>
       <div id="sidebar-actuals" style="padding:6px 8px;background:var(--accent-light);border-radius:5px;font-size:16.0px;font-weight:500;color:var(--accent);text-align:center">April 2026</div>
-      <div class="entity-pills">
-        <div class="epill on" onclick="setEnt('conso',this)">Conso</div>
-        <div class="epill" onclick="setEnt('bh',this)">BH</div>
-        <div class="epill" onclick="setEnt('bc',this)">BC</div>
+      <div class="entity-pills" role="group" aria-label="Entity">
+        <button type="button" class="epill on" aria-pressed="true" onclick="setEnt('conso',this)">Conso</button>
+        <button type="button" class="epill" aria-pressed="false" onclick="setEnt('bh',this)">BH</button>
+        <button type="button" class="epill" aria-pressed="false" onclick="setEnt('bc',this)">BC</button>
       </div>
     </div>
     <div id="user-info-card" style="margin-bottom:8px;padding:8px 10px;border-radius:8px;background:var(--surface2);border:1px solid var(--border)">
@@ -409,9 +435,9 @@ tr:hover .ct-btn,.mc:hover .ct-btn{opacity:1}
     <div class="page-sub" id="sub-cf">Jan–Apr 2026 actuals · All values in USD</div></div>
   </div>
   <div class="content">
-    <div class="itabs" id="cf-tabs" style="background:transparent;padding:0;margin-bottom:14px;border-bottom:1px solid var(--border)">
-      <div class="itab" onclick="swCF('actuals',this)">Actuals</div>
-      <div class="itab active" onclick="swCF('hybrid',this)">Actuals + Forecast</div>
+    <div class="itabs" id="cf-tabs" role="tablist" aria-label="Cash flow view" style="background:transparent;padding:0;margin-bottom:14px;border-bottom:1px solid var(--border)">
+      <button type="button" class="itab" role="tab" aria-selected="false" onclick="swCF('actuals',this)">Actuals</button>
+      <button type="button" class="itab active" role="tab" aria-selected="true" onclick="swCF('hybrid',this)">Actuals + Forecast</button>
     </div>
     <div class="cfp" id="cf-period" role="group" aria-label="Months shown"></div>
     <div class="card">
@@ -432,9 +458,9 @@ tr:hover .ct-btn,.mc:hover .ct-btn{opacity:1}
     <div class="page-sub" id="sub-fin">Jan–Apr 2026 · Exact from Xero · Toggle entity below</div></div>
   </div>
   <div class="content">
-    <div class="itabs" style="background:transparent;padding:0;margin-bottom:14px;border-bottom:1px solid var(--border)">
-      <div class="itab active" onclick="swFin('bs',this)">Balance sheet</div>
-      <div class="itab" onclick="swFin('pl',this)">Profit &amp; Loss</div>
+    <div class="itabs" role="tablist" aria-label="Statement" style="background:transparent;padding:0;margin-bottom:14px;border-bottom:1px solid var(--border)">
+      <button type="button" class="itab active" role="tab" aria-selected="true" onclick="swFin('bs',this)">Balance sheet</button>
+      <button type="button" class="itab" role="tab" aria-selected="false" onclick="swFin('pl',this)">Profit &amp; Loss</button>
     </div>
     <div id="fin-bs" class="itp active">
       <div class="card"><div class="card-head"><span class="card-title" id="bs-title">Balance sheet</span><button onclick="exportBS()" title="Export to Excel" style="background:none;border:none;cursor:pointer;padding:2px 4px;color:var(--text3);display:flex;align-items:center" onmouseenter="this.style.color='var(--accent)'" onmouseleave="this.style.color='var(--text3)'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button></div>
@@ -558,17 +584,17 @@ tr:hover .ct-btn,.mc:hover .ct-btn{opacity:1}
     <div><button onclick="saveMappings()" style="padding:7px 14px;border-radius:6px;font-size:16.0px;font-weight:500;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--sans)">Save mappings</button></div>
   </div>
   <div class="content">
-    <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:14px">
-      <div class="itab active" onclick="swCtMain('summary',this)" style="padding:9px 16px">Summary</div>
-      <div class="itab" onclick="swCtMain('mapping',this)" style="padding:9px 16px">Contact mapping ✎</div>
-      <div class="itab" onclick="swCtMain('glmap',this)" style="padding:9px 16px">GL Accounts ✎</div>
+    <div role="tablist" aria-label="Contacts view" style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:14px">
+      <button type="button" class="itab active" role="tab" aria-selected="true" onclick="swCtMain('summary',this)" style="padding:9px 16px">Summary</button>
+      <button type="button" class="itab" role="tab" aria-selected="false" onclick="swCtMain('mapping',this)" style="padding:9px 16px">Contact mapping ✎</button>
+      <button type="button" class="itab" role="tab" aria-selected="false" onclick="swCtMain('glmap',this)" style="padding:9px 16px">GL Accounts ✎</button>
     </div>
     <div id="ct-summary">
       <div class="card">
-        <div class="itabs">
-          <div class="itab active" onclick="swCtSub('all',this)">All groups</div>
-          <div class="itab" onclick="swCtSub('clients',this)">Clients</div>
-          <div class="itab" onclick="swCtSub('vendors',this)">Vendors</div>
+        <div class="itabs" role="tablist" aria-label="Contact groups">
+          <button type="button" class="itab active" role="tab" aria-selected="true" onclick="swCtSub('all',this)">All groups</button>
+          <button type="button" class="itab" role="tab" aria-selected="false" onclick="swCtSub('clients',this)">Clients</button>
+          <button type="button" class="itab" role="tab" aria-selected="false" onclick="swCtSub('vendors',this)">Vendors</button>
         </div>
         <div id="ctg-all" class="itp active"><div style="overflow-x:auto"><table class="dt" id="ctAll"></table></div></div>
         <div id="ctg-clients" class="itp"><div style="overflow-x:auto"><table class="dt" id="ctCli"></table></div></div>
@@ -598,11 +624,11 @@ tr:hover .ct-btn,.mc:hover .ct-btn{opacity:1}
       </div>
     </div>
     <div id="ct-glmap" style="display:none">
-      <div id="glmap-tabs" style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:14px">
-        <div class="itab active" data-key="bc_pl" onclick="switchGLMapTab('bc_pl',this)" style="padding:7px 14px">BC P&amp;L</div>
-        <div class="itab" data-key="bh_pl" onclick="switchGLMapTab('bh_pl',this)" style="padding:7px 14px">BH P&amp;L</div>
-        <div class="itab" data-key="bc_bs" onclick="switchGLMapTab('bc_bs',this)" style="padding:7px 14px">BC Balance Sheet</div>
-        <div class="itab" data-key="bh_bs" onclick="switchGLMapTab('bh_bs',this)" style="padding:7px 14px">BH Balance Sheet</div>
+      <div id="glmap-tabs" role="tablist" aria-label="Xero report" style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:14px">
+        <button type="button" class="itab active" role="tab" aria-selected="true" data-key="bc_pl" onclick="switchGLMapTab('bc_pl',this)" style="padding:7px 14px">BC P&amp;L</button>
+        <button type="button" class="itab" role="tab" aria-selected="false" data-key="bh_pl" onclick="switchGLMapTab('bh_pl',this)" style="padding:7px 14px">BH P&amp;L</button>
+        <button type="button" class="itab" role="tab" aria-selected="false" data-key="bc_bs" onclick="switchGLMapTab('bc_bs',this)" style="padding:7px 14px">BC Balance Sheet</button>
+        <button type="button" class="itab" role="tab" aria-selected="false" data-key="bh_bs" onclick="switchGLMapTab('bh_bs',this)" style="padding:7px 14px">BH Balance Sheet</button>
       </div>
       <div class="card">
         <div class="card-head">
@@ -1617,6 +1643,29 @@ function setEnt(e,el){
   document.getElementById('fin-el').textContent=lbl[e];
   renderCF(); renderDash(); renderFin();
 }
+// Keyboard / screen readers: nav items, entity pills and tabs are real <button>s, so Tab, Enter and Space work
+// natively. Which one is selected lives in the 'active'/'on' class that go(), setEnt(), swCF(), swFin(),
+// swCtMain(), swCtSub(), switchGLMapTab() and applyRoleUI() toggle; mirror it into aria-current / aria-pressed /
+// aria-selected whenever one of those classes changes, so none of the handlers needs a11y code of its own.
+function syncNavAria(){
+  document.querySelectorAll('.nav-item').forEach(n=>{if(n.classList.contains('active'))n.setAttribute('aria-current','page');else n.removeAttribute('aria-current');});
+  document.querySelectorAll('.epill').forEach(p=>p.setAttribute('aria-pressed',p.classList.contains('on')));
+  document.querySelectorAll('[role=tab]').forEach(t=>t.setAttribute('aria-selected',t.classList.contains('active')));
+}
+if(typeof MutationObserver!=='undefined'){   // absent in the headless MCP sandbox
+  const mo=new MutationObserver(syncNavAria);
+  document.querySelectorAll('.sidebar,[role=tablist]').forEach(r=>mo.observe(r,{subtree:true,attributes:true,attributeFilter:['class']}));
+}
+// Arrow keys / Home / End move focus along a tab strip (Enter or Space then opens the focused tab)
+document.addEventListener('keydown',e=>{
+  const t=e.target;
+  if(!t||!t.matches||!t.matches('[role=tablist] [role=tab]'))return;
+  const tabs=[...t.closest('[role=tablist]').querySelectorAll('[role=tab]')].filter(x=>x.offsetParent!==null);
+  const i=tabs.indexOf(t), j={ArrowRight:i+1,ArrowLeft:i-1,Home:0,End:tabs.length-1}[e.key];
+  if(i<0||j===undefined)return;
+  e.preventDefault();
+  tabs[(j+tabs.length)%tabs.length].focus();
+});
 
 // ── CF ──
 // Compute how much per entity/month is being netted off (manual fee overrides)
