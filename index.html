@@ -681,27 +681,27 @@ tr:hover .ct-btn,.mc:hover .ct-btn{opacity:1}
         <div style="font-size:18px;font-weight:600;margin-bottom:14px">Braveheart FZ LLC</div>
         <div class="drop-zone" id="dz-bh">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:34px;height:34px;color:var(--text3);margin-bottom:8px"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M16 12l-4 4m0 0l-4-4m4 4V4"/></svg>
-          <div style="font-size:15px;font-weight:500;color:var(--text2)">Drop any Xero XLSX export here</div>
+          <div style="font-size:15px;font-weight:500;color:var(--text2)">Drop Xero XLSX exports here (one or several)</div>
           <div style="font-size:13px;color:var(--text3);margin-top:4px">Account Transactions · Balance Sheet · P&amp;L</div>
-          <input type="file" id="fi-bh" accept=".xlsx,.xls">
+          <input type="file" id="fi-bh" accept=".xlsx,.xls" multiple>
         </div>
         <div class="itr"><span>📊</span><span class="itr-label">Account Transactions</span><span class="itr-status" id="ist-bh-gl">Not loaded</span></div>
         <div class="itr"><span>🗂</span><span class="itr-label">Balance Sheet</span><span class="itr-status" id="ist-bh-bs">Not loaded</span></div>
         <div class="itr"><span>📈</span><span class="itr-label">Profit &amp; Loss</span><span class="itr-status" id="ist-bh-pl">Not loaded</span></div>
-        <div id="import-preview-bh"></div>
+        <div id="import-preview-bh"><div id="import-preview-bh-gl"></div><div id="import-preview-bh-bs"></div><div id="import-preview-bh-pl"></div></div>
       </div>
       <div class="ie">
         <div style="font-size:18px;font-weight:600;margin-bottom:14px">Bravecore FZ LLC</div>
         <div class="drop-zone" id="dz-bc">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:34px;height:34px;color:var(--text3);margin-bottom:8px"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M16 12l-4 4m0 0l-4-4m4 4V4"/></svg>
-          <div style="font-size:15px;font-weight:500;color:var(--text2)">Drop any Xero XLSX export here</div>
+          <div style="font-size:15px;font-weight:500;color:var(--text2)">Drop Xero XLSX exports here (one or several)</div>
           <div style="font-size:13px;color:var(--text3);margin-top:4px">Account Transactions · Balance Sheet · P&amp;L</div>
-          <input type="file" id="fi-bc" accept=".xlsx,.xls">
+          <input type="file" id="fi-bc" accept=".xlsx,.xls" multiple>
         </div>
         <div class="itr"><span>📊</span><span class="itr-label">Account Transactions</span><span class="itr-status" id="ist-bc-gl">Not loaded</span></div>
         <div class="itr"><span>🗂</span><span class="itr-label">Balance Sheet</span><span class="itr-status" id="ist-bc-bs">Not loaded</span></div>
         <div class="itr"><span>📈</span><span class="itr-label">Profit &amp; Loss</span><span class="itr-status" id="ist-bc-pl">Not loaded</span></div>
-        <div id="import-preview-bc"></div>
+        <div id="import-preview-bc"><div id="import-preview-bc-gl"></div><div id="import-preview-bc-bs"></div><div id="import-preview-bc-pl"></div></div>
       </div>
     </div>
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 16px;font-size:14.5px;color:var(--text3)">
@@ -2199,6 +2199,7 @@ function _xeroLookup(xero,label){
 function runValidation(arr, key, ftype){
   const issues=[];
   const xero=(window._xeroTotals||{})[key]||{};
+  let compared=0; // total cells actually checked against a Xero figure (Xero exports most total cells as 0)
 
   // ── Layer 1: totals cross-check ──────────────────────────────────────────
   // For every subtotal/total row in our template, compare our recomputed value
@@ -2209,12 +2210,25 @@ function runValidation(arr, key, ftype){
       if(!xv)return; // Xero didn't have this total — skip
       E.forEach((m,i)=>{
         const ours=r.v[i]||0, theirs=xv[m]||0;
+        if(theirs!==0)compared++;
         if(theirs!==0&&Math.abs(ours-theirs)>1){
-          issues.push(`<strong>${m} · ${r.label}</strong>: our sum ${$f(ours)} vs Xero ${$f(theirs)} — Δ ${$f(Math.abs(ours-theirs))} (likely a missing line item)`);
+          issues.push(`<strong>${m} · ${esc(r.label)}</strong>: our sum ${$f(ours)} vs Xero ${$f(theirs)} — Δ ${$f(Math.abs(ours-theirs))} (likely a missing line item)`);
         }
       });
     }
   });
+
+  // ── Layer 1b: every Xero P&L account is on the statement ─────────────────
+  // Xero's P&L total cells come through as 0, so Layer 1 can't see a dropped account: list each Xero line item that
+  // landed on no template line (applyImport records them) — its amount is missing from this P&L and the Dashboard.
+  if(ftype==='pl'){
+    const ents=key==='conso_pl'?['bh','bc']:[String(key).split('_')[0]];
+    ents.forEach(en=>((window._finUnmatched||{})[en+'_pl']||[]).forEach(u=>{
+      const ms=Object.keys(u.vals||{}).filter(m=>Math.abs(u.vals[m]||0)>0.005).sort((a,b)=>mOrd(a)-mOrd(b));
+      const tot=ms.reduce((s,m)=>s+(u.vals[m]||0),0);
+      issues.push(`<strong>${key==='conso_pl'?en.toUpperCase()+' · ':''}${esc(u.label)}</strong>: ${$f(tot)} in Xero (${ms.map(mLabel).join(', ')}) is not on this P&L — map it to a P&L line (✓ Map on the Import screen, or Contacts → GL Accounts); it is picked up on the next import or reload`);
+    }));
+  }
 
   // ── Layer 2: accounting equations ────────────────────────────────────────
   const nk=normKey, find=lbl=>arr.find(r=>r.label&&nk(r.label).includes(nk(lbl)));
@@ -2246,7 +2260,7 @@ function runValidation(arr, key, ftype){
     }
   }
 
-  window._dataChecks[key]={pass:issues.length===0,issues};
+  window._dataChecks[key]={pass:issues.length===0,issues,ftype,compared};
 }
 
 function validateBS(arr,key){runValidation(arr,key,'bs');}
@@ -2258,7 +2272,11 @@ function renderDataBanner(containerId, key){
   const chk=window._dataChecks[key];
   if(!chk){el.innerHTML='';return;}
   if(chk.pass){
-    el.innerHTML=`<div style="display:flex;align-items:center;gap:6px;padding:6px 12px;margin-bottom:8px;border-radius:6px;background:rgba(0,200,100,0.08);border:1px solid rgba(0,200,100,0.25);font-size:12px;color:var(--green)">✅ Verified — all totals match Xero source and accounting equations balance</div>`;
+    // Say only what was actually checked: 'match Xero' only when some Xero total was non-zero to compare against
+    const what=chk.compared?'all totals match Xero source and accounting equations balance'
+      :chk.ftype==='pl'?'every Xero account is on this statement and accounting equations balance'
+      :'accounting equations balance';
+    el.innerHTML=`<div style="display:flex;align-items:center;gap:6px;padding:6px 12px;margin-bottom:8px;border-radius:6px;background:rgba(0,200,100,0.08);border:1px solid rgba(0,200,100,0.25);font-size:12px;color:var(--green)">✅ Verified — ${what}</div>`;
   } else {
     const list=chk.issues.map(i=>`<li style="margin:3px 0">${i}</li>`).join('');
     el.innerHTML=`<div style="padding:8px 14px;margin-bottom:8px;border-radius:6px;background:rgba(255,80,80,0.08);border:1px solid rgba(255,80,80,0.35);font-size:12px;color:#ff6060"><strong>⚠️ ${chk.issues.length} issue${chk.issues.length===1?'':'s'} — re-import or check source file:</strong><ul style="margin:4px 0 0 16px;padding:0">${list}</ul></div>`;
@@ -3009,10 +3027,13 @@ let importState={};
 
 function loadSheetJS(cb){
   if(window.XLSX){cb();return;}
+  // Several files dropped at once: queue them behind the one script load
+  if(loadSheetJS._q){loadSheetJS._q.push(cb);return;}
+  loadSheetJS._q=[cb];
   const s=document.createElement('script');
   s.src='https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
-  s.onload=cb;
-  s.onerror=()=>alert('Could not load Excel parser. Check internet connection.');
+  s.onload=()=>{const q=loadSheetJS._q||[];loadSheetJS._q=null;q.forEach(f=>f());};
+  s.onerror=()=>{loadSheetJS._q=null;alert('Could not load Excel parser. Check internet connection.');};
   document.head.appendChild(s);
 }
 
@@ -3049,16 +3070,18 @@ function initImport(){
     dz.addEventListener('click',()=>fi.click());
     dz.addEventListener('dragover',ev=>{ev.preventDefault();dz.classList.add('drag-over');});
     dz.addEventListener('dragleave',()=>dz.classList.remove('drag-over'));
-    dz.addEventListener('drop',ev=>{ev.preventDefault();dz.classList.remove('drag-over');const f=ev.dataTransfer.files[0];if(f)processImport(f,e);});
-    fi.addEventListener('change',ev=>{if(ev.target.files[0])processImport(ev.target.files[0],e);fi.value='';});
+    // Every dropped / picked file is imported (Account Transactions, Balance Sheet and P&L together is the normal case)
+    dz.addEventListener('drop',ev=>{ev.preventDefault();dz.classList.remove('drag-over');[...(ev.dataTransfer.files||[])].forEach(f=>processImport(f,e));});
+    fi.addEventListener('change',ev=>{[...(ev.target.files||[])].forEach(f=>processImport(f,e));fi.value='';});
   });
 }
 
 function processImport(file,entity){
   let ftype=detectFileType(file.name);
-  // Show "parsing" on all three status slots since we may redirect
-  ['gl','bs','pl'].forEach(t=>{const el=document.getElementById(`ist-${entity}-${t}`);if(el)el.textContent='';});
+  // Only this file's status slot changes: the other reports' ✓ (or their own parse in progress) stay as they are.
+  // The filename guess may be redirected by the content, so remember what the guessed slot showed before.
   const stEl=()=>document.getElementById(`ist-${entity}-${ftype}`);
+  const guessEl=stEl(), guessWas=guessEl?guessEl.innerHTML:'';
   if(stEl())stEl().textContent='Parsing…';
   loadSheetJS(()=>{
     file.arrayBuffer().then(buf=>{
@@ -3083,7 +3106,7 @@ function processImport(file,entity){
         if(ftype==='gl'){
           const detected=detectFileTypeFromContent(rows);
           if(detected&&detected!=='gl'){
-            if(stEl())stEl().textContent='';
+            if(guessEl&&guessEl.textContent==='Parsing…')guessEl.innerHTML=guessWas;
             ftype=detected;
             if(stEl())stEl().textContent='Parsing…';
           }
@@ -3093,6 +3116,8 @@ function processImport(file,entity){
         else if(ftype==='bs')parsed=parseXeroBS(rows,entity.toUpperCase());
         else parsed=parseXeroPL(rows,entity.toUpperCase());
         parsed.ftype=ftype;
+        const pend=importState[entity+'-'+ftype]&&_importFiles[entity+'-'+ftype];
+        _importFiles[entity+'-'+ftype]={name:file.name,replaced:pend&&pend.name!==file.name?pend.name:''};
         importState[entity+'-'+ftype]=parsed;
         renderImportPreview(entity,parsed,ftype);
         if(stEl()){
@@ -3100,7 +3125,7 @@ function processImport(file,entity){
           stEl().innerHTML=parsed.months.length?`<span style="color:var(--green)">✓ ${ml}</span>`:`<span style="color:var(--amber)">⚠ No data found — check file is a Xero export</span>`;
         }
       }catch(err){
-        if(stEl())stEl().innerHTML=`<span style="color:var(--red)">Error: ${err.message}</span>`;
+        if(stEl())stEl().innerHTML=`<span style="color:var(--red)">Error: ${esc(err.message)}</span>`;
         console.error(err);
       }
     });
@@ -3116,11 +3141,14 @@ function parseXeroAccountTx(rows,entity){
   const result={entity,months:new Set(),inflow:{},outflow:{},bankClose:{}};
   // Staging area for platform fees: {month: {clientKey: totalFee}}
   const platformFees={};
+  // Where each client's platform fee was booked (last fee row): {month: {clientKey: {date,account,client}}}
+  const platformFeeAt={};
   // Staging area for bank-section fee credits (isFee contacts): [{month,date,amt,client,account}]
   const bankFeeCredits=[];
-  // Per-bank-section running balance tracking: {acct: {month: net}}
-  let curOpenBal=0;
-  const sectionMonthlyNet={};
+  // Per bank section: {open, net:{month: debit-credit of EVERY posting, transfers included}, close: Xero's Closing Balance}
+  const bankSecs={};
+  // "Total <account>" / "Grand Total" rows close a section; they never open one (Xero writes 0, not blank, in their cells)
+  const isTotalRow=s=>/^total\b|^grand\b|^\d+(\.\d+)?$/i.test(s);
 
   function parseDt(v){
     if(!v||v==='')return null;
@@ -3144,15 +3172,8 @@ function parseXeroAccountTx(rows,entity){
     return null;
   }
   function parseFl(v){return parseFloat(String(v||'').replace(/[,$\s]/g,''))||0;}
-
-  // Finalize closing balances for a completed bank section from opening + cumulative monthly net
-  function finalizeSection(acct,openBal){
-    if(!acct||!sectionMonthlyNet[acct])return;
-    let running=openBal;
-    const sorted=Object.keys(sectionMonthlyNet[acct]).sort((a,b)=>mOrd(a)-mOrd(b));
-    if(!result.bankClose[acct])result.bankClose[acct]={};
-    sorted.forEach(m=>{running+=sectionMonthlyNet[acct][m];result.bankClose[acct][m]=running;});
-  }
+  // Signed balance of an Opening/Closing Balance row: a debit balance is positive, a credit (overdrawn) one negative
+  const balOf=row=>parseFl(row[cDebit])-parseFl(row[cCredit]);
 
   // Pre-pass: Xero only lets a "Bank Transfer" post between BANK accounts, so any section containing
   // one is a bank — even if its name isn't in BANKS. This is how the "FX Clearing Account" (used to pay
@@ -3166,7 +3187,7 @@ function parseXeroAccountTx(rows,entity){
       if(rs.some(c=>/^date$/i.test(c))&&(rs.some(c=>/debit/i.test(c))||rs.some(c=>/credit/i.test(c)))){sc=rs.findIndex(c=>/^source$/i.test(c));continue;}
       const ne=rs.filter(c=>c!=='');
       if(!ne.length||/^(opening|closing) balance$/i.test(ne[0]))continue;
-      if(ne.length<=3){const f=ne[0];if(!/^total|^grand|^\d+(\.\d+)?$/.test(f)&&!parseDt(f)&&f.length>2){sec=f;continue;}}
+      if(ne.length<=3){const f=ne[0];if(!isTotalRow(f)&&!parseDt(f)&&f.length>2){sec=f;continue;}}
       if(sec&&sc>=0&&/^bank transfer$/i.test(rs[sc]||''))transferSections.add(sec);
     }
   }
@@ -3199,37 +3220,23 @@ function parseXeroAccountTx(rows,entity){
 
     // Opening Balance row — capture for this bank section
     if(isBank&&/^opening balance$/i.test(rs[0])&&cDebit>=0){
-      curOpenBal=parseFl(row[cDebit])||parseFl(row[cCredit]);
+      bankSecs[curAcct].open=balOf(row);
       continue;
     }
-    // Closing Balance row — finalize this section using the authoritative Xero total
+    // Closing Balance row — Xero's authoritative balance at the end of the export (0 included, when its cells are there)
     if(isBank&&/^closing balance$/i.test(rs[0])&&curAcct&&cDebit>=0){
-      const cv=parseFl(row[cDebit])||parseFl(row[cCredit]);
-      if(cv){
-        // Override computed closing for the last month with Xero's reported total
-        const lastMo=Object.keys(sectionMonthlyNet[curAcct]||{}).sort((a,b)=>mOrd(a)-mOrd(b)).pop();
-        if(lastMo){
-          // Recompute all months first, then override last
-          finalizeSection(curAcct,curOpenBal);
-          result.bankClose[curAcct][lastMo]=cv;
-        }
-      }
+      if(String(row[cDebit]??'').trim()!==''||String(row[cCredit]??'').trim()!=='')bankSecs[curAcct].close=balOf(row);
       continue;
     }
 
     // Detect account section header
     if(ne.length>=1&&ne.length<=3){
       const first=ne[0];
-      if(!/^total|^grand|^\d+(\.\d+)?$/.test(first)&&!parseDt(first)&&first.length>2){
-        // Finalize previous bank section if not yet closed by a Closing Balance row
-        if(isBank&&curAcct&&sectionMonthlyNet[curAcct]&&!result.bankClose[curAcct]){
-          finalizeSection(curAcct,curOpenBal);
-        }
+      if(!isTotalRow(first)&&!parseDt(first)&&first.length>2){
         curAcct=first;
-        curOpenBal=0;
         isBank=isBankSection(first);
         isPlatformFee=!isBank&&PLATFORM_FEE_ACCTS.some(p=>first.toLowerCase().includes(p));
-        if(isBank)sectionMonthlyNet[curAcct]={};
+        if(isBank&&!bankSecs[curAcct])bankSecs[curAcct]={open:0,net:{},close:null};
         continue;
       }
     }
@@ -3237,12 +3244,16 @@ function parseXeroAccountTx(rows,entity){
     if((!isBank&&!isPlatformFee)||cDate<0)continue;
     const dateVal=rs[cDate];if(!dateVal)continue;
     const dt=parseDt(dateVal);if(!dt)continue;
-    // Skip non-cash entries: internal bank transfers and manual journal adjustments
-    if(cSource>=0&&/^(bank transfer|manual journal)$/i.test(rs[cSource]))continue;
+    // Internal bank transfers and manual journal adjustments are not cash in/out — but they do move a bank account's
+    // balance (Xero's Closing Balance includes them), so they still count toward that account's running balance.
+    const nonCash=cSource>=0&&/^(bank transfer|manual journal)$/i.test(rs[cSource]);
+    if(nonCash&&!isBank)continue;
     // Rows dated before the base year (an export that starts in 2025) are outside the portal's range: their bank
     // movement belongs in the opening balance, not in a 2026 month.
-    if(dt.getFullYear()<BASE_YEAR){if(isBank&&cDebit>=0)curOpenBal+=parseFl(row[cDebit])-parseFl(row[cCredit]);continue;}
+    if(dt.getFullYear()<BASE_YEAR){if(isBank&&cDebit>=0)bankSecs[curAcct].open+=parseFl(row[cDebit])-parseFl(row[cCredit]);continue;}
     const month=mKey(`${MO[dt.getMonth()]} ${dt.getFullYear()}`); // 'Jan' for 2026 (keys unchanged), 'Jan 2027' otherwise
+    if(isBank){const s=bankSecs[curAcct];s.net[month]=(s.net[month]||0)+parseFl(row[cDebit])-parseFl(row[cCredit]);}
+    if(nonCash)continue;
     result.months.add(month);
 
     if(isBank){
@@ -3250,10 +3261,6 @@ function parseXeroAccountTx(rows,entity){
       const contact=cDesc>=0?rs[cDesc]:'';
       const debit=parseFl(row[cDebit]);
       const credit=parseFl(row[cCredit]);
-      // Track monthly net for closing balance computation
-      if(!sectionMonthlyNet[curAcct])sectionMonthlyNet[curAcct]={};
-      if(!sectionMonthlyNet[curAcct][month])sectionMonthlyNet[curAcct][month]=0;
-      sectionMonthlyNet[curAcct][month]+=debit-credit;
       const client=cClient>=0?rs[cClient]:'';
       // In bank accounts: Debit = money in (inflow), Credit = money out (outflow)
       if(debit>0){
@@ -3290,12 +3297,28 @@ function parseXeroAccountTx(rows,entity){
         const ck=client.toLowerCase().trim();
         if(!platformFees[month])platformFees[month]={};
         platformFees[month][ck]=(platformFees[month][ck]||0)+debit;
+        (platformFeeAt[month]=platformFeeAt[month]||{})[ck]={date:`${dt.getDate()}-${month}`,account:related,client};
       }
     }
   }
-  // Finalize last bank section if not already handled
-  if(isBank&&curAcct&&sectionMonthlyNet[curAcct]&&!result.bankClose[curAcct]){
-    finalizeSection(curAcct,curOpenBal);
+  // Month-end balance of every bank account: opening + every posting, carried through months with no activity, for
+  // each month of the export; Xero's own Closing Balance is authoritative from the account's last active month on.
+  {
+    const ords=[...result.months,...Object.values(bankSecs).flatMap(s=>Object.keys(s.net))].map(mOrd).filter(o=>!isNaN(o));
+    if(ords.length){
+      const lo=Math.min(...ords), hi=Math.max(...ords);
+      Object.entries(bankSecs).forEach(([acct,s])=>{
+        const act=Object.keys(s.net).map(mOrd);
+        // An account with no activity and no balance tells us nothing — leave it out
+        if(!act.length&&!s.open&&!s.close)return;
+        const lastAct=act.length?Math.max(...act):lo, bc=result.bankClose[acct]={};
+        let run=s.open;
+        for(let o=lo;o<=hi;o++){
+          const m=mKey(mFromOrd(o));run+=s.net[m]||0;
+          bc[m]=Math.round(((s.close!==null&&o>=lastAct)?s.close:run)*100)/100;
+        }
+      });
+    }
   }
 
   // Guard: remove bank-section outflows that duplicate a platformFee already captured above.
@@ -3303,12 +3326,17 @@ function parseXeroAccountTx(rows,entity){
   // the client contact, e.g. "Duo Strategy LLC") AND a Payment Platform DEBIT fee expense.
   // Since the contact isn't a known fee name it bypasses isFee() and lands in outflows — double-count.
   // Strip any outflow whose client+amount exactly matches a platformFees entry for that month.
+  // feeBankSide[month][client] = bank-side fee amounts kept out of outflows because the platform fee will net them.
+  const feeBankSide={};
+  const addBankSide=(month,ck,amt)=>{const o=feeBankSide[month]=feeBankSide[month]||{};o[ck]=(o[ck]||0)+amt;};
   Object.entries(platformFees).forEach(([month,clientFees])=>{
     if(!result.outflow[month])return;
     Object.entries(clientFees).forEach(([ck,feeAmt])=>{
       result.outflow[month]=result.outflow[month].filter(tx=>{
         const txCk=(tx.client||'').toLowerCase().trim();
-        return !(txCk===ck&&Math.abs(tx.amt-feeAmt)<0.01);
+        const dup=txCk===ck&&Math.abs(tx.amt-feeAmt)<0.01;
+        if(dup)addBankSide(month,ck,tx.amt);
+        return !dup;
       });
     });
   });
@@ -3317,22 +3345,25 @@ function parseXeroAccountTx(rows,entity){
   // The fee contact is the fee payee (e.g. "Payoneer", "Bank Fees") but the Client column
   // holds the customer project (e.g. "RecNation") — this is what links fees to receipts.
   // Fees are spread across inflow transactions for that client in order, largest first.
-  // Fees with no matching inflow client are silently dropped (already reflected in bank balance).
+  // A fee with no receipt to net against (client 'Company', or no receipt that month) still left the bank, so
+  // what can't be netted stays a real outflow under 'Bank charges' (a contact isFee() doesn't match, so applyImport
+  // and the drill-down keep it) — never dropped, where the FX plug would report it as non-cash revaluation.
   // nettedFees[month] = total fees actually deducted from inflows this month.
   // Used by applyImport to reduce OUT[idx] by the same amount so the fee is
   // neither in the inflow total NOR in the outflow total — preventing double-count.
   result.nettedFees={};
+  const unnetted=(month,tx)=>(result.outflow[month]=result.outflow[month]||[]).push({contact:'Bank charges',entity,type:'Variable',...tx,amt:Math.round(tx.amt*100)/100});
 
   // Net bank-section fee credits against inflows: client match first, then same-date same-account fallback.
   // Skip if platformFees already covers this client+month — avoids double-deduction for clients
   // (e.g. Cloud Web Solutions, Veriheal) whose fees appear in both the bank section AND Payment Platform.
   bankFeeCredits.forEach(fee=>{
     const {month,date,amt,client,account}=fee;
-    if(!result.inflow[month])return;
+    const inflow=result.inflow[month]||[];
     const ck=(client||'').toLowerCase().trim();
-    if(ck&&platformFees[month]&&platformFees[month][ck])return;
-    let matching=ck?result.inflow[month].filter(tx=>(tx.client||'').toLowerCase().trim()===ck):[];
-    if(!matching.length)matching=result.inflow[month].filter(tx=>tx.date===date&&tx.account===account);
+    if(ck&&platformFees[month]&&platformFees[month][ck]){addBankSide(month,ck,amt);return;}
+    let matching=ck?inflow.filter(tx=>(tx.client||'').toLowerCase().trim()===ck):[];
+    if(!matching.length)matching=inflow.filter(tx=>tx.date===date&&tx.account===account);
     matching.sort((a,b)=>b.amt-a.amt);
     let remaining=amt;
     matching.forEach(tx=>{
@@ -3340,14 +3371,14 @@ function parseXeroAccountTx(rows,entity){
       const reduce=Math.min(tx.amt,remaining);
       tx.amt-=reduce;tx.fee=(tx.fee||0)+reduce;remaining-=reduce;
     });
-    result.inflow[month]=result.inflow[month].filter(tx=>tx.amt>0);
+    if(result.inflow[month])result.inflow[month]=result.inflow[month].filter(tx=>tx.amt>0);
+    if(remaining>0.005)unnetted(month,{date,amt:remaining,account,client});
   });
 
   Object.entries(platformFees).forEach(([month,clientFees])=>{
-    if(!result.inflow[month])return;
     Object.entries(clientFees).forEach(([ck,fee])=>{
       let remaining=fee;
-      const matching=result.inflow[month].filter(tx=>(tx.client||'').toLowerCase().trim()===ck);
+      const matching=(result.inflow[month]||[]).filter(tx=>(tx.client||'').toLowerCase().trim()===ck);
       matching.sort((a,b)=>b.amt-a.amt);
       matching.forEach(tx=>{
         if(remaining<=0)return;
@@ -3357,7 +3388,10 @@ function parseXeroAccountTx(rows,entity){
         remaining-=reduce;
         result.nettedFees[month]=(result.nettedFees[month]||0)+reduce;
       });
-      result.inflow[month]=result.inflow[month].filter(tx=>tx.amt>0);
+      if(result.inflow[month])result.inflow[month]=result.inflow[month].filter(tx=>tx.amt>0);
+      // Only the part whose bank-side charge was kept out of outflows above becomes an outflow (else it is counted twice)
+      const left=Math.min(remaining,(feeBankSide[month]||{})[ck]||0);
+      if(left>0.005){const at=(platformFeeAt[month]||{})[ck]||{};unnetted(month,{date:at.date||month,amt:left,account:at.account||'Payment Platform',client:at.client||ck});}
     });
   });
 
@@ -3472,6 +3506,8 @@ function _parseFinancialReport(rows,entity,ftype){
       if(s){label=s;labelCi=ci;break;}
     }
     if(!label||monthOf(label))continue;
+    // Xero's '[FX] Exchange rates used…' footnote (and its rate lines) ends the report — it is not a statement row
+    if(_isFxFootnote(label))break;
 
     // Read values for each data column
     const vals={};
@@ -3492,11 +3528,50 @@ function _parseFinancialReport(rows,entity,ftype){
   return result;
 }
 
+// Reports stored before the parser stopped at the '[FX] …' footnote still carry it (as heading rows of exchange rates):
+// cut a stored report's rows there.
+function _isFxFootnote(label){return /^\[FX\]/i.test(String(label||'').trim());}
+function _cutFxFootnote(rep){
+  if(!rep||!Array.isArray(rep.rows))return rep;
+  const i=rep.rows.findIndex(r=>_isFxFootnote(r.label));
+  if(i>=0)rep.rows=rep.rows.slice(0,i);
+  return rep;
+}
+
 function parseXeroBS(rows,entity){return _parseFinancialReport(rows,entity,'bs');}
 function parseXeroPL(rows,entity){return _parseFinancialReport(rows,entity,'pl');}
 
+// Which template line (BH_PL/BC_PL/BH_BS/BC_BS 'i' row) each Xero line item lands on — shared by the import preview,
+// applyImport and the P&L check, so all three agree. Order: the user's GL mapping, then the exact label, then an
+// automatic label-contains match: the most specific template label (8+ chars) inside the Xero label, taken only when
+// no Xero line in the same report carries that template label exactly — so a new 'Software Subscriptions' account can
+// never take over 'Subscriptions' (it shows as unmatched instead). Returns [{r, hit, how:'map'|'exact'|'auto'|null}].
+function _matchFinRows(entity,ftype,rows){
+  const isB=entity==='bh';
+  const kpiTarget=ftype==='bs'?(isB?BH_BS:BC_BS):(isB?BH_PL:BC_PL);
+  const tmpl=kpiTarget.filter(t=>t.type==='i'&&t.label).map(t=>({t,k:normKey(t.label)}));
+  const items=(rows||[]).filter(r=>r.type==='i'&&r.label);
+  const inFile=new Set(items.map(r=>normKey(r.label)));
+  const maps=(GL_MAPPINGS[entity+'_'+ftype])||[];
+  return items.map(r=>{
+    const rk=normKey(r.label);
+    const map=maps.find(m=>normKey(m.xero)===rk);
+    let x=map&&tmpl.find(o=>o.k===normKey(map.tmpl));
+    if(x)return {r,hit:x.t,how:'map'};
+    x=tmpl.find(o=>o.k===rk);
+    if(x)return {r,hit:x.t,how:'exact'};
+    x=tmpl.filter(o=>o.k.length>=8&&rk.includes(o.k)&&!inFile.has(o.k)).sort((a,b)=>b.k.length-a.k.length)[0];
+    return x?{r,hit:x.t,how:'auto'}:{r,hit:null,how:null};
+  });
+}
+// Months another entity's import added to E, for which this entity has no bank balances yet (see applyImport)
+const _bankPending={bh:new Set(),bc:new Set()};
+// Import preview: one container per report type, so a second file never removes the first one's Apply button
+const _importFiles={}; // entity-ftype -> {name, replaced}: the file whose parse awaits Apply (and the one it replaced)
+function _importPreviewEl(entity,ftype){return document.getElementById(`import-preview-${entity}-${ftype}`)||document.getElementById('import-preview-'+entity);}
+
 function renderImportPreview(entity,parsed,ftype){
-  const el=document.getElementById('import-preview-'+entity);
+  const el=_importPreviewEl(entity,ftype);
   if(!el)return;
   if(!parsed.months||!parsed.months.length){
     el.innerHTML=`<div class="es" style="color:var(--amber);margin-top:10px">No data detected in this file.</div>`;
@@ -3523,62 +3598,75 @@ function renderImportPreview(entity,parsed,ftype){
     rowsHtml=preview.map(r=>{
       const cells=months.map(m=>`<td style="text-align:right;padding:5px 8px">${$f(r.vals[m]||0)}</td>`).join('');
       const ytd=ytdCol?`<td style="text-align:right;padding:5px 8px;font-weight:600">${$f(months.reduce((s,m)=>s+(r.vals[m]||0),0))}</td>`:'<td></td>';
-      return `<tr><td style="padding:5px 8px;color:var(--text2)">${r.label}</td>${cells}${ytd}</tr>`;
+      return `<tr><td style="padding:5px 8px;color:var(--text2)">${esc(r.label)}</td>${cells}${ytd}</tr>`;
     }).join('');
     if(!rowsHtml)rowsHtml=`<tr><td colspan="${months.length+2}" style="padding:8px;color:var(--text3);text-align:center">No rows detected</td></tr>`;
   }
 
-  // ── Match diagnostics (BS / PL only) ────────────────────────────────────
+  // ── Match diagnostics (BS / PL only) — the same resolution Apply will use ───
   let matchHtml='';
   if(ftype==='bs'||ftype==='pl'){
     const isB=entity==='bh';
     const kpiTarget=ftype==='bs'?(isB?BH_BS:BC_BS):(isB?BH_PL:BC_PL);
-    const dataRows=(parsed.rows||[]).filter(r=>(r.type==='i'||r.type==='t')&&months.some(m=>r.vals[m]!==0));
-    const unmatched=[], matched=[];
-    dataRows.forEach(r=>{
-      const rk=normKey(r.label);
-      let hit=kpiTarget.find(t=>t.label&&normKey(t.label)===rk);
-      if(!hit)hit=kpiTarget.find(t=>{
-        if(!t.label)return false;
-        const tk=normKey(t.label);
-        return tk.length>=8&&rk.includes(tk);
-      });
-      if(hit){matched.push({xero:r.label,tmpl:hit.label,vals:r.vals});}
-      else{unmatched.push({xero:r.label,vals:r.vals});}
-    });
-    if(unmatched.length){
-      const uid='diag-'+entity+'-'+ftype;
-      const tmplLabels=kpiTarget.filter(r=>r.type==='i'&&r.label).map(r=>r.label);
-      const mapOpts='<option value="">— pick dashboard label —</option>'+tmplLabels.map(l=>`<option value="${esc(l)}">${esc(l)}</option>`).join('');
-      const rows=unmatched.map((u,ui)=>{
-        const cells=months.map(m=>`<td style="text-align:right;padding:3px 8px;color:var(--amber)">${$f(u.vals[m]||0)}</td>`).join('');
-        const selId=`mapsel-${entity}-${ftype}-${ui}`;
-        const mapCtrl=`<span style="display:inline-flex;align-items:center;gap:4px;margin-left:6px;vertical-align:middle">
+    // Resolve against the report as Apply will store it (merged with the months already imported)
+    const rep=_mergeFinReport((window._importedFin||{})[entity+'_'+ftype],parsed)||parsed;
+    const res=_matchFinRows(entity,ftype,rep.rows).filter(x=>months.some(m=>((x.r.vals||{})[m]||0)!==0));
+    const unmatched=res.filter(x=>!x.hit), auto=res.filter(x=>x.how==='auto');
+    // Several Xero accounts landing on one line in the same section, by an automatic name match: ask before summing
+    const byHit=new Map();
+    res.forEach(x=>{if(!x.hit)return;const k=x.hit.label+'|'+(x.r.section||'');if(!byHit.has(k))byHit.set(k,[]);byHit.get(k).push(x);});
+    const combined=[...byHit.values()].filter(g=>g.length>1&&g.some(x=>x.how==='auto'));
+    const tmplLabels=kpiTarget.filter(r=>r.type==='i'&&r.label).map(r=>r.label);
+    const mapOpts='<option value="">— pick dashboard label —</option>'+tmplLabels.map(l=>`<option value="${esc(l)}">${esc(l)}</option>`).join('');
+    let ui=0;
+    // Map control: the Xero label travels in a data- attribute (escaped), never inside a JS string literal
+    const mapCtrl=xero=>{
+      const selId=`mapsel-${entity}-${ftype}-${ui++}`;
+      return `<span style="display:inline-flex;align-items:center;gap:4px;margin-left:6px;vertical-align:middle">
           <select id="${selId}" style="font-size:11px;padding:2px 4px;border-radius:4px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-family:var(--sans)">${mapOpts}</select>
-          <button onclick="saveInlineMapping('${entity}','${ftype}',${JSON.stringify(u.xero)},document.getElementById('${selId}').value)" style="font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--green);background:none;color:var(--green);cursor:pointer;white-space:nowrap;font-family:var(--sans);font-weight:600">✓ Map</button>
+          <button data-ent="${entity}" data-ft="${ftype}" data-xero="${esc(xero)}" data-sel="${selId}" onclick="saveInlineMapping(this.dataset.ent,this.dataset.ft,this.dataset.xero,document.getElementById(this.dataset.sel).value)" style="font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--green);background:none;color:var(--green);cursor:pointer;white-space:nowrap;font-family:var(--sans);font-weight:600">✓ Map</button>
         </span>`;
-        return `<tr><td style="padding:3px 8px;color:var(--amber);font-size:13px">${esc(u.xero)}${mapCtrl}</td>${cells}</tr>`;
-      }).join('');
-      matchHtml=`<details id="${uid}" open style="margin-top:10px;border:1px solid var(--amber);border-radius:6px;padding:8px 12px">
+    };
+    const valCells=vals=>months.map(m=>`<td style="text-align:right;padding:3px 8px;color:var(--amber)">${$f((vals||{})[m]||0)}</td>`).join('');
+    const tblHead=first=>`<table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:8px">
+          <thead><tr>
+            <th style="text-align:left;padding:3px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">${first}</th>
+            ${months.map(m=>`<th style="text-align:right;padding:3px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">${mLabel(m)}</th>`).join('')}
+          </tr></thead><tbody>`;
+    const hint=`<div style="font-size:12px;color:var(--text3);margin-top:8px">Pick the dashboard label and click ✓ Map — the mapping is saved and shared straight away, and used when you click Apply import.</div>`;
+    if(unmatched.length){
+      const rows=unmatched.map(u=>`<tr><td style="padding:3px 8px;color:var(--amber);font-size:13px">${esc(u.r.label)}${mapCtrl(u.r.label)}</td>${valCells(u.r.vals)}</tr>`).join('');
+      matchHtml+=`<details id="diag-${entity}-${ftype}" open style="margin-top:10px;border:1px solid var(--amber);border-radius:6px;padding:8px 12px">
         <summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.07em">
           ⚠ ${unmatched.length} unmatched row${unmatched.length>1?'s':''} — these won't appear on the dashboard
         </summary>
-        <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:8px">
-          <thead><tr>
-            <th style="text-align:left;padding:3px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">Xero label → pick dashboard label → ✓ Map</th>
-            ${months.map(m=>`<th style="text-align:right;padding:3px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">${mLabel(m)}</th>`).join('')}
-          </tr></thead><tbody>${rows}</tbody>
-        </table>
-        <div style="font-size:12px;color:var(--text3);margin-top:8px">Select the matching dashboard label and click ✓ Map — saved permanently and applied instantly.</div>
+        ${tblHead('Xero label → pick dashboard label → ✓ Map')}${rows}</tbody></table>${hint}
       </details>`;
-    } else if(matched.length){
-      matchHtml=`<div style="margin-top:8px;font-size:12px;color:var(--green);font-weight:600">✓ All ${matched.length} rows matched to template</div>`;
+    }
+    if(combined.length){
+      const rows=combined.map(g=>g.map(x=>`<tr><td style="padding:3px 8px;color:var(--amber);font-size:13px">${esc(x.r.label)} → <strong>${esc(x.hit.label)}</strong>${x.how==='auto'?mapCtrl(x.r.label):''}</td>${valCells(x.r.vals)}</tr>`).join('')).join('');
+      matchHtml+=`<details id="diag-${entity}-${ftype}-comb" open style="margin-top:10px;border:1px solid var(--amber);border-radius:6px;padding:8px 12px">
+        <summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.07em">
+          ⚠ ${combined.length} dashboard line${combined.length>1?'s':''} would add up several Xero accounts — check, or ✓ Map one elsewhere
+        </summary>
+        ${tblHead('Xero label → dashboard label')}${rows}</tbody></table>${hint}
+      </details>`;
+    }
+    if(!unmatched.length&&!combined.length&&res.length){
+      matchHtml=`<div style="margin-top:8px;font-size:12px;color:var(--green);font-weight:600">✓ All ${res.length} rows matched to template</div>`;
+    }
+    if(auto.length){
+      matchHtml+=`<div style="margin-top:6px;font-size:12px;color:var(--text3)">Auto-matched by name: ${auto.map(x=>`${esc(x.r.label)} → ${esc(x.hit.label)}`).join(' · ')}</div>`;
     }
   }
 
+  // A second file of the same type replaces this one's pending parse — say so, so nothing is dropped silently
+  const fi=_importFiles[entity+'-'+ftype];
+  const fileHtml=fi?`<div style="font-size:12px;color:var(--text3);margin:-6px 0 8px">${esc(fi.name)}${fi.replaced?` <span style="color:var(--amber)">· replaces the unapplied ${esc(fi.replaced)}</span>`:''}</div>`:'';
   const ftLabel={gl:'Account Transactions',bs:'Balance Sheet',pl:'Profit & Loss'}[ftype]||ftype.toUpperCase();
   el.innerHTML=`<div style="margin-top:12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px">
     <div style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">${ftLabel} Preview — ${months.map(mLabel).join(', ')}</div>
+    ${fileHtml}
     <table style="width:100%;border-collapse:collapse;font-size:14.5px">
       <thead><tr>
         <th style="text-align:left;padding:4px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)"></th>
@@ -3676,6 +3764,18 @@ function _mergeFinReport(prev,next){
   return out;
 }
 
+// Closing cash in a GL month the Balance Sheet doesn't cover (yet): the template accounts' GL balances, plus the bank
+// accounts only the Balance Sheet lists (Fixed Deposit, FX Clearing…) at their latest Balance Sheet total — they have
+// no GL series here, and dropping them would understate cash and push their balance into FX.
+function _closeGLOnlyMonths(entity,glM,bsM){
+  const CLOSE=entity==='bh'?BH_CLOSE:BC_CLOSE, closeFn=entity==='bh'?bhClose:bcClose;
+  let rest=null;
+  E.forEach((m,i)=>{
+    if(bsM.has(m)){rest=CLOSE[i]-closeFn(i);return;}
+    if(rest!==null&&glM.has(m))CLOSE[i]=Math.round((closeFn(i)+rest)*100)/100;
+  });
+}
+
 function applyImport(entity,ftype){
   ftype=ftype||(importState[entity+'-gl']?'gl':importState[entity+'-bs']?'bs':'pl');
   const parsed=importState[entity+'-'+ftype];
@@ -3691,6 +3791,10 @@ function applyImport(entity,ftype){
     Object.values(BH_BANKS).forEach(a=>a.splice(insertAt,0,0));
     Object.values(BC_BANKS).forEach(a=>a.splice(insertAt,0,0));
     [...BH_PL,...BC_PL,...CONSO_PL,...BH_BS,...BC_BS,...CONSO_BS].forEach(r=>{if(r.v)r.v.splice(insertAt,0,0);});
+    // The importing entity's bank balances in a new month start as the month before's (unchanged until this GL or a
+    // Balance Sheet says otherwise) — not 0, which would read as $0 closing cash with the whole balance in FX.
+    if(insertAt>0)(entity==='bh'?[BH_CLOSE,...Object.values(BH_BANKS)]:[BC_CLOSE,...Object.values(BC_BANKS)]).forEach(a=>{a[insertAt]=a[insertAt-1]||0;});
+    _bankPending[entity==='bh'?'bc':'bh'].add(m); // the other entity has no bank data for this month yet
   });
 
   const isB=entity==='bh';
@@ -3712,10 +3816,23 @@ function applyImport(entity,ftype){
       }
     });
     const closeFn=isB?bhClose:bcClose;
-    Object.entries(parsed.bankClose).forEach(([acct,mMap])=>{
-      const clean=n=>n.replace(/^\d+\s*[-–]\s*/,'').toLowerCase().replace(/[-\s]+/g,' ').trim();
+    // Months the stored Balance Sheet covers: its bank balances are authoritative there. Every other month of this file
+    // (a month-end GL applied before that month's Balance Sheet) keeps the GL-derived balances — never the template's 0s.
+    const bsRep=window._importedFin&&window._importedFin[entity+'_bs'];
+    const bsM=new Set(((bsRep&&bsRep.months)||[]).map(mKey));
+    // GL-derived month-end balance per template account (Xero accounts that map to one template account add up)
+    const clean=n=>n.replace(/^\d+\s*[-–]\s*/,'').toLowerCase().replace(/[-\s]+/g,' ').trim();
+    const glBank={};
+    Object.entries(parsed.bankClose||{}).forEach(([acct,mMap])=>{
       const key=Object.keys(BANKS).find(k=>clean(acct).includes(clean(k))||clean(k).includes(clean(acct)));
-      if(key){Object.entries(mMap).forEach(([m,v])=>{const i=E.indexOf(m);if(i>=0)BANKS[key][i]=v;});}
+      if(key)Object.entries(mMap).forEach(([m,v])=>{const g=glBank[key]=glBank[key]||{};g[m]=(g[m]||0)+v;});
+    });
+    Object.entries(glBank).forEach(([key,mMap])=>Object.entries(mMap).forEach(([m,v])=>{const i=E.indexOf(m);if(i>=0)BANKS[key][i]=Math.round(v*100)/100;}));
+    // A month the other entity's import added (balances still 0 here): accounts this GL doesn't list kept the month
+    // before's balance — as the importing entity's own new months do.
+    parsed.months.forEach(m=>{
+      const i=E.indexOf(m);if(!_bankPending[entity].delete(m)||i<=0||bsM.has(m))return;
+      Object.keys(BANKS).forEach(k=>{if(!(glBank[k]&&glBank[k][m]!==undefined))BANKS[k][i]=BANKS[k][i-1]||0;});
     });
     E.forEach((_,i)=>{CLOSE[i]=closeFn(i);});
     // Recompute FX as the plug that makes the equation always balance:
@@ -3729,19 +3846,20 @@ function applyImport(entity,ftype){
       const prevClose=idx===0?OPEN:CLOSE[idx-1];
       FX[idx]=Math.round((CLOSE[idx]-prevClose-IN[idx]+OUT[idx])*100)/100;
     });
-    // If BS was already imported, restore its exact bank balances and recompute FX from them
-    // (GL-derived sectionMonthlyNet can drift; BS is authoritative for closing balance)
-    if(window._importedFin&&window._importedFin[entity+'_bs']){
+    // If BS was already imported, restore its exact bank balances (for the months it covers) and recompute FX from them
+    // (GL-derived balances can drift; BS is authoritative for closing balance)
+    if(bsRep){
       const bsArr2=isB?BH_BS:BC_BS;
       const bankLbl2=isB?'Total Bank':'Total Cash';
       const bankRow2=bsArr2.find(r=>r.label===bankLbl2);
       Object.keys(BANKS).forEach(bankName=>{
         const row=bsArr2.find(r=>r.label&&normKey(r.label)===normKey(bankName));
-        if(row&&row.v)row.v.forEach((v,i)=>{BANKS[bankName][i]=v;});
+        if(row&&row.v)row.v.forEach((v,i)=>{if(bsM.has(E[i]))BANKS[bankName][i]=v;});
       });
       E.forEach((_,i)=>{CLOSE[i]=closeFn(i);});
-      if(bankRow2&&bankRow2.v)bankRow2.v.forEach((v,i)=>{if(v!==0)CLOSE[i]=v;});
+      if(bankRow2&&bankRow2.v)bankRow2.v.forEach((v,i)=>{if(v!==0&&bsM.has(E[i]))CLOSE[i]=v;});
       _closeFromBSAccounts(isB?'BH':'BC',CLOSE);
+      _closeGLOnlyMonths(entity,new Set(parsed.months),bsM);
       E.forEach((_,idx)=>{
         const prevClose=idx===0?OPEN:CLOSE[idx-1];
         FX[idx]=Math.round((CLOSE[idx]-prevClose-IN[idx]+OUT[idx])*100)/100;
@@ -3754,52 +3872,26 @@ function applyImport(entity,ftype){
     if(!window._importedFin)window._importedFin={};
     window._importedFin[entity+'_'+ftype]=_mergeFinReport(window._importedFin[entity+'_'+ftype],parsed);
 
-    // 2. Also update the hardcoded KPI arrays so Dashboard / P&L metrics stay live.
-    //    Use flexible label matching — imported label just needs to contain or be contained by
-    //    the hardcoded label (case-insensitive, punctuation-stripped).
+    // 2. Also update the template KPI arrays (BH_PL/BC_PL/BH_BS/BC_BS) so Dashboard / P&L metrics stay live.
+    //    Lines are resolved on the stored, month-merged report (exactly what a reload replays) and written for this
+    //    file's months only: every template line is first cleared for those months, then each Xero line ADDS onto the
+    //    line it lands on (_matchFinRows). So an account missing from the new export can't keep a stale value, and two
+    //    Xero accounts on one line add up instead of one silently replacing (or being dropped for) the other.
+    const rep=window._importedFin[entity+'_'+ftype];
     const kpiTarget=ftype==='bs'?(isB?BH_BS:BC_BS):(isB?BH_PL:BC_PL);
-    const dataRows=parsed.rows.filter(r=>r.type==='i'||r.type==='t');
-    // Track which template labels have already been updated this import pass.
-    // Prevents a duplicate Xero label (e.g. "Stripe AED 1" appears in both
-    // Assets/Bank and Liabilities) from overwriting the first (correct) match.
-    // Dedup key = templateLabel + '|' + xeroSection so the same account name
-    // appearing in both Assets and Liabilities in Xero (e.g. "Stripe AED 1")
-    // can match a different template row in each section.
-    const _alreadyUpdated=new Set();
-    dataRows.forEach(r=>{
-      const rk=normKey(r.label);
-      const xeroSection=r.section||'';
-      // Prefer a template row whose section hint matches the Xero section
-      let hit=kpiTarget.find(t=>t.label&&normKey(t.label)===rk);
-      if(!hit)hit=kpiTarget.find(t=>{
-        if(!t.label)return false;
-        const tk=normKey(t.label);
-        return tk.length>=8&&rk.includes(tk);
-      });
-      // GL mapping fallback: if no direct match, check user-defined mappings
-      if(!hit){
-        const maps=(GL_MAPPINGS[entity+'_'+ftype])||[];
-        const map=maps.find(m=>normKey(m.xero)===rk);
-        if(map)hit=kpiTarget.find(t=>t.label&&normKey(t.label)===normKey(map.tmpl));
-      }
-      const dedupKey=hit?`${hit.label}|${xeroSection}`:'';
-      if(hit&&hit.v&&!_alreadyUpdated.has(dedupKey)){
-        _alreadyUpdated.add(dedupKey);
-        // If a liability-section Xero row matches a bank asset row, NET it (subtract)
-        // so it shows as a negative balance in Assets rather than a separate liability line.
-        const isBankHit=isB?!!BH_BANKS[hit.label]:!!BC_BANKS[hit.label];
-        const isLiabSrc=xeroSection.includes('liabil');
-        parsed.months.forEach(m=>{
-          const i=E.indexOf(m);
-          if(i<0)return;
-          if(isBankHit&&isLiabSrc){
-            hit.v[i]=(hit.v[i]||0)-(r.vals[m]||0); // net: asset − liability
-          } else {
-            hit.v[i]=r.vals[m]||0;
-          }
-        });
-      }
+    const BANKS_=isB?BH_BANKS:BC_BANKS;
+    const idxs=parsed.months.map(m=>E.indexOf(m)).filter(i=>i>=0);
+    kpiTarget.forEach(t=>{if(t.type==='i'&&t.v)idxs.forEach(i=>{t.v[i]=0;});});
+    const matches=_matchFinRows(entity,ftype,rep.rows);
+    matches.forEach(({r,hit})=>{
+      if(!hit||!hit.v)return;
+      // A bank account Xero lists under liabilities (overdrawn) nets against its asset line: asset − liability
+      const sign=BANKS_[hit.label]&&(r.section||'').includes('liabil')?-1:1;
+      idxs.forEach(i=>{hit.v[i]=(hit.v[i]||0)+sign*((r.vals||{})[E[i]]||0);});
     });
+    // Xero lines that land on no template line: the P&L banner lists them (runValidation), so a gap is never 'Verified'
+    if(!window._finUnmatched)window._finUnmatched={};
+    window._finUnmatched[entity+'_'+ftype]=matches.filter(x=>!x.hit&&Object.values(x.r.vals||{}).some(v=>Math.abs(v||0)>0.005)).map(x=>({label:x.r.label,vals:{...x.r.vals}}));
     // Rebuild consolidated — entity-aware:
     // rows tagged BH/BC get only their own entity's values;
     // total/summary rows (no entity) get BH+BC sum.
@@ -3821,8 +3913,8 @@ function applyImport(entity,ftype){
         }
       });
     }
-    // Snapshot Xero's own total rows BEFORE we recompute (they're the ground truth)
-    captureXeroTotals(parsed, entity+'_'+ftype);
+    // Snapshot Xero's own total rows BEFORE we recompute (they're the ground truth) — of every stored month
+    captureXeroTotals(rep, entity+'_'+ftype);
     if(ftype==='bs'){
       rebuildConso(CONSO_BS,BH_BS,BC_BS);
       [BH_BS,BC_BS,CONSO_BS].forEach(recalcBSTotals);
@@ -3833,17 +3925,22 @@ function applyImport(entity,ftype){
       const bankRow=bsArr.find(r=>r.label===bankLbl);
       const closeArr=isB?BH_CLOSE:BC_CLOSE;
       const banksTarget=isB?BH_BANKS:BC_BANKS;
+      // Only the months the stored Balance Sheet covers: a month it doesn't (yet) cover keeps its GL-derived balances
+      const bsM1=new Set((rep.months||[]).map(mKey));
+      bsM1.forEach(m=>_bankPending[entity].delete(m));
       // 1. Sync individual bank rows → breakdown table uses exact BS values
       // No length guard: allow array to grow when new months are imported.
       Object.keys(banksTarget).forEach(bankName=>{
         const row=bsArr.find(r=>r.label&&normKey(r.label)===normKey(bankName));
-        if(row&&row.v)row.v.forEach((v,i)=>{banksTarget[bankName][i]=v;});
+        if(row&&row.v)row.v.forEach((v,i)=>{if(bsM1.has(E[i]))banksTarget[bankName][i]=v;});
       });
       // 2. Sync total closing balance from BS Total Bank/Cash row
       if(bankRow&&bankRow.v){
-        bankRow.v.forEach((v,i)=>{if(v!==0)closeArr[i]=v;});
+        bankRow.v.forEach((v,i)=>{if(v!==0&&bsM1.has(E[i]))closeArr[i]=v;});
       }
       _closeFromBSAccounts(isB?'BH':'BC',closeArr);
+      const glSnap=(window._actualsSnap||{})[entity+'-gl'];
+      if(glSnap)_closeGLOnlyMonths(entity,new Set(glSnap.months||[]),bsM1);
       // 3. Recompute FX from BS-authoritative closing (only if GL already imported)
       const INarr=isB?BH_IN:BC_IN, OUTarr=isB?BH_OUT:BC_OUT, FXarr=isB?BH_FX:BC_FX;
       const OPENval=isB?BH_OPEN:BC_OPEN;
@@ -3863,7 +3960,8 @@ function applyImport(entity,ftype){
   // Update all actuals-range labels and recompute FCST_MONTHS
   updateActualsLabels();
 
-  const prev=document.getElementById('import-preview-'+entity);
+  const prev=_importPreviewEl(entity,ftype);
+  delete _importFiles[entity+'-'+ftype];
   const ftLabel={gl:'Account Transactions',bs:'Balance Sheet',pl:'P&L'}[ftype]||ftype;
   if(prev)prev.innerHTML=`<div class="es" style="border-color:var(--accent-border);background:var(--accent-light);margin-top:10px"><span style="color:var(--green)">✓</span> &nbsp;${ftLabel}: ${parsed.months.length} month(s) applied — ${parsed.months.map(mLabel).join(', ')}</div>`;
 
@@ -3880,6 +3978,10 @@ function applyImport(entity,ftype){
     merged.months=[...new Set([...(_prevSnap.months||[]),...(parsed.months||[])])].sort((a,b)=>mOrd(a)-mOrd(b));
     ['inflow','outflow'].forEach(k=>{merged[k]=merged[k]||{};(parsed.months||[]).forEach(m=>{merged[k][m]=(parsed[k]||{})[m]||[];});});
     merged.bankClose=merged.bankClose||{};
+    // The new file is authoritative for its months: drop them from every stored account first, so an account Xero
+    // renamed between exports can't keep a second, stale balance for the same month (applyImport adds them up).
+    const newBM=new Set([...(parsed.months||[]),...Object.values(parsed.bankClose||{}).flatMap(Object.keys)]);
+    Object.values(merged.bankClose).forEach(mm=>Object.keys(mm||{}).forEach(m=>{if(newBM.has(m))delete mm[m];}));
     Object.entries(parsed.bankClose||{}).forEach(([acct,mMap])=>{merged.bankClose[acct]={...(merged.bankClose[acct]||{}),...mMap};});
     merged.nettedFees={...(_prevSnap.nettedFees||{}),...(parsed.nettedFees||{})};
     window._actualsSnap[_snapKey]=merged;
@@ -4360,13 +4462,17 @@ function loadActuals(){
     if(!snap)return;
     // Restore imported fin data first (so renderFin works immediately)
     if(snap._importedFin){window._importedFin=snap._importedFin;}
+    // Reports stored before the parser stopped at Xero's '[FX] Exchange rates…' footnote: drop those rate lines
+    Object.values(window._importedFin||{}).forEach(_cutFxFootnote);
+    ['bh','bc'].forEach(e=>['bs','pl'].forEach(ft=>_cutFxFootnote(snap[`actuals_${e}_${ft}`])));
     if(snap._xeroTotals){window._xeroTotals=snap._xeroTotals;}
     if(snap._glMappings){GL_MAPPINGS=snap._glMappings;try{localStorage.setItem('gl_mappings',JSON.stringify(GL_MAPPINGS));}catch(e){}}
     if(snap._userRows){USER_ROWS=snap._userRows;try{localStorage.setItem('user_rows',JSON.stringify(USER_ROWS));}catch(e){}}
     applyUserRows();
-    // Replay GL imports through applyImport (updates Dashboard/CF)
+    // Replay imports through applyImport (updates Dashboard/CF). Balance Sheet before GL: the GL replay reads the
+    // BS-covered months' bank balances from the template and carries them into the months only the GL covers.
     ['bh','bc'].forEach(e=>{
-      ['gl','bs','pl'].forEach(ft=>{
+      ['bs','gl','pl'].forEach(ft=>{
         const saved=snap[`actuals_${e}_${ft}`];
         if(!saved||!saved.months||!saved.months.length)return;
         importState[e+'-'+ft]=saved;
@@ -4571,7 +4677,7 @@ function saveInlineMapping(entity,ftype,xeroLabel,tmplLabel){
   if(!GL_MAPPINGS[key])GL_MAPPINGS[key]=[];
   const exists=GL_MAPPINGS[key].find(m=>normKey(m.xero)===normKey(xeroLabel));
   if(exists)exists.tmpl=tmplLabel; else GL_MAPPINGS[key].push({xero:xeroLabel,tmpl:tmplLabel});
-  try{localStorage.setItem('gl_mappings',JSON.stringify(GL_MAPPINGS));}catch(e){}
+  saveGLMappings(); // persist + sync now: survives a reload and reaches teammates even if this import is never applied
   // Re-render preview with new mapping applied
   const parsed=importState[entity+'-'+ftype];
   if(parsed)renderImportPreview(entity,parsed,ftype);
