@@ -1620,23 +1620,72 @@ function setEnt(e,el){
 }
 
 // ── CF ──
-// Compute how much per entity/month is being netted off (manual fee overrides)
-function computeNetAdjustments(){
-  const adj={BH:E.map(()=>0),BC:E.map(()=>0)};
-  const keys=Object.keys(CF_NET_OVERRIDES);
-  if(!keys.length)return adj;
+// Per-transaction key for CF Working's overrides (CF_TX_OVERRIDES display group, CF_NET_OVERRIDES netting):
+//   'date||contact||entity||account'          the 1st transaction (in GL order, months in E order) with those four
+//   'date||contact||entity||account||#2', #3…  any later one in the same direction that shares all four (two
+//                                              same-day payments to one vendor from one account)
+// so each transaction can be regrouped or netted on its own, while every key saved before (always the plain
+// form) still points at the same — first — transaction. Inflow and outflow are numbered separately. Keys are
+// built only here: txKeyMap(isIn) → Map(tx → key) for every inflow (true) / outflow (false) in E (use it for a
+// list); txKeyOf(tx,isIn) for one transaction; txByKey(key,isIn) → {tx,m} or null.
+function txKeyBase(tx){return `${tx.date||''}||${tx.contact}||${tx.entity}||${tx.account||''}`;}
+function _txList(m,isIn){return isIn?[...(BH_IN_D[m]||[]),...(BC_IN_D[m]||[])]:[...(BH_OUT_D[m]||[]),...(BC_OUT_D[m]||[])];}
+function txKeyMap(isIn){
+  const keys=new Map(), seen=new Map();
+  E.forEach(m=>_txList(m,isIn).forEach(tx=>{
+    const b=txKeyBase(tx), n=(seen.get(b)||0)+1;
+    seen.set(b,n);
+    keys.set(tx,n>1?`${b}||#${n}`:b);
+  }));
+  return keys;
+}
+function txKeyOf(tx,isIn){return txKeyMap(isIn).get(tx)||txKeyBase(tx);}
+function txByKey(key,isIn){
+  const keys=txKeyMap(isIn);
+  for(const m of E)for(const tx of _txList(m,isIn))if(keys.get(tx)===key)return {tx,m};
+  return null;
+}
+function netName(s){return String(s).trim().toLowerCase();} // 'Net against' names match ignoring case and outer spaces
+
+// "Net against inflow contact" (CF_NET_OVERRIDES: outflow key → inflow contact; true = its own contact).
+// One allocation that the statement (getD), the drill-downs, CF Working and its export all use, so they tie
+// in every case: each netted outflow is set off against that contact's receipts in the same entity and
+// month, filling them in GL order and never taking a receipt below 0. Whatever those receipts can't cover
+// stays an ordinary outflow (a contact with no receipt that month nets nothing) rather than vanishing.
+// → {out:Map(outflow tx → amount netted), in:Map(inflow tx → reduction), adj:{BH,BC: netted per E month}}
+function cfNetAlloc(){
+  const res={out:new Map(),in:new Map(),adj:{BH:E.map(()=>0),BC:E.map(()=>0)}};
+  if(!Object.keys(CF_NET_OVERRIDES).length)return res;
+  const keys=txKeyMap(false);
   E.forEach((m,i)=>{
-    [...(BH_OUT_D[m]||[])].forEach(tx=>{
-      const k=`${tx.date||''}||${tx.contact}||${tx.entity}||${tx.account||''}`;
-      if(CF_NET_OVERRIDES[k])adj.BH[i]+=tx.amt;
-    });
-    [...(BC_OUT_D[m]||[])].forEach(tx=>{
-      const k=`${tx.date||''}||${tx.contact}||${tx.entity}||${tx.account||''}`;
-      if(CF_NET_OVERRIDES[k])adj.BC[i]+=tx.amt;
+    const want=new Map(), side=new Map(); // target||entity → {target, entity, outs:[…]} in GL order; tx → its list
+    [['BH',BH_OUT_D[m]],['BC',BC_OUT_D[m]]].forEach(([le,list])=>(list||[]).forEach(tx=>{
+      const t=CF_NET_OVERRIDES[keys.get(tx)];
+      if(!t||isFee(tx.contact))return; // fee contacts never reach the outflow side, so they can't be netted
+      const target=netName(t===true?tx.contact:t), wk=target+'||'+tx.entity;
+      if(!want.has(wk))want.set(wk,{target,entity:tx.entity,outs:[]});
+      want.get(wk).outs.push(tx);side.set(tx,le);
+    }));
+    want.forEach(w=>{
+      const recs=_txList(m,true).filter(tx=>tx.entity===w.entity&&netName(tx.contact)===w.target);
+      let j=0, left=recs.length?Math.max(0,recs[0].amt||0):0;
+      w.outs.forEach(o=>{
+        let need=Math.max(0,o.amt||0);
+        while(need>0&&j<recs.length){
+          const take=Math.min(need,left);
+          if(take>0){res.in.set(recs[j],(res.in.get(recs[j])||0)+take);need-=take;left-=take;}
+          if(left<=0&&++j<recs.length)left=Math.max(0,recs[j].amt||0);
+        }
+        const applied=Math.max(0,o.amt||0)-need;
+        res.out.set(o,applied);
+        res.adj[side.get(o)][i]+=applied;
+      });
     });
   });
-  return adj;
+  return res;
 }
+// How much per entity/month is netted off inflow and outflow (what the statement subtracts)
+function computeNetAdjustments(){return cfNetAlloc().adj;}
 
 function getD(){
   const na=computeNetAdjustments();
@@ -1676,49 +1725,30 @@ function swCF(mode,el){
   renderCF();
 }
 
-// Returns map of targetContact||entity||month → total outflow amount to net against that inflow contact
+// Returns map of targetContact||entity||month → outflow amount actually netted against that inflow contact
 function getNettedByContactMap(){
-  const map={};
-  E.forEach(m=>{
-    [...(BH_OUT_D[m]||[]),...(BC_OUT_D[m]||[])].forEach(tx=>{
-      const k=`${tx.date||''}||${tx.contact}||${tx.entity}||${tx.account||''}`;
-      const target=CF_NET_OVERRIDES[k];
-      if(!target)return;
-      // target is the inflow contact name to net against (string); true = legacy, treat as self
-      const targetContact=(target===true)?tx.contact:target;
-      const ck=targetContact+'||'+tx.entity+'||'+m;
-      map[ck]=(map[ck]||0)+tx.amt;
-    });
-  });
+  const map={}, al=cfNetAlloc(), mo=new Map();
+  E.forEach(m=>_txList(m,true).forEach(tx=>mo.set(tx,m)));
+  al.in.forEach((v,tx)=>{const ck=tx.contact+'||'+tx.entity+'||'+mo.get(tx);map[ck]=(map[ck]||0)+v;});
   return map;
 }
 
 function buildCFGroups(isIn){
   const merged=getMergedMap();
   const groups={};
-  const nettedMap=isIn?getNettedByContactMap():{};
-  const nettedApplied={}; // keyed by contact||entity||month — prevents double-subtracting when multiple txs exist for same contact+month
+  const keys=txKeyMap(isIn), net=cfNetAlloc()[isIn?'in':'out']; // per-tx netting, same as getD's
   E.forEach(m=>{
-    const txList=isIn
-      ?[...(BH_IN_D[m]||[]),...(BC_IN_D[m]||[])]
-      :[...(BH_OUT_D[m]||[]),...(BC_OUT_D[m]||[])];
-    txList.forEach(tx=>{
+    _txList(m,isIn).forEach(tx=>{
       if(ent!=='conso'&&tx.entity!==ent.toUpperCase())return;
       if(!isIn&&isFee(tx.contact))return;
-      const txOvKey=`${tx.date||''}||${tx.contact}||${tx.entity}||${tx.account||''}`;
-      if(!isIn&&CF_NET_OVERRIDES[txOvKey])return; // skip netted outflows
+      // Netting: a receipt loses what was set off against it; a netted payment keeps only what its contact's
+      // receipts couldn't cover (usually nothing — then it's left out)
+      const amt=tx.amt-(net.get(tx)||0);
+      if(!isIn&&net.has(tx)&&amt<=0.005)return;
+      const txOvKey=keys.get(tx);
       const mapKey=tx.contact+'||'+tx.entity;
       const grpName=CF_TX_OVERRIDES[txOvKey]||merged[mapKey]?.group||tx.contact;
       if(!groups[grpName])groups[grpName]={group:grpName,vals:{},entities:{BH:{vals:{}},BC:{vals:{}}}};
-      // For inflows: subtract any user-netted outflows for this contact+entity+month (applied once per month)
-      let amt=tx.amt;
-      if(isIn){
-        const ck=tx.contact+'||'+tx.entity+'||'+m;
-        if(nettedMap[ck]&&!nettedApplied[ck]){
-          amt=Math.max(0,amt-nettedMap[ck]);
-          nettedApplied[ck]=true;
-        }
-      }
       groups[grpName].vals[m]=(groups[grpName].vals[m]||0)+amt;
       const entKey=tx.entity;
       if(!groups[grpName].entities[entKey])groups[grpName].entities[entKey]={vals:{}};
@@ -1836,7 +1866,7 @@ function renderCFTable(d){
   // Inflow
   const inCell=c=>c.kind==='A'?`<td class="pos">${$f(c.in)}</td>`:`<td class="pos fc">${c.in?$f(c.in):'—'}</td>`;
   h+=`<tr class="sr"><td colspan="${cfCols}" style="padding-left:10px"><span class="cf-stick">↑ Cash inflow</span></td></tr>`;
-  h+=`<tr class="indent" style="cursor:pointer" onclick="togCFDrill('inflow',true)">`+lbl('Cash received from clients ▸',' style="padding-left:22px"');
+  h+=`<tr class="indent" id="dtog-inflow" style="cursor:pointer" role="button" tabindex="0" aria-expanded="false" aria-controls="dr-inflow" onclick="togCFDrill('inflow',true)" onkeydown="cfKeyClick(event)">`+lbl('Cash received from clients ▸',' style="padding-left:22px"');
   vis.forEach(c=>h+=inCell(c));
   h+=totTd('pos',$f(tIn))+'</tr>';
   h+=`<tr class="drill-row" id="dr-inflow"><td colspan="${cfCols}"><div class="di" id="dc-inflow"></div></td></tr>`;
@@ -1847,7 +1877,7 @@ function renderCFTable(d){
   const outFmt=v=>v<0?$f(-v):neg(v); // outflows in brackets; a net credit (refund > payments) shows as a positive amount
   const outCell=c=>c.kind==='A'?`<td class="neg">${outFmt(c.out)}</td>`:`<td class="neg fc">${c.out?outFmt(c.out):'—'}</td>`;
   h+=`<tr class="sr"><td colspan="${cfCols}" style="padding-left:10px"><span class="cf-stick">↓ Cash outflow</span></td></tr>`;
-  h+=`<tr class="indent" style="cursor:pointer" onclick="togCFDrill('outflow',false)">`+lbl('Payments to vendors &amp; expenses ▸',' style="padding-left:22px"');
+  h+=`<tr class="indent" id="dtog-outflow" style="cursor:pointer" role="button" tabindex="0" aria-expanded="false" aria-controls="dr-outflow" onclick="togCFDrill('outflow',false)" onkeydown="cfKeyClick(event)">`+lbl('Payments to vendors &amp; expenses ▸',' style="padding-left:22px"');
   vis.forEach(c=>h+=outCell(c));
   h+=totTd('neg',outFmt(tOut))+'</tr>';
   h+=`<tr class="drill-row" id="dr-outflow"><td colspan="${cfCols}"><div class="di" id="dc-outflow"></div></td></tr>`;
@@ -1926,7 +1956,7 @@ function _cfApplySel(ms){
   try{cfMonthSel?localStorage.setItem('cf_month_sel',JSON.stringify(cfMonthSel)):localStorage.removeItem('cf_month_sel');}catch(e){}
   const reopen=[...openDrill], ae=document.activeElement, fk=ae&&ae.dataset&&ae.dataset.k;
   renderCF();
-  reopen.forEach(id=>{const row=document.getElementById('dr-'+id);if(!row)return;openDrill.add(id);row.classList.add('open');renderCFDrill(id,id==='inflow');});
+  reopen.forEach(id=>{const row=document.getElementById('dr-'+id);if(!row)return;openDrill.add(id);row.classList.add('open');_drillAria(id,true);renderCFDrill(id,id==='inflow');});
   if(fk){const b=document.querySelector(`#cf-period [data-k="${CSS.escape(fk)}"]`);if(b&&!b.disabled)b.focus({preventScroll:true});}
 }
 
@@ -1965,11 +1995,15 @@ function togPeopleGroup(g,drId,isIn){
 }
 const cfDrillPeople={}; // per drill-down: list people first? (default on for outflows)
 function togCFPeopleFirst(drId,isIn){cfDrillPeople[drId]=!(cfDrillPeople[drId]??!isIn);renderCFDrill(drId,isIn);}
+// Enter/Space on a focusable non-button control (role="button" rows, the drill-down ✕) acts like a click.
+// Only when the key is pressed on the control itself, not on a button or link inside it.
+function cfKeyClick(e){if((e.key==='Enter'||e.key===' ')&&e.target===e.currentTarget){e.preventDefault();e.currentTarget.click();}}
+function _drillAria(drId,on){const t=document.getElementById('dtog-'+drId);if(t&&typeof t.setAttribute==='function')t.setAttribute('aria-expanded',on?'true':'false');}
 function togCFDrill(drId,isIn){
   const row=document.getElementById('dr-'+drId);
   if(!row)return;
-  if(openDrill.has(drId)){row.classList.remove('open');openDrill.delete(drId);return;}
-  openDrill.add(drId); row.classList.add('open');
+  if(openDrill.has(drId)){row.classList.remove('open');openDrill.delete(drId);_drillAria(drId,false);return;}
+  openDrill.add(drId); row.classList.add('open'); _drillAria(drId,true);
   renderCFDrill(drId,isIn);
   row.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
@@ -1982,7 +2016,7 @@ function renderCFDrill(drId,isIn){
   const actGroups=isIn?_cfInGroups:_cfOutGroups;
   const fcstGroups=isIn?_cfInFcstGroups:_cfOutFcstGroups;
   const cls=isIn?'pos':'neg';
-  const fmt=v=>isIn?$f(v):'($'+$f(v).replace('$','')+')';
+  const fmt=v=>$f(isIn?v:-v); // outflows in brackets; a net credit (refund > payments) shows positive, as on the statement
   const fcs='background:rgba(251,191,36,0.04)';
   // Merge actual + forecast groups by display group name
   const mgMap={};
@@ -2025,7 +2059,7 @@ function renderCFDrill(drId,isIn){
       ` onclick="${call}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${call}}"${style?` style="${style}"`:''}>${inner}${on?' ▾':''}</th>`;
   };
   const label=isIn?'Cash inflow by group':'Cash outflow by group';
-  let h=`<div class="dt-hd"><span>↳ ${label}${monthPicked?` · ${pickedLbl}, highest first`:''}<span class="cfs-hint">Click a month to sort by it</span>${isIn?'':`<button class="cfs-pf${peopleFirst?' on':''}" aria-pressed="${peopleFirst}" title="List full-time, then part-time people first (tag groups with 👤), each with a subtotal" onclick="togCFPeopleFirst('${drId}',${isIn})">👤 People first</button>`}</span><span class="dc" onclick="clDrill('${drId}')">✕</span></div>`;
+  let h=`<div class="dt-hd"><span>↳ ${label}${monthPicked?` · ${pickedLbl}, highest first`:''}<span class="cfs-hint">Click a month to sort by it</span>${isIn?'':`<button class="cfs-pf${peopleFirst?' on':''}" aria-pressed="${peopleFirst}" title="List full-time, then part-time people first (tag groups with 👤), each with a subtotal" onclick="togCFPeopleFirst('${drId}',${isIn})">👤 People first</button>`}</span><span class="dc" role="button" tabindex="0" title="Close" aria-label="Close breakdown" onclick="clDrill('${drId}',true)" onkeydown="cfKeyClick(event)">✕</span></div>`;
   h+=`<table class="drt"><thead><tr><th>Display group</th><th>Entity</th>`;
   _cfActMonths.forEach(m=>h+=th('A|'+m,`<span class="ba" style="font-size:9px">A</span> ${mLabel(m)}`));
   _cfFcstMonths.forEach(m=>h+=th('F|'+m,`<span class="bf" style="font-size:9px">F</span> ${fmtFcstMonth(m)}`,'opacity:.85'));
@@ -2062,9 +2096,10 @@ function renderCFDrill(drId,isIn){
     else if(hasBH) entBadge=eb('BH');
     else entBadge=eb('BC');
     const rowId='cfent-'+drId+'-'+gi;
-    h+=`<tr${dim?' class="cfs-dim"':''}${isMulti&&ent==='conso'?' style="cursor:pointer" onclick="togEntDrill(\''+rowId+'\')"':''}>`;
+    h+=`<tr${dim?' class="cfs-dim"':''}${isMulti&&ent==='conso'?` id="${rowId}" style="cursor:pointer" role="button" tabindex="0" aria-expanded="false" title="Show the Braveheart / Bravecore split" onclick="togEntDrill('${rowId}')" onkeydown="cfKeyClick(event)"`:''}>`;
     const pk=isIn?null:peopleKind(mg.group), gq=esc(JSON.stringify(mg.group));
     const pTip=pk==='ft'?'Full-time — click to mark part-time':pk==='pt'?'Part-time — click to untag':'Tag as a full-time person (click again for part-time)';
+    // Tags are shared data: viewers see a group's tag but get no button to change it
     const pBtn=isIn?'':isViewer()?(pk?`<span class="cfs-pp ${pk}" style="cursor:default" title="${pk==='ft'?'Full-time':'Part-time'}">${pk.toUpperCase()}</span>`:''):`<button class="cfs-pp${pk?' '+pk:''}" title="${pTip}" aria-label="${pTip}" onclick="event.stopPropagation();togPeopleGroup(${gq},'${drId}',${isIn})">${pk?pk.toUpperCase():'👤'}</button>`;
     h+=`<td style="font-weight:600">${pBtn}${isMulti&&ent==='conso'?'▸ ':''}${esc(mg.group)}</td><td>${entBadge}</td>`;
     h+=cells(mg.actVals,mg.fcstVals,total,false)+`</tr>`;
@@ -2088,14 +2123,19 @@ function renderCFDrill(drId,isIn){
   document.getElementById('dc-'+drId).innerHTML=h;
 }
 function togEntDrill(id){
+  let open=false;
   ['BH','BC'].forEach(ek=>{
     const el=document.getElementById(id+'-'+ek);
-    if(el)el.style.display=el.style.display==='none'?'table-row':'none';
+    if(el){el.style.display=el.style.display==='none'?'table-row':'none';open=open||el.style.display!=='none';}
   });
+  const row=document.getElementById(id);
+  if(row&&typeof row.setAttribute==='function')row.setAttribute('aria-expanded',open?'true':'false');
 }
-function clDrill(drId){
-  if(drId){const r=document.getElementById('dr-'+drId);if(r)r.classList.remove('open');openDrill.delete(drId);}
-  else{openDrill.forEach(id=>{const r=document.getElementById('dr-'+id);if(r)r.classList.remove('open');});openDrill.clear();}
+// refocus: closed from the ✕ — put keyboard focus back on the row that opens it
+function clDrill(drId,refocus){
+  if(drId){const r=document.getElementById('dr-'+drId);if(r)r.classList.remove('open');openDrill.delete(drId);_drillAria(drId,false);
+    const t=refocus&&document.getElementById('dtog-'+drId);if(t&&typeof t.focus==='function')t.focus({preventScroll:true});}
+  else{openDrill.forEach(id=>{const r=document.getElementById('dr-'+id);if(r)r.classList.remove('open');_drillAria(id,false);});openDrill.clear();}
 }
 
 // Month-end bank balances for the actual months in the month filter (all actual months when unfiltered).
@@ -2493,10 +2533,10 @@ function _bankRowsFromImport(){
 // Persisted in localStorage key 'ct_map'
 let CT_MAP = {};
 try { CT_MAP = JSON.parse(localStorage.getItem('ct_map')||'{}'); } catch(e){}
-// Per-transaction display-group overrides: key = "date||contact||entity||account"
+// Per-transaction display-group overrides: key = txKeyMap()'s "date||contact||entity||account" ("…||#2" for a same-day duplicate)
 let CF_TX_OVERRIDES = {};
 try { CF_TX_OVERRIDES = JSON.parse(localStorage.getItem('cf_tx_overrides')||'{}'); } catch(e){}
-// Outflow txKeys the user wants netted against inflows (treated as fee reduction)
+// Outflow txKey → the inflow contact it is netted against (treated as a fee on that receipt; see cfNetAlloc)
 let CF_NET_OVERRIDES = {};
 try { CF_NET_OVERRIDES = JSON.parse(localStorage.getItem('cf_net_overrides')||'{}'); } catch(e){}
 
@@ -2612,7 +2652,11 @@ function buildContacts(){
       raw[k].outflow+=tx.amt;
     });
   });
-  return Object.values(raw);
+  // Type = the direction most of the money went (not whichever came first): a vendor who also refunded you is
+  // still a vendor. A tie keeps the first-seen direction.
+  const list=Object.values(raw);
+  list.forEach(c=>{if(c.inflow!==c.outflow)c.type=c.inflow>c.outflow?'client':'vendor';});
+  return list;
 }
 
 // ── Build grouped contacts (apply mapping) ──
@@ -2629,15 +2673,30 @@ function buildGrouped(){
     groups[grpKey].outflow+=c.outflow;
     groups[grpKey].members.push(c);
   });
-  return Object.values(groups);
+  // A group's type is its own dominant direction too, not its first member's
+  const list=Object.values(groups);
+  list.forEach(g=>{if(g.inflow!==g.outflow)g.type=g.inflow>g.outflow?'client':'vendor';});
+  return list;
 }
 
-function renderContacts(){
+function renderCtSummary(){
   const grouped=buildGrouped();
   renderGrpTable('ctAll',grouped);
   renderGrpTable('ctCli',grouped.filter(c=>c.type==='client'));
   renderGrpTable('ctVen',grouped.filter(c=>c.type==='vendor'));
+}
+function renderContacts(){
+  renderCtSummary();
   renderMappingTable();
+}
+// 'contact||entity' → [contact, entity] (the entity is after the LAST '||'; Xero can have a blank contact, '||BH');
+// null for a key with no entity part
+function ctKeyParts(k){const s=String(k||''), i=s.lastIndexOf('||');return i>=0&&i+2<s.length?[s.slice(0,i),s.slice(i+2)]:null;}
+// A contact's money in one month: signed net (in − out) and whether it had any flow at all
+function ctMonthFlow(contact,entity,mo){
+  const sum=isIn=>_txList(mo,isIn).filter(t=>t.contact===contact&&t.entity===entity).reduce((s,t)=>s+t.amt,0);
+  const inv=sum(true), out=sum(false);
+  return {v:inv-out,any:!!(inv||out)};
 }
 
 function sortGrpTable(id,col){
@@ -2668,7 +2727,7 @@ function renderGrpTable(id,data){
     const tc=g.type==='client'?'var(--green)':'var(--amber)';
     const isGroup=g.members.length>1||(g.group!==g.members[0]?.contact);
     const rid=`cr-${id}-${i}`;
-    const label=g.group;
+    const label=esc(g.group);
     h+=`<tr style="cursor:pointer" onclick="document.getElementById('${rid}').style.display=document.getElementById('${rid}').style.display==='none'?'table-row':'none'">
       <td class="bold">${isGroup?'📁 ':''}${label}${isGroup?' <span style=\'font-size:13.0px;color:var(--text3);font-weight:400\'>('+g.members.length+' contacts)</span>':''} ▸</td>
       <td>${eb(g.entity)}</td>
@@ -2682,27 +2741,21 @@ function renderGrpTable(id,data){
         <table style="width:100%;border-collapse:collapse;font-size:15.0px">
           <tr>${['Contact',...E.map(mLabel),'Total'].map(h=>`<th style="text-align:${h==='Contact'?'left':'right'};padding:4px 8px;color:var(--text3);border-bottom:1px solid var(--border);font-size:14.0px">${h}</th>`).join('')}</tr>
           ${g.members.map(m=>{
-            const mvals=E.map(mo=>{
-              const inv=([...(BH_IN_D[mo]||[]),...(BC_IN_D[mo]||[])]).filter(t=>t.contact===m.contact&&t.entity===m.entity).reduce((s,t)=>s+t.amt,0);
-              const out=([...(BH_OUT_D[mo]||[]),...(BC_OUT_D[mo]||[])]).filter(t=>t.contact===m.contact&&t.entity===m.entity).reduce((s,t)=>s+t.amt,0);
-              return inv||out;
-            });
-            const tot=mvals.reduce((s,v)=>s+v,0);
-            if(!tot)return '';
-            const cls=g.type==='client'?'pos':'neg';
-            return '<tr><td style="padding:4px 8px;color:var(--text2)">' + m.contact + '</td>' +
-              mvals.map(v=>'<td class="r '+cls+'" style="padding:4px 8px">' + (v?$f(v):'—') + '</td>').join('') +
-              '<td class="r '+cls+'" style="padding:4px 8px;font-weight:600">' + $f(tot) + '</td></tr>';
+            // Net per month (in − out), each cell coloured by its own sign — a contact paid AND paying shows both
+            const mf=E.map(mo=>ctMonthFlow(m.contact,m.entity,mo));
+            if(!mf.some(f=>f.any))return '';
+            const tot=mf.reduce((s,f)=>s+f.v,0), cls=v=>v>=0?'pos':'neg';
+            return '<tr><td style="padding:4px 8px;color:var(--text2)">' + esc(m.contact) + '</td>' +
+              mf.map(f=>'<td class="r '+cls(f.v)+'" style="padding:4px 8px">' + (f.any?$f(f.v):'—') + '</td>').join('') +
+              '<td class="r '+cls(tot)+'" style="padding:4px 8px;font-weight:600">' + $f(tot) + '</td></tr>';
           }).join('')}
         </table>`:`<div style="font-size:13.0px;font-weight:600;color:var(--accent);text-transform:uppercase;margin-bottom:6px">${label} · monthly</div>
         <div style="display:flex;gap:16px;flex-wrap:wrap">
           ${E.map(mo=>{
-            const inv=([...(BH_IN_D[mo]||[]),...(BC_IN_D[mo]||[])]).filter(t=>t.contact===g.members[0]?.contact&&t.entity===g.entity).reduce((s,t)=>s+t.amt,0);
-            const out=([...(BH_OUT_D[mo]||[]),...(BC_OUT_D[mo]||[])]).filter(t=>t.contact===g.members[0]?.contact&&t.entity===g.entity).reduce((s,t)=>s+t.amt,0);
-            const v=inv||out;
-            if(!v)return '';
-            const col=g.type==='client'?'var(--green)':'var(--red)';
-            return '<div><div style="font-size:13.0px;color:var(--text3);font-weight:600;text-transform:uppercase">' + mFull(mo) + '</div><div style="font-size:17.0px;font-weight:600;color:' + col + '">' + $f(v) + '</div></div>';
+            const f=ctMonthFlow(g.members[0]?.contact,g.entity,mo);
+            if(!f.any)return '';
+            const col=f.v>=0?'var(--green)':'var(--red)';
+            return '<div><div style="font-size:13.0px;color:var(--text3);font-weight:600;text-transform:uppercase">' + mFull(mo) + '</div><div style="font-size:17.0px;font-weight:600;color:' + col + '">' + $f(f.v) + '</div></div>';
           }).join('')}
         </div>`}
       </div>
@@ -2713,7 +2766,9 @@ function renderGrpTable(id,data){
 
 function saveOneMapping(k,val){
   if(_roBlock())return; // view-only
-  const [contact,entity]=k.split('||');
+  const kp=ctKeyParts(k);
+  if(!kp)return; // not a 'contact||entity' key — never store or sync a junk entry
+  const [contact,entity]=kp;
   const allContacts=buildContacts();
   const found=allContacts.find(c=>c.contact===contact&&c.entity===entity);
   const type=found?found.type:'vendor';
@@ -2736,26 +2791,28 @@ function renderMappingTable(){
   if(fType!=='all')sorted=sorted.filter(c=>c.type===fType);
   let h=`<thead><tr>
     <th>Contact (from Xero)</th><th>Entity</th><th>Type</th>
-    <th class="r">Total flow</th>
+    <th class="r">Inflow</th><th class="r">Outflow</th>
     <th>Display group <span style="font-weight:400;font-style:italic;color:var(--text3)">(editable)</span></th>
   </tr></thead><tbody>`;
   sorted.forEach((c,i)=>{
     const k=c.contact+'||'+c.entity;
     const currentGroup=merged[k]?.group||'';
     const isCustom=!!merged[k]?.group;
-    const total=c.inflow||c.outflow;
     const tc=c.type==='client'?'var(--green)':'var(--amber)';
+    // Names are escaped everywhere (a quote or tag in a Xero contact name can't break the key or inject markup);
+    // dataset.key decodes it back to the exact CT_MAP key
     h+=`<tr>
-      <td class="bold">${c.contact}</td>
+      <td class="bold">${esc(c.contact)}</td>
       <td>${eb(c.entity)}</td>
       <td><span style="font-size:14.5px;font-weight:500;color:${tc}">${c.type}</span></td>
-      <td class="r" style="font-size:15.0px;color:${c.type==='client'?'var(--green)':'var(--red)'}">${$f(total)}</td>
+      <td class="r" style="font-size:15.0px;color:var(--green)">${c.inflow?$f(c.inflow):'—'}</td>
+      <td class="r" style="font-size:15.0px;color:var(--red)">${c.outflow?$f(-c.outflow):'—'}</td>
       <td>
         <input
           id="grp-${i}"
-          data-key="${k}"
-          value="${currentGroup}"
-          placeholder="${c.contact}"
+          data-key="${esc(k)}"
+          value="${esc(currentGroup)}"
+          placeholder="${esc(c.contact)}"
           list="grp-suggestions"
           style="width:100%;background:${isCustom?'var(--accent-light)':'var(--surface2)'};border:1px solid ${isCustom?'var(--accent-mid)':'var(--border2)'};border-radius:5px;padding:5px 8px;font-size:15.0px;font-family:var(--sans);color:var(--text)"
           oninput="saveOneMapping(this.dataset.key,this.value);this.defaultValue=this.value;this.style.background='var(--accent-light)';this.style.borderColor='var(--accent-mid)'"
@@ -2766,8 +2823,8 @@ function renderMappingTable(){
   h+=`</tbody>`;
 
   // Datalist for autocomplete from existing groups
-  const existingGroups=[...new Set(Object.values(merged).map(v=>v.group))].sort();
-  h+=`<datalist id="grp-suggestions">${existingGroups.map(g=>`<option value="${g}">`).join('')}</datalist>`;
+  const existingGroups=[...new Set(Object.values(merged).map(v=>v&&v.group).filter(Boolean))].sort();
+  h+=`<datalist id="grp-suggestions">${existingGroups.map(g=>`<option value="${esc(g)}">`).join('')}</datalist>`;
   document.getElementById('ctMap').innerHTML=h;
 }
 
@@ -2778,7 +2835,9 @@ function saveMappings(){
     if(inp.value===inp.defaultValue)return; // untouched row
     const k=inp.dataset.key;
     const val=inp.value.trim();
-    const [contact,entity]=k.split('||');
+    const kp=ctKeyParts(k);
+    if(!kp)return;
+    const [contact,entity]=kp;
     // determine type
     const allContacts=buildContacts();
     const found=allContacts.find(c=>c.contact===contact&&c.entity===entity);
@@ -2810,6 +2869,7 @@ function swCtMain(tab,el){
   });
   document.querySelectorAll('#screen-contacts > .content > div:first-child .itab').forEach(t=>t.classList.remove('active'));
   if(el)el.classList.add('active');
+  if(tab==='summary')renderCtSummary(); // mapping edits auto-save without redrawing it
   if(tab==='glmap')renderGLMapTable();
 }
 
@@ -4048,37 +4108,36 @@ try { AP_FCST = JSON.parse(localStorage.getItem('ap_fcst')||'[]'); } catch(e){}
 AR_FCST=dropTombed('ar_fcst',AR_FCST);AP_FCST=dropTombed('ap_fcst',AP_FCST);
 
 // ── CF Working Sheet ──
+// Netting uses the statement's own allocation (cfNetAlloc), so the rows always add up to it:
+// inflow  — gross = the real receipt + platform fee; fee = platform fee + whatever was netted against it
+//           (netted); net = gross − fee (what the statement counts).
+// outflow — gross = the payment; netted = the part set off against an inflow; net = gross − netted (what the
+//           statement counts). netTarget = the contact it is netted against; netShort = the part that
+//           contact's receipts that month couldn't cover, so it stays an outflow.
 function buildCFWorkingRows(){
   const merged=getMergedMap();
-  const nettedMap=getNettedByContactMap();
-  // Track how much of each contact's netting has been applied to inflow rows (apply once)
-  const nettedApplied={};
+  const al=cfNetAlloc(), inKeys=txKeyMap(true), outKeys=txKeyMap(false);
   const rows=[];
   E.forEach(m=>{
     const mo=mFull(m);
     const push=(tx,type)=>{
-      const txKey=`${tx.date||''}||${tx.contact}||${tx.entity}||${tx.account||''}`;
+      const isOut=type==='outflow';
+      const txKey=(isOut?outKeys:inKeys).get(tx)||txKeyBase(tx);
       const contactKey=tx.contact+'||'+tx.entity;
       const autoGroup=merged[contactKey]?.group||tx.contact;
       const override=CF_TX_OVERRIDES[txKey]||'';
       const finalGroup=override||autoGroup;
-      const netTarget=type==='outflow'?(CF_NET_OVERRIDES[txKey]||''):'';
-      const netAsFee=type==='outflow'&&!!netTarget;
-      // For inflows: add any user-netted outflow amount to the fee (applied once per contact+entity+month)
-      let fee=tx.fee||0;
-      let net=tx.amt||0;
-      if(type==='inflow'){
-        const ck=tx.contact+'||'+tx.entity+'||'+m;
-        if(nettedMap[ck]&&!nettedApplied[ck]){
-          fee+=nettedMap[ck];
-          net=Math.max(0,net-nettedMap[ck]);
-          nettedApplied[ck]=true;
-        }
-      }
-      const gross=net+fee;
+      const nt=isOut?CF_NET_OVERRIDES[txKey]:null;
+      const netTarget=nt===true?tx.contact:(nt?String(nt):'');
+      const netted=(isOut?al.out:al.in).get(tx)||0;
+      let fee=tx.fee||0, net=(tx.amt||0)-netted, gross;
+      if(isOut)gross=tx.amt||0;
+      else{fee+=netted;gross=net+fee;}
+      const netShort=isOut&&netTarget?Math.max(0,net):0;
+      const netAsFee=isOut&&!!netTarget&&netted>0&&netShort<=0.005; // fully netted: struck through
       rows.push({txKey,month:mo,date:tx.date||m,entity:tx.entity,type,
         account:tx.account||'',contact:tx.contact,client:tx.client||'',
-        gross,fee,net,autoGroup,override,finalGroup,netAsFee,netTarget,isFeeRow:false});
+        gross,fee,net,netted,autoGroup,override,finalGroup,netAsFee,netTarget,netShort,isFeeRow:false});
     };
     const pushFee=(tx,contact)=>{
       rows.push({txKey:'',month:mo,date:tx.date||m,entity:tx.entity,type:'fee',
@@ -4136,13 +4195,15 @@ function renderCFWorking(){
   const outRows=applyFilters(allRows.filter(r=>r.type==='outflow'||r.type==='fee'));
 
   const inTotal=inRows.reduce((s,r)=>s+r.net,0);
+  // Vendor payments = what the statement counts: a netted payment adds only the part left un-netted (r.net)
   const outTotal=outRows.filter(r=>!r.isFeeRow).reduce((s,r)=>s+r.net,0);
+  const nettedTotal=outRows.filter(r=>!r.isFeeRow).reduce((s,r)=>s+(r.netted||0),0);
   const feeTotal=outRows.filter(r=>r.isFeeRow).reduce((s,r)=>s+r.gross,0);
 
   const inEl=document.getElementById('cfw-in-count');
   if(inEl)inEl.textContent=`${inRows.length} rows · Total net: ${$f(inTotal)}`;
   const outEl=document.getElementById('cfw-out-count');
-  if(outEl)outEl.textContent=`${outRows.length} rows · Vendor payments: ${$f(outTotal)} · Fees netted: ${$f(feeTotal)}`;
+  if(outEl)outEl.textContent=`${outRows.length} rows · Vendor payments: ${$f(outTotal)}`+(nettedTotal>0.005?` · Netted vs inflows: ${$f(nettedTotal)}`:'')+` · Fees netted: ${$f(feeTotal)}`;
 
   // ── Inflows table ──
   const IN_COLS=['Month','Date','Entity','Account','Contact','Client','Gross','Fee','Net','Auto Mapping','Override (editable)','Final Display Group'];
@@ -4150,33 +4211,38 @@ function renderCFWorking(){
   inRows.forEach(r=>{
     const hasOv=!!r.override;
     const ovStyle=hasOv?'background:var(--accent-light);border-color:var(--accent-mid)':'background:var(--surface2);border-color:var(--border2)';
+    const feeTip=r.netted?` title="${esc(`${r.fee-r.netted>0.005?`Platform fee ${$f(r.fee-r.netted,2)} + `:''}${$f(r.netted,2)} of payments netted against this receipt`)}"`:'';
     ih+=`<tr>
-      <td style="white-space:nowrap;color:var(--text2)">${r.month}</td>
-      <td style="white-space:nowrap">${r.date}</td>
+      <td style="white-space:nowrap;color:var(--text2)">${esc(r.month)}</td>
+      <td style="white-space:nowrap">${esc(r.date)}</td>
       <td>${eb(r.entity)}</td>
-      <td style="color:var(--text2);font-size:12px">${r.account}</td>
+      <td style="color:var(--text2);font-size:12px">${esc(r.account)}</td>
       <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.contact)}">${esc(r.contact)}</td>
       <td style="color:var(--text3);font-size:12px">${esc(r.client)}</td>
       <td class="r" style="color:var(--green)">${r.gross?$f(r.gross):'—'}</td>
-      <td class="r" style="color:var(--amber)">${r.fee?$f(r.fee):'—'}</td>
+      <td class="r" style="color:var(--amber)"${feeTip}>${r.fee?$f(r.fee):'—'}</td>
       <td class="r" style="font-weight:600;color:var(--green)">${$f(r.net)}</td>
       <td style="color:var(--text2);font-size:12px">${esc(r.autoGroup)}</td>
-      <td style="min-width:160px"><input data-txkey="${esc(r.txKey)}" value="${esc(r.override)}" placeholder="${esc(r.autoGroup)}"
+      <td style="min-width:160px"><input data-role="ov" data-txkey="${esc(r.txKey)}" value="${esc(r.override)}" placeholder="${esc(r.autoGroup)}" aria-label="Display group override"
         style="width:100%;padding:4px 6px;font-size:12px;border-radius:4px;border:1px solid;${ovStyle};color:var(--text);font-family:var(--sans)"
         oninput="saveCFTxOverride(this.dataset.txkey,this.value);this.style.background='var(--accent-light)';this.style.borderColor='var(--accent-mid)'"></td>
-      <td style="font-weight:600;color:var(--accent);font-size:12px">${esc(r.finalGroup)}</td>
+      <td class="cfw-final" style="font-weight:600;color:var(--accent);font-size:12px">${esc(r.finalGroup)}</td>
     </tr>`;
   });
   const inTbl=document.getElementById('cfw-in-table');
   if(inTbl)inTbl.innerHTML=ih+'</tbody>';
 
   // ── Outflows table ──
-  // Build datalist of inflow contacts for autocomplete on the net input
-  const inflowContacts=[...new Set(allRows.filter(r=>r.type==='inflow').map(r=>r.contact).filter(Boolean))].sort();
+  // 'Net against' suggestions per row: only contacts with a receipt in that row's entity and month — the only
+  // ones a payment can be netted against (one datalist per entity+month)
+  const recvBy=new Map();
+  allRows.forEach(r=>{if(r.type!=='inflow'||!r.contact)return;const k=r.entity+'|'+r.month;if(!recvBy.has(k))recvBy.set(k,new Set());recvBy.get(k).add(r.contact);});
+  const listId=k=>'cfw-inc-'+k.replace(/[^A-Za-z0-9]+/g,'-');
   const OUT_COLS=['Month','Date','Entity','Type','Account','Contact','Client','Amount','Auto Mapping','Override (editable)','Final Display Group','Net against inflow contact ↑'];
   let oh=`<thead><tr>${OUT_COLS.map(c=>`<th style="white-space:nowrap;font-size:12px">${c}</th>`).join('')}</tr></thead><tbody>`;
   outRows.forEach(r=>{
     const isFeeRow=r.isFeeRow;
+    const part=!isFeeRow&&r.netted>0.005&&r.netShort>0.005; // netted, but the contact's receipts covered only part
     const tc=isFeeRow?'var(--amber)':r.netAsFee?'var(--text3)':'var(--red)';
     const rowStyle=r.netAsFee?'opacity:0.55;text-decoration:line-through':isFeeRow?'opacity:0.75':'';
     const hasOv=!!r.override;
@@ -4185,47 +4251,60 @@ function renderCFWorking(){
       ?`<span style="font-size:11px;font-weight:600;color:var(--amber);background:rgba(251,191,36,0.12);padding:2px 6px;border-radius:3px">fee (netted)</span>`
       :r.netAsFee
         ?`<span style="font-size:11px;font-weight:600;color:var(--text3)">netted</span>`
-        :`<span style="font-size:11px;font-weight:600;color:var(--red)">outflow</span>`;
+        :part
+          ?`<span style="font-size:11px;font-weight:600;color:var(--amber)">part netted</span>`
+          :`<span style="font-size:11px;font-weight:600;color:var(--red)">outflow</span>`;
     const overrideCell=isFeeRow
       ?`<td style="color:var(--text3);font-size:12px;font-style:italic">auto-netted</td>`
-      :`<td style="min-width:160px"><input data-txkey="${esc(r.txKey)}" value="${esc(r.override)}" placeholder="${esc(r.autoGroup)}"
+      :`<td style="min-width:160px"><input data-role="ov" data-txkey="${esc(r.txKey)}" value="${esc(r.override)}" placeholder="${esc(r.autoGroup)}" aria-label="Display group override"
           style="width:100%;padding:4px 6px;font-size:12px;border-radius:4px;border:1px solid;${ovStyle};color:var(--text);font-family:var(--sans)"
           oninput="saveCFTxOverride(this.dataset.txkey,this.value);this.style.background='var(--accent-light)';this.style.borderColor='var(--accent-mid)'"></td>`;
     // Net against inflow — text input (type the inflow contact name). For auto-fee rows show checkmark.
     const netInputStyle=r.netAsFee
       ?'background:rgba(99,220,110,0.12);border-color:var(--green)'
+      :r.netTarget?'background:rgba(251,191,36,0.10);border-color:var(--amber)'
       :'background:var(--surface2);border-color:var(--border2)';
-    const netCell=isFeeRow
-      ?`<td style="text-align:center;color:var(--text3);font-size:11px" title="Already auto-netted against inflow">✓</td>`
-      :`<td style="min-width:180px">
-          <input list="cfw-inflow-contacts" data-txkey="${esc(r.txKey)}"
+    let netCell='';
+    if(isFeeRow)netCell=`<td style="text-align:center;color:var(--text3);font-size:11px" title="Already auto-netted against inflow">✓</td>`;
+    else{
+      const lk=r.entity+'|'+r.month, opts=[...(recvBy.get(lk)||[])].sort();
+      const tip=opts.length
+        ?`Net this payment against a receipt: type a contact that received money in ${r.entity} in ${r.month} (e.g. ${opts[0]}). It comes off both inflow and outflow, up to what that contact received that month.`
+        :`Nothing was received in ${r.entity} in ${r.month}, so this payment can't be netted.`;
+      const warn=r.netTarget&&r.netShort>0.005
+        ?`<div style="font-size:11px;color:var(--amber);margin-top:2px;white-space:normal">⚠ ${$f(r.netShort,2)} not netted: ${esc(r.netTarget)} received less than that in ${esc(r.entity)} in ${esc(r.month)}, so it stays an outflow</div>`:'';
+      netCell=`<td style="min-width:180px">
+          <input list="${listId(lk)}" data-txkey="${esc(r.txKey)}"
             value="${esc(r.netTarget)}"
-            placeholder="Type inflow contact…"
-            title="Type the inflow contact name to net this outflow against. Can be a different contact (e.g. Duo Strategy LLC outflow → net against Boardroom Advisors inflow)."
+            placeholder="${opts.length?'Type inflow contact…':'No receipts this month'}"${!opts.length&&!r.netTarget?' disabled':''}
+            aria-label="Net against inflow contact" title="${esc(tip)}"
             onchange="saveNetOverride(this.dataset.txkey,this.value)"
-            style="width:100%;padding:4px 6px;font-size:12px;border-radius:4px;border:1px solid;${netInputStyle};color:var(--text);font-family:var(--sans)">
+            style="width:100%;padding:4px 6px;font-size:12px;border-radius:4px;border:1px solid;${netInputStyle};color:var(--text);font-family:var(--sans)">${warn}
         </td>`;
+    }
+    // Amount = the payment itself (struck through once fully netted); the header total counts only the un-netted part
+    const amtTip=r.netted>0.005?` title="${esc(`Payment ${$f(r.gross,2)} · ${$f(r.netted,2)} netted against ${r.netTarget} · ${$f(r.net,2)} counted as outflow`)}"`:'';
     oh+=`<tr style="${rowStyle}">
-      <td style="white-space:nowrap;color:var(--text2)">${r.month}</td>
-      <td style="white-space:nowrap">${r.date}</td>
+      <td style="white-space:nowrap;color:var(--text2)">${esc(r.month)}</td>
+      <td style="white-space:nowrap">${esc(r.date)}</td>
       <td>${eb(r.entity)}</td>
       <td>${typeBadge}</td>
-      <td style="color:var(--text2);font-size:12px">${r.account}</td>
+      <td style="color:var(--text2);font-size:12px">${esc(r.account)}</td>
       <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.contact)}">${esc(r.contact)}</td>
       <td style="color:var(--text3);font-size:12px">${esc(r.client)}</td>
-      <td class="r" style="font-weight:600;color:${tc}">${$f(isFeeRow?r.gross:r.net)}</td>
+      <td class="r" style="font-weight:600;color:${tc}"${amtTip}>${$f(r.gross)}</td>
       <td style="color:var(--text2);font-size:12px">${isFeeRow?'—':esc(r.autoGroup)}</td>
       ${overrideCell}
-      <td style="font-weight:600;color:${isFeeRow?'var(--text3)':'var(--accent)'};font-size:12px">${esc(r.finalGroup)}</td>
+      <td${isFeeRow?'':' class="cfw-final"'} style="font-weight:600;color:${isFeeRow?'var(--text3)':'var(--accent)'};font-size:12px">${esc(r.finalGroup)}</td>
       ${netCell}
     </tr>`;
   });
   const outTbl=document.getElementById('cfw-out-table');
   if(outTbl){
-    // Inject datalist for autocomplete (outside the table, in the card)
-    let dl=document.getElementById('cfw-inflow-contacts');
-    if(!dl){dl=document.createElement('datalist');dl.id='cfw-inflow-contacts';outTbl.parentElement.appendChild(dl);}
-    dl.innerHTML=inflowContacts.map(c=>`<option value="${esc(c)}">`).join('');
+    // Datalists for the net inputs' autocomplete (outside the table, in the card)
+    let dl=document.getElementById('cfw-net-lists');
+    if(!dl){dl=document.createElement('div');dl.id='cfw-net-lists';outTbl.parentElement.appendChild(dl);}
+    dl.innerHTML=[...recvBy].map(([k,set])=>`<datalist id="${listId(k)}">${[...set].sort().map(c=>`<option value="${esc(c)}">`).join('')}</datalist>`).join('');
     outTbl.innerHTML=oh+'</tbody>';
   }
 }
@@ -4239,16 +4318,40 @@ function saveCFTxOverride(txKey,val){
   try{localStorage.setItem('cf_tx_overrides',JSON.stringify(CF_TX_OVERRIDES));}catch(e){}
   if(!_sbPulling)sbPush();
   renderCF();
-  // Update Final Display Group cell inline
-  // Update Final Display Group cell inline in whichever table the input lives in
-  const inp=document.querySelector(`#cfw-in-table input[data-txkey="${CSS.escape(txKey)}"],#cfw-out-table input[data-txkey="${CSS.escape(txKey)}"]`);
-  if(inp){const cells=inp.closest('tr').querySelectorAll('td');const last=cells[cells.length-1];if(last)last.textContent=val.trim()||inp.placeholder;}
+  // Update the Final Display Group cell of every row using this key (an inflow and an outflow can share one),
+  // in place — re-rendering the table would take focus from the input being typed in
+  document.querySelectorAll('#cfw-in-table input[data-role="ov"],#cfw-out-table input[data-role="ov"]').forEach(inp=>{
+    if(inp.dataset.txkey!==txKey)return;
+    const tr=inp.closest('tr'), fin=tr&&tr.querySelector('.cfw-final');
+    if(fin)fin.textContent=val.trim()||inp.placeholder;
+  });
 }
 
-// val = target inflow contact name (e.g. "Boardroom Advisors"). Empty string = remove netting.
+// Who an outflow (txKey) can be netted against: val matched, ignoring case and outer spaces, to a contact with a
+// receipt in that payment's entity and month → that contact's exact name; null if none (or no such payment).
+// Anything else couldn't absorb the payment. (The MCP's set_cf_override can use this too.)
+function cfNetTarget(txKey,val){
+  const f=txByKey(txKey,false), v=String(val??'').trim();
+  if(!f||!v)return null;
+  const recs=_txList(f.m,true).filter(r=>r.entity===f.tx.entity);
+  const hit=recs.find(r=>r.contact===v)||recs.find(r=>netName(r.contact)===netName(v));
+  return hit?hit.contact:null;
+}
+// val = the inflow contact to net this outflow against (see cfNetTarget). Empty string = remove netting.
 function saveNetOverride(txKey,val){
   if(_roBlock())return; // view-only
-  const v=(val||'').trim();
+  let v=(val||'').trim();
+  if(v){
+    const t=cfNetTarget(txKey,v);
+    if(!t){
+      const f=txByKey(txKey,false);
+      alert(f?`"${v}" received nothing in ${f.tx.entity} in ${mFull(f.m)}, so this payment can't be netted against it.\n\nPick a contact from the list: those are the ones with a receipt in that entity and month.`
+        :'This transaction is no longer in the actuals.');
+      renderCFWorking(); // puts the input back to what is saved
+      return;
+    }
+    v=t;
+  }
   const before=CF_NET_OVERRIDES[txKey]??null;
   if(v)CF_NET_OVERRIDES[txKey]=v;
   else delete CF_NET_OVERRIDES[txKey];
@@ -4272,8 +4375,10 @@ function cfwClearOverrides(){
 function exportCFWorking(){
   loadSheetJS(()=>{
     const rows=buildCFWorkingRows();
-    const hdrs=['Month','Date','Entity','Type','Account','Contact','Client','Gross','Fee','Net','Auto Mapping','Override','Final Display Group'];
-    const data=[hdrs,...rows.map(r=>[r.month,r.date,r.entity,r.type,r.account,r.contact,r.client,r.gross||0,r.fee||0,r.net||0,r.autoGroup,r.override,r.finalGroup])];
+    // Net = what the statement counts: the inflow rows' Net add up to Total inflow, the outflow rows' to Total outflow.
+    // Netted = the part set off between a payment and a receipt (inflow: included in Fee; outflow: Gross − Net).
+    const hdrs=['Month','Date','Entity','Type','Account','Contact','Client','Gross','Fee','Net','Auto Mapping','Override','Final Display Group','Netted','Netted against'];
+    const data=[hdrs,...rows.map(r=>[r.month,r.date,r.entity,r.type,r.account,r.contact,r.client,r.gross||0,r.fee||0,r.net||0,r.autoGroup,r.override,r.finalGroup,r.netted||0,r.netTarget||''])];
     const wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(data),'CF Working');
     XLSX.writeFile(wb,`CFWorking_${new Date().toISOString().slice(0,10)}.xlsx`);
