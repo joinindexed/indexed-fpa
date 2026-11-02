@@ -310,6 +310,7 @@ tr:hover .ct-btn,.mc:hover .ct-btn{opacity:1}
   <div class="cp-thread" id="cp-thread"></div>
   <div id="cp-footer">
     <textarea id="cp-txt" placeholder="Add a comment…" rows="3" onkeydown="if(event.key==='Enter'&&(event.metaKey||event.ctrlKey))cpPost()"></textarea>
+    <div id="cp-err" role="alert" style="display:none;font-size:12.5px;color:var(--red);line-height:1.4"></div>
     <div class="cp-actions">
       <button class="cp-resolve-btn" id="cp-resolve-btn" onclick="cpResolve()">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
@@ -1954,6 +1955,7 @@ function peopleKind(g){
 }
 const PEOPLE_RANK={ft:2,pt:1};
 function togPeopleGroup(g,drId,isIn){
+  if(_roBlock())return; // view-only
   const k=PEOPLE_KEY(g), cur=peopleKind(g), next=cur===null?'ft':cur==='ft'?'pt':null;
   CT_MAP[k]=next?{group:g,type:'people',people:true,kind:next}:{group:g,type:'people',people:false};
   markMapDirty('ct_map',k,false);
@@ -2063,7 +2065,7 @@ function renderCFDrill(drId,isIn){
     h+=`<tr${dim?' class="cfs-dim"':''}${isMulti&&ent==='conso'?' style="cursor:pointer" onclick="togEntDrill(\''+rowId+'\')"':''}>`;
     const pk=isIn?null:peopleKind(mg.group), gq=esc(JSON.stringify(mg.group));
     const pTip=pk==='ft'?'Full-time — click to mark part-time':pk==='pt'?'Part-time — click to untag':'Tag as a full-time person (click again for part-time)';
-    const pBtn=isIn?'':`<button class="cfs-pp${pk?' '+pk:''}" title="${pTip}" aria-label="${pTip}" onclick="event.stopPropagation();togPeopleGroup(${gq},'${drId}',${isIn})">${pk?pk.toUpperCase():'👤'}</button>`;
+    const pBtn=isIn?'':isViewer()?(pk?`<span class="cfs-pp ${pk}" style="cursor:default" title="${pk==='ft'?'Full-time':'Part-time'}">${pk.toUpperCase()}</span>`:''):`<button class="cfs-pp${pk?' '+pk:''}" title="${pTip}" aria-label="${pTip}" onclick="event.stopPropagation();togPeopleGroup(${gq},'${drId}',${isIn})">${pk?pk.toUpperCase():'👤'}</button>`;
     h+=`<td style="font-weight:600">${pBtn}${isMulti&&ent==='conso'?'▸ ':''}${esc(mg.group)}</td><td>${entBadge}</td>`;
     h+=cells(mg.actVals,mg.fcstVals,total,false)+`</tr>`;
     if(isMulti&&ent==='conso'){
@@ -2516,6 +2518,7 @@ function _overlayDirty(store,cloudObj,localObj){
 const SETTING_KEY=k=>'__settings__||'+k, TOMB_KEY=ds=>'__tomb__||'+ds;
 function getSetting(k){const e=CT_MAP[SETTING_KEY(k)];return e&&e.value!==undefined&&e.value!==''?e.value:null;}
 function setSetting(k,v){
+  if(_roBlock())return; // view-only
   const key=SETTING_KEY(k), del=v===null||v===undefined||v==='';
   if(del)delete CT_MAP[key];else CT_MAP[key]={group:'',type:'setting',value:v};
   markMapDirty('ct_map',key,del);
@@ -2691,6 +2694,7 @@ function renderGrpTable(id,data){
 }
 
 function saveOneMapping(k,val){
+  if(_roBlock())return; // view-only
   const [contact,entity]=k.split('||');
   const allContacts=buildContacts();
   const found=allContacts.find(c=>c.contact===contact&&c.entity===entity);
@@ -2750,6 +2754,7 @@ function renderMappingTable(){
 }
 
 function saveMappings(){
+  if(_roBlock())return; // view-only
   const inputs=document.querySelectorAll('#ctMap input[data-key]');
   inputs.forEach(inp=>{
     if(inp.value===inp.defaultValue)return; // untouched row
@@ -3055,6 +3060,7 @@ function initImport(){
 }
 
 function processImport(file,entity){
+  if(_roBlock())return; // view-only
   let ftype=detectFileType(file.name);
   // Show "parsing" on all three status slots since we may redirect
   ['gl','bs','pl'].forEach(t=>{const el=document.getElementById(`ist-${entity}-${t}`);if(el)el.textContent='';});
@@ -4123,6 +4129,7 @@ function renderCFWorking(){
 }
 
 function saveCFTxOverride(txKey,val){
+  if(_roBlock())return; // view-only
   const before=CF_TX_OVERRIDES[txKey]??null;
   if(val.trim())CF_TX_OVERRIDES[txKey]=val.trim();
   else delete CF_TX_OVERRIDES[txKey];
@@ -4138,6 +4145,7 @@ function saveCFTxOverride(txKey,val){
 
 // val = target inflow contact name (e.g. "Boardroom Advisors"). Empty string = remove netting.
 function saveNetOverride(txKey,val){
+  if(_roBlock())return; // view-only
   const v=(val||'').trim();
   const before=CF_NET_OVERRIDES[txKey]??null;
   if(v)CF_NET_OVERRIDES[txKey]=v;
@@ -4150,6 +4158,7 @@ function saveNetOverride(txKey,val){
 }
 
 function cfwClearOverrides(){
+  if(_roBlock())return; // view-only
   if(!confirm('Clear all per-transaction overrides?'))return;
   Object.keys(CF_TX_OVERRIDES).forEach(k=>markMapDirty('cf_tx_overrides',k,true));
   CF_TX_OVERRIDES={};
@@ -4525,6 +4534,7 @@ function deleteGLMapping(idx){
 }
 
 function saveGLMappings(){
+  if(_roBlock())return; // view-only
   try{localStorage.setItem('gl_mappings',JSON.stringify(GL_MAPPINGS));}catch(e){}
   // Fold GL mappings + user-added rows into the synced actuals snapshot. The snapshot is the
   // ONLY field Pull carries these through — without this they stay local and teammates never
@@ -4666,8 +4676,8 @@ function recalcARRow(r){
 // Auto-recalculate all existing rows on load (wrapped in try/catch so a bad row never crashes the page)
 try{AR_FCST=AR_FCST.map(recalcARRow);}catch(e){}
 
-function saveFcastAR(){ try{localStorage.setItem('ar_fcst',JSON.stringify(AR_FCST));}catch(e){} recomputeFcstMonths(); if(!_sbPulling){markDsDirty('ar_fcst');sbPush();} }
-function saveFcastAP(){ try{localStorage.setItem('ap_fcst',JSON.stringify(AP_FCST));}catch(e){} recomputeFcstMonths(); if(!_sbPulling){markDsDirty('ap_fcst');sbPush();} }
+function saveFcastAR(){ if(_roBlock())return; try{localStorage.setItem('ar_fcst',JSON.stringify(AR_FCST));}catch(e){} recomputeFcstMonths(); if(!_sbPulling){markDsDirty('ar_fcst');sbPush();} }
+function saveFcastAP(){ if(_roBlock())return; try{localStorage.setItem('ap_fcst',JSON.stringify(AP_FCST));}catch(e){} recomputeFcstMonths(); if(!_sbPulling){markDsDirty('ap_fcst');sbPush();} }
 
 // ── Row selection ──
 let AR_SELECTED=new Set();
@@ -4696,6 +4706,7 @@ function updateARSelUI(){
   if(allCb){const tot=document.querySelectorAll('#fcar-table tbody input[type="checkbox"]').length;allCb.checked=n>0&&n>=tot;allCb.indeterminate=n>0&&n<tot;}
 }
 function deleteSelectedAR(){
+  if(_roBlock())return; // view-only
   const n=AR_SELECTED.size;
   if(!n)return;
   if(!confirm(`Delete ${n} selected invoice${n>1?'s':''}? This cannot be undone.`))return;
@@ -4749,6 +4760,7 @@ function updateAPSelUI(){
   if(allCb){const tot=document.querySelectorAll('#fcap-table tbody input[type="checkbox"]').length;allCb.checked=n>0&&n>=tot;allCb.indeterminate=n>0&&n<tot;}
 }
 function deleteSelectedAP(){
+  if(_roBlock())return; // view-only
   const n=AP_SELECTED.size;
   if(!n)return;
   if(!confirm(`Delete ${n} selected payment${n>1?'s':''}? This cannot be undone.`))return;
@@ -5492,6 +5504,7 @@ function saveAPModal(id){
 }
 
 function deleteFcastRow(type,id){
+  if(_roBlock())return; // view-only
   if(!confirm('Delete this row?'))return;
   _deletedRowIds.add(String(id));
   addTombs(type==='ar'?'ar_fcst':'ap_fcst',[id]);
@@ -5576,6 +5589,7 @@ function _importReport(rejected,warns){
   return t;
 }
 function importARFile(file){
+  if(_roBlock())return; // view-only
   if(!file)return;
   loadSheetJS(()=>{
     const reader=new FileReader();
@@ -5662,6 +5676,7 @@ function recalcAPRow(r){
 }
 
 function importAPFile(file){
+  if(_roBlock())return; // view-only
   if(!file)return;
   loadSheetJS(()=>{
     const reader=new FileReader();
@@ -5694,21 +5709,136 @@ function importAPFile(file){
 // ── Supabase sync ──
 const SB_URL='https://njtrqjcrqjzmspowkzax.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qdHJxamNycWp6bXNwb3dremF4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1NDE1ODIsImV4cCI6MjA5NTExNzU4Mn0.GcXzmobxg5XxuJ7DVDGMqMJfuRQzvuZa91TjxxWKMrM';
-const SB_HDR={apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`,'Content-Type':'application/json',Prefer:'return=minimal'};
 let _sbPulling=false;
 let _deletedRowIds=new Set(); // ids this tab deleted this session, so a merge-push won't resurrect them
 
 // ── Auth globals ──
 const SB_AUTH=`${SB_URL}/auth/v1`;
-let CURRENT_ROLE=null;   // 'admin' | 'accountant' | 'viewer'
-let CURRENT_USER=null;   // {id, email}
+let CURRENT_ROLE=null;   // 'admin' | 'accountant' | 'viewer' — read from user_roles with the user's own token
+let CURRENT_USER=null;   // {id, email} — from the server's /auth/v1/user answer, never from the stored copy
 let _authToken=null;     // current access token
+let _authRefresh=null;   // refresh token (Supabase rotates it on every refresh)
+let _authDead=false;     // the refresh token was refused: the user has to sign in again
 
 const ROLE_ACCESS={
   admin:   ['dash','cf','fin','fcast-ar','fcast-ap','contacts','import','cfworking','comments'],
   accountant:['dash','fin','import','comments','fcast-ar','fcast-ap'],
   viewer:  ['dash','cf','fin','comments']
 };
+// Viewers can look but never change shared data: every write path checks this, and once supabase/rls.sql is
+// applied the server refuses their writes too. No role = signed out (only the sign-in screen shows) or the
+// headless MCP sandbox, which saves with its own key.
+function isViewer(){try{return CURRENT_ROLE==='viewer';}catch(e){return false;}} // try: safe even before auth globals exist
+let _roMsgAt=0;
+function _roBlock(){
+  if(!isViewer())return false;
+  if(Date.now()-_roMsgAt>4000){_roMsgAt=Date.now();try{alert("View-only access — you can't change shared data.");}catch(e){}}
+  return true;
+}
+function _signedIn(){return !!(_authToken&&CURRENT_ROLE);}
+
+// ── Supabase requests ──
+// apikey is always the public anon key (it only names the project). Authorization carries the signed-in user's
+// access token, so row-level security can tell an admin from a viewer from a stranger; signed out, the anon key.
+// The token is refreshed with the stored refresh token shortly before it expires, and again on a 401.
+function _sbHdr(tok,extra){return {apikey:SB_KEY,Authorization:`Bearer ${tok||SB_KEY}`,...(extra||{})};}
+function _jwt(t){try{return JSON.parse(atob(String(t).split('.')[1].replace(/-/g,'+').replace(/_/g,'/')))||{};}catch(e){return {};}}
+let _authTimer=null, _authRefreshing=null;
+function _authSet(tok,refresh,user){
+  _authToken=tok;_authRefresh=refresh||_authRefresh;_authDead=false;
+  if(user&&user.id)CURRENT_USER={id:user.id,email:user.email};
+  try{localStorage.setItem('fpa_session',JSON.stringify({token:_authToken,refresh:_authRefresh,user:CURRENT_USER}));}catch(e){}
+  clearTimeout(_authTimer);
+  const exp=(_jwt(tok).exp||0)*1000||Date.now()+3600e3;
+  if(_authRefresh)_authTimer=setTimeout(()=>_authRefreshNow(),Math.max(5000,exp-Date.now()-120000-Math.random()*30000)); // jitter: tabs don't all refresh at once
+}
+function _authClear(){
+  clearTimeout(_authTimer);_authToken=null;_authRefresh=null;_authDead=false;CURRENT_USER=null;CURRENT_ROLE=null;
+  try{localStorage.removeItem('fpa_session');}catch(e){}
+}
+// The stored session, if it belongs to the user signed in here (another tab may have refreshed it)
+function _authStored(){
+  try{const s=JSON.parse(localStorage.getItem('fpa_session')||'null');return s&&s.token&&(!CURRENT_USER||_jwt(s.token).sub===CURRENT_USER.id)?s:null;}catch(e){return null;}
+}
+// A fresher token than ours that another tab already got (Supabase rotates refresh tokens, so tabs share one session)
+function _authAdopt(){
+  const s=_authStored();
+  if(s&&s.token!==_authToken&&(_jwt(s.token).exp||0)*1000-Date.now()>120000){_authSet(s.token,s.refresh);return true;}
+  return false;
+}
+// New access token: adopt one another tab already got, else ask Supabase. One refresh at a time; resolves true/false.
+function _authRefreshNow(){
+  if(_authRefreshing)return _authRefreshing;
+  if(!_authToken)return Promise.resolve(false);
+  const mine=_authToken;
+  return _authRefreshing=(async()=>{
+    try{
+      if(_authAdopt())return true;
+      const s=_authStored(), rt=(s&&s.refresh)||_authRefresh;
+      if(!rt||_authDead)return false;
+      const r=await fetch(`${SB_AUTH}/token?grant_type=refresh_token`,{method:'POST',headers:{apikey:SB_KEY,'Content-Type':'application/json'},body:JSON.stringify({refresh_token:rt})});
+      const d=await r.json().catch(()=>null);
+      if(_authToken!==mine)return !!_authToken; // signed out (or in again) meanwhile: don't bring this session back
+      if(r.ok&&d&&d.access_token){_authSet(d.access_token,d.refresh_token,d.user);return true;}
+      if(_authAdopt())return true; // another tab refreshed with the same token a moment earlier
+      if(r.status===400||r.status===401){_authDead=true;_authExpiredNotice();}
+      return false;
+    }catch(e){return false;}
+  })().then(ok=>{_authRefreshing=null;return ok;});
+}
+function _authExpiredNotice(){
+  try{sbStatus('⚠ Your session has expired — sign in again.',false);}catch(e){}
+  const el=document.getElementById('stale-banner');if(!el||typeof el.innerHTML!=='string')return;
+  el.innerHTML=`<span><b>Your session has expired.</b> Changes and comments can't be saved until you sign in again.</span><button type="button" onclick="doLogout()">Sign in again</button>`;
+  el.hidden=false;
+}
+// fetch with the user's token (refreshed first if it is about to expire; on a 401, refreshed and sent once more)
+async function sbAuthFetch(url,opts){
+  opts=opts||{};
+  const exp=_authToken&&_jwt(_authToken).exp;
+  if(exp&&exp*1000-Date.now()<60000)await _authRefreshNow();
+  const send=()=>fetch(url,{...opts,headers:_sbHdr(_authToken,opts.headers)});
+  let r=await send();
+  if(r.status===401&&_authToken){if(await _authRefreshNow())r=await send();else if(_authDead)_authExpiredNotice();}
+  return r;
+}
+// Read the forecast_data row: {row} (row null if there is none), or null when the cloud can't be reached.
+// With the user's token. Until RLS is switched on (supabase/rls.sql) the row may be visible only to the anon key,
+// so a refused or empty answer is asked again with that.
+async function _sbGetRow(cols){
+  const url=`${SB_URL}/rest/v1/forecast_data?id=eq.1&select=${cols||'*'}`;
+  const rd=async p=>{try{const r=await p;if(!r.ok)return null;const a=await r.json();return Array.isArray(a)?{row:a[0]||null}:null;}catch(e){return null;}};
+  const mine=_authToken?await rd(sbAuthFetch(url)):null;
+  if(mine&&mine.row)return mine;
+  return (await rd(fetch(url,{headers:_sbHdr()})))||mine;
+}
+// Conditional PATCH of the row (qs pins the updated_at it was read at, seenAt). Returns 'ok', 'clash' (someone
+// saved since) or a message. Sent with the user's token. If that changed nothing — refused, or no row matched —
+// and a fresh read shows the row exactly as it was read (so the access rules stopped it, not someone else's save),
+// it is sent once more with the anon key, which is all the table may accept until RLS is on. Both are conditional
+// on the same updated_at, so at most one of them can ever land.
+async function _sbWrite(qs,payload,seenAt){
+  const url=`${SB_URL}/rest/v1/forecast_data?id=eq.1&${qs}&select=id`;
+  const opts={method:'PATCH',headers:{'Content-Type':'application/json',Prefer:'return=representation'},body:JSON.stringify(payload)};
+  const res=async r=>{
+    if(r.status===401||r.status===403)return 'denied';
+    if(!r.ok)return 'Sync error: '+await r.text();
+    let a=[];try{a=await r.json();}catch(e){}
+    return Array.isArray(a)&&a.length?'ok':'none';
+  };
+  const unchanged=async()=>{const f=await _sbGetRow('updated_at');return !!(f&&f.row&&(f.row.updated_at||null)===seenAt);};
+  let out;
+  if(_authToken){
+    out=await res(await sbAuthFetch(url,opts));
+    if(out==='ok'||out.startsWith('Sync'))return out;
+    if(!await unchanged())return 'clash';
+  }
+  out=await res(await fetch(url,{...opts,headers:_sbHdr(null,opts.headers)}));
+  if(out==='none'&&_authToken&&await unchanged())out='denied';
+  if(out==='denied')return _authDead?'⚠ Not saved — your session has expired. Sign in again, then redo the change.'
+    :"⚠ Not saved — this sign-in isn't allowed to change the shared data.";
+  return out==='none'?'clash':out;
+}
 
 function sbStatus(msg,ok){
   const el=document.getElementById('sb-status');
@@ -5736,7 +5866,7 @@ function dsVersion(v){
 let _dsState={base:{},dirty:{}}, _lastSeenAt=null;
 try{const v=JSON.parse(localStorage.getItem('ds_state')||'null');if(v&&typeof v==='object')_dsState={base:v.base||{},dirty:v.dirty||{}};}catch(e){}
 function _saveDsState(){try{localStorage.setItem('ds_state',JSON.stringify(_dsState));}catch(e){}}
-function markDsDirty(ds){if(_sbPulling)return;_dsState.dirty[ds]=(_dsState.dirty[ds]||0)+1;_saveDsState();}
+function markDsDirty(ds){if(_sbPulling||isViewer())return;_dsState.dirty[ds]=(_dsState.dirty[ds]||0)+1;_saveDsState();}
 // Datasets this tab changed whose stored copy has moved on since this tab loaded it
 function _dsConflicts(cloud){return DS_KEYS.filter(k=>_dsState.dirty[k]&&(_dsState.base[k]===undefined||dsVersion(cloud[k])!==_dsState.base[k]));}
 function _dsLocal(k,cloud,ctMap){
@@ -5789,16 +5919,14 @@ function _hideStaleBanner(){window._staleState=null;const el=document.getElement
 // On focus and every minute: has anything been saved since this tab loaded? If a dataset changed, say so.
 let _checkingRemote=false;
 async function _checkRemote(){
-  if(_checkingRemote||_sbPushing||(typeof document.hidden==='boolean'&&document.hidden))return;
+  if(!_signedIn()||_checkingRemote||_sbPushing||(typeof document.hidden==='boolean'&&document.hidden))return; // signed out: never fetch the data
   _checkingRemote=true;
   try{
-    const r=await fetch(`${SB_URL}/rest/v1/forecast_data?id=eq.1&select=updated_at`,{headers:{apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`}});
-    if(!r.ok)return;
-    const at=((await r.json())[0]||{}).updated_at||null;
+    const a=await _sbGetRow('updated_at');
+    const at=(a&&a.row&&a.row.updated_at)||null;
     if(!at||at===_lastSeenAt)return;
-    const r2=await fetch(`${SB_URL}/rest/v1/forecast_data?id=eq.1&select=*`,{headers:{apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`}});
-    if(!r2.ok)return;
-    const row=(await r2.json())[0];if(!row)return;
+    const b=await _sbGetRow('*');
+    const row=b&&b.row;if(!row)return;
     const changed=DS_KEYS.filter(k=>_dsState.base[k]!==undefined&&dsVersion(row[k])!==_dsState.base[k]);
     _lastSeenAt=row.updated_at||at;
     if(changed.length)_showStaleBanner(changed,row,_dsConflicts(row).length?'rejected':'changed');
@@ -5827,6 +5955,7 @@ function _mergeCloud(cloud){
 
 let _sbTimer=null, _sbPushing=false, _sbAgain=false;
 function sbPush(){
+  if(isViewer())return; // view-only: never writes (the server refuses it too once supabase/rls.sql is applied)
   clearTimeout(_sbTimer);
   _sbTimer=setTimeout(_sbPushNow,800);
 }
@@ -5837,17 +5966,14 @@ function sbPush(){
 // retry, up to 4 times). If the cloud can't be reached nothing is written and there is no automatic retry; the
 // next change saves again.
 async function _sbPushNow(){
+  if(isViewer())return;
   if(_sbPushing){_sbAgain=true;return;}
   _sbPushing=true;
   let done=false, clashes=0;
   try{
     for(let attempt=0;attempt<4&&!done;attempt++){
       sbStatus('Syncing…');
-      let cloud=null;
-      try{
-        const cr=await fetch(`${SB_URL}/rest/v1/forecast_data?id=eq.1&select=*`,{headers:{apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`}});
-        if(cr.ok){const rows=await cr.json();cloud=(rows&&rows[0])||null;}
-      }catch(e){}
+      const got=await _sbGetRow('*'), cloud=got&&got.row;
       if(!cloud)break;
       const conflicts=_dsConflicts(cloud);
       if(conflicts.length){
@@ -5861,10 +5987,9 @@ async function _sbPushNow(){
         updated_at:new Date().toISOString(),updated_by:CURRENT_USER?.email||'unknown'};
       DS_KEYS.forEach(k=>{if(sentDs[k])payload[k]=_dsLocal(k,cloud,m.ct_map);});
       const seen=cloud.updated_at?`updated_at=eq.${encodeURIComponent(cloud.updated_at)}`:'updated_at=is.null';
-      const r=await fetch(`${SB_URL}/rest/v1/forecast_data?id=eq.1&${seen}&select=id`,{method:'PATCH',headers:{...SB_HDR,Prefer:'return=representation'},body:JSON.stringify(payload)});
-      if(!r.ok){const e=await r.text();sbStatus('Sync error: '+e,false);done=true;break;}
-      let rows=[];try{rows=await r.json();}catch(e){}
-      if(!Array.isArray(rows)||!rows.length){clashes++;continue;} // someone saved since we read: re-read, re-check, retry
+      const out=await _sbWrite(seen,payload,cloud.updated_at||null);
+      if(out==='clash'){clashes++;continue;} // someone saved since we read: re-read, re-check, retry
+      if(out!=='ok'){sbStatus(out,false);done=true;break;}
       _afterMapPush(m,sent,['ct_map','cf_tx_overrides','cf_net_overrides']);
       DS_KEYS.forEach(k=>{
         if(!sentDs[k])return;
@@ -5891,11 +6016,10 @@ async function _sbPushNow(){
 async function sbPull(){
   sbStatus('Pulling…');
   try{
-    const r=await fetch(`${SB_URL}/rest/v1/forecast_data?id=eq.1&select=*`,{headers:{apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`}});
-    if(!r.ok){sbStatus('Pull failed',false);return;}
-    const rows=await r.json();
-    if(!rows||!rows.length){sbStatus('No cloud data yet — save something first',false);return;}
-    const d=rows[0];
+    const got=await _sbGetRow('*');
+    if(!got){sbStatus('Pull failed',false);return;}
+    if(!got.row){sbStatus('No cloud data yet — save something first',false);return;}
+    const d=got.row;
     _applyCloud(d);
     renderCF();renderDash();renderFcastAR();renderFcastAP();renderContacts();
     const ts=d.updated_at?new Date(d.updated_at).toLocaleString():'—';
@@ -5903,35 +6027,42 @@ async function sbPull(){
   }catch(e){_sbPulling=false;sbStatus('Pull failed: '+e.message,false);}
 }
 
-// Auto-pull on page load
-(async()=>{
+// Load the shared copy once signed in (_authShowApp) — never before, so a signed-out visitor is sent nothing.
+// Until then the page shows only this browser's own cached copy (the synchronous init below), which is also all
+// the headless MCP sandbox uses.
+let _autoPulled=false;
+async function _sbAutoPull(){
+  if(_autoPulled||!_signedIn())return;
+  _autoPulled=true;
   try{
-    const r=await fetch(`${SB_URL}/rest/v1/forecast_data?id=eq.1&select=*`,{headers:{apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`}});
-    if(!r.ok)return;
-    const rows=await r.json();
-    if(!rows||!rows.length){sbStatus('Ready — no cloud data yet',null);return;}
-    const d=rows[0];
+    const got=await _sbGetRow('*');
+    if(!got){sbStatus('Offline — using local data',false);return;}
+    if(!got.row){sbStatus('Ready — no cloud data yet',null);return;}
+    const d=got.row;
     _applyCloud(d);
     renderCF();renderDash();renderFcastAR();renderFcastAP();
     const ts=d.updated_at?new Date(d.updated_at).toLocaleString():'—';
     sbStatus(`✓ Live · last saved ${ts}${d.updated_by?' by '+d.updated_by:''}`,true);
     // If cloud has no actuals but we have local data, push ours up so other users can get it
-    if(!d.actuals_snap){
+    if(!d.actuals_snap&&!isViewer()){
       const localSnap=localStorage.getItem('actuals_snap');
       if(localSnap&&localSnap!=='null'){markDsDirty('actuals_snap');sbPush();}
     }
   }catch(e){_sbPulling=false;sbStatus('Offline — using local data',false);}
-})();
+}
 
 // ── Auth (plain fetch — no SDK) ──
+// The user's role, read with their own token. Returns false when it couldn't be checked (network/server), true
+// otherwise (CURRENT_ROLE is then the role, or null if they have none).
 async function _authLoadRole(userId,token){
+  CURRENT_ROLE=null;
   try{
-    const r=await fetch(`${SB_URL}/rest/v1/user_roles?user_id=eq.${userId}&select=role`,{
-      headers:{apikey:SB_KEY,Authorization:`Bearer ${token}`}
-    });
-    const rows=await r.json();
-    CURRENT_ROLE=rows[0]?.role||null;
-  }catch(e){CURRENT_ROLE=null;}
+    const r=await sbAuthFetch(`${SB_URL}/rest/v1/user_roles?user_id=eq.${encodeURIComponent(userId)}&select=role`);
+    if(!r.ok)return false;
+    const rows=await r.json(), role=Array.isArray(rows)&&rows[0]&&rows[0].role;
+    CURRENT_ROLE=role&&Object.prototype.hasOwnProperty.call(ROLE_ACCESS,role)?role:null;
+    return true;
+  }catch(e){return false;}
 }
 
 function _authShowApp(){
@@ -5946,6 +6077,7 @@ function _authShowApp(){
   try{renderFcastAP();}catch(e){}
   try{updateActualsLabels();}catch(e){}
   go('dash',document.querySelector(`.nav-item[data-roles*="${CURRENT_ROLE}"]`));
+  _sbAutoPull(); // now that we know who this is, load the shared copy
 }
 
 function applyRoleUI(){
@@ -5961,6 +6093,18 @@ function applyRoleUI(){
   if(roleEl)roleEl.textContent=CURRENT_ROLE||'';
 }
 
+// Signed in as `user` (the server's answer) with these tokens: keep the session only once a role is confirmed,
+// so a sign-in without access never replaces the session other tabs are using. Returns '' or an error message.
+async function _authBegin(tok,refresh,user){
+  _authToken=tok;_authRefresh=refresh||null;_authDead=false;CURRENT_USER={id:user.id,email:user.email};
+  const checked=await _authLoadRole(user.id,_authToken);
+  if(CURRENT_ROLE){_authSet(_authToken,_authRefresh,user);return '';}
+  const msg=checked?'No role assigned. Contact your admin.':"Couldn't check your access — try again.";
+  if(!checked)try{localStorage.setItem('fpa_session',JSON.stringify({token:_authToken,refresh:_authRefresh,user:CURRENT_USER}));}catch(e){} // valid tokens (maybe just rotated): keep them for the retry
+  clearTimeout(_authTimer);_authToken=null;_authRefresh=null;CURRENT_USER=null;CURRENT_ROLE=null;
+  return msg;
+}
+
 async function doLogin(){
   const email=document.getElementById('login-email').value.trim();
   const password=document.getElementById('login-password').value;
@@ -5974,69 +6118,111 @@ async function doLogin(){
       headers:{apikey:SB_KEY,'Content-Type':'application/json'},
       body:JSON.stringify({email,password})
     });
-    const data=await r.json();
-    if(!r.ok)throw new Error(data.error_description||data.msg||'Invalid email or password.');
-    _authToken=data.access_token;
-    CURRENT_USER={id:data.user.id,email:data.user.email};
-    try{localStorage.setItem('fpa_session',JSON.stringify({token:data.access_token,refresh:data.refresh_token,user:CURRENT_USER}));}catch(e){}
-    await _authLoadRole(CURRENT_USER.id,_authToken);
-    if(!CURRENT_ROLE){errEl.textContent='No role assigned. Contact your admin.';btn.textContent='Sign in →';btn.disabled=false;return;}
+    const data=await r.json().catch(()=>({}));
+    if(!r.ok||!data.access_token||!data.user)throw new Error(data.error_description||data.msg||'Invalid email or password.');
+    const err=await _authBegin(data.access_token,data.refresh_token,data.user);
+    if(err){errEl.textContent=err;btn.textContent='Sign in →';btn.disabled=false;return;}
     _authShowApp();
   }catch(e){errEl.textContent=e.message;}
   btn.textContent='Sign in →';btn.disabled=false;
 }
 
-async function doLogout(){
-  try{if(_authToken)await fetch(`${SB_AUTH}/logout`,{method:'POST',headers:{apikey:SB_KEY,Authorization:`Bearer ${_authToken}`}});}catch(e){}
-  _authToken=null;CURRENT_ROLE=null;CURRENT_USER=null;
-  try{localStorage.removeItem('fpa_session');}catch(e){}
-  document.getElementById('auth-overlay').style.display='flex';
-  document.querySelector('.shell').style.display='none';
+// Sign out: end the session and leave nothing behind on this computer — the cached copy of the financial data in
+// localStorage and in memory is wiped and the page reloads to a clean sign-in screen. Unsaved edits are saved
+// first; if that fails the user is asked before they are dropped.
+const _LOCAL_DATA_KEYS=['ar_fcst','ap_fcst','actuals_snap','ct_map','gl_mappings','cf_tx_overrides','cf_net_overrides','ds_state','map_dirty','user_rows','cf_month_sel'];
+function _hasUnsaved(){
+  try{return Object.keys(_dsState.dirty||{}).length>0||Object.values(_mapDirty||{}).some(s=>s&&Object.keys(s).length>0);}catch(e){return false;}
 }
+function _wipeLocalData(){
+  _LOCAL_DATA_KEYS.forEach(k=>{try{localStorage.removeItem(k);}catch(e){}});
+  AR_FCST=[];AP_FCST=[];CT_MAP={};GL_MAPPINGS={};CF_TX_OVERRIDES={};CF_NET_OVERRIDES={};USER_ROWS=[];
+  _mapDirty={};_dsState={base:{},dirty:{}};
+  try{window._importedFin=null;window._actualsSnap=null;window._xeroTotals=null;}catch(e){}
+  ['dash-kpis','cft','comments-list','cp-thread'].forEach(id=>{const el=document.getElementById(id);if(el&&typeof el.innerHTML==='string')el.innerHTML='';});
+}
+let _signingOut=false;
+async function doLogout(){
+  if(_signingOut)return;
+  _signingOut=true;
+  try{
+    if(!isViewer()&&_hasUnsaved()){ // finish the save that's waiting (or running) first
+      clearTimeout(_sbTimer);
+      for(let i=0;i<150&&_sbPushing;i++)await new Promise(r=>setTimeout(r,100));
+      clearTimeout(_sbTimer);
+      if(!_sbPushing&&_hasUnsaved())await _sbPushNow();
+    }
+    if(!isViewer()&&_hasUnsaved()&&!confirm("Some of your changes haven't been saved to the cloud and will be lost. Sign out anyway?"))return;
+    clearTimeout(_sbTimer);
+    const tok=_authToken;
+    _authClear(); // from here nothing new is fetched or saved
+    const overlay=document.getElementById('auth-overlay'), shell=document.querySelector('.shell');
+    if(overlay)overlay.style.display='flex';
+    if(shell)shell.style.display='none';
+    try{if(tok)await Promise.race([fetch(`${SB_AUTH}/logout`,{method:'POST',headers:{apikey:SB_KEY,Authorization:`Bearer ${tok}`}}),new Promise(r=>setTimeout(r,3000))]);}catch(e){}
+    _wipeLocalData(); // last, so a request still in flight can't write the data back before the reload
+    try{location.reload();}catch(e){}
+  }finally{_signingOut=false;}
+}
+// Signed out in another tab: this one reloads to the sign-in screen too (its copy of the data was just wiped)
+try{window.addEventListener('storage',e=>{if(e.key==='fpa_session'&&!e.newValue&&_authToken)try{location.reload();}catch(x){}});}catch(e){}
 
 async function initAuth(){
   const shell=document.querySelector('.shell');
   const overlay=document.getElementById('auth-overlay');
   if(shell)shell.style.display='none';
   if(overlay)overlay.style.display='flex';
-  // Restore session from localStorage
+  // Restore the session from localStorage. Who the user is comes from the server (/auth/v1/user, or the refresh
+  // answer), never from the stored copy.
+  let stored=null;
+  try{stored=JSON.parse(localStorage.getItem('fpa_session')||'null');}catch(e){}
+  if(!stored||!stored.token)return; // no session: the sign-in screen stays up
   try{
-    const stored=JSON.parse(localStorage.getItem('fpa_session')||'null');
-    if(stored?.token&&stored?.user){
-      // Verify token still valid
-      const r=await fetch(`${SB_AUTH}/user`,{headers:{apikey:SB_KEY,Authorization:`Bearer ${stored.token}`}});
-      if(r.ok){
-        _authToken=stored.token;CURRENT_USER=stored.user;
-        await _authLoadRole(CURRENT_USER.id,_authToken);
-        if(CURRENT_ROLE){_authShowApp();return;}
-      } else if(stored.refresh){
-        // Token expired — try refresh
-        const rr=await fetch(`${SB_AUTH}/token?grant_type=refresh_token`,{
-          method:'POST',headers:{apikey:SB_KEY,'Content-Type':'application/json'},
-          body:JSON.stringify({refresh_token:stored.refresh})
-        });
-        if(rr.ok){
-          const nd=await rr.json();
-          _authToken=nd.access_token;CURRENT_USER={id:nd.user.id,email:nd.user.email};
-          try{localStorage.setItem('fpa_session',JSON.stringify({token:nd.access_token,refresh:nd.refresh_token,user:CURRENT_USER}));}catch(e){}
-          await _authLoadRole(CURRENT_USER.id,_authToken);
-          if(CURRENT_ROLE){_authShowApp();return;}
-        }
-      }
+    let tok=stored.token, refresh=stored.refresh||null, user=null;
+    const r=await fetch(`${SB_AUTH}/user`,{headers:{apikey:SB_KEY,Authorization:`Bearer ${tok}`}});
+    if(r.ok)user=await r.json().catch(()=>null);
+    else if(refresh){
+      // Token expired — try refresh
+      const rr=await fetch(`${SB_AUTH}/token?grant_type=refresh_token`,{
+        method:'POST',headers:{apikey:SB_KEY,'Content-Type':'application/json'},
+        body:JSON.stringify({refresh_token:refresh})
+      });
+      const nd=await rr.json().catch(()=>null);
+      if(rr.ok&&nd&&nd.access_token){tok=nd.access_token;refresh=nd.refresh_token||refresh;user=nd.user||null;}
+      else if(rr.status===400||rr.status===401){try{localStorage.removeItem('fpa_session');}catch(e){}} // session over: sign in again
     }
-  }catch(e){}
-  // No valid session — show login
-  if(overlay)overlay.style.display='flex';
+    if(!user||!user.id)return;
+    const err=await _authBegin(tok,refresh,user);
+    if(!err){_authShowApp();return;}
+    if(/No role/.test(err)){try{localStorage.removeItem('fpa_session');}catch(e){}}
+    const errEl=document.getElementById('login-error');if(errEl)errEl.textContent=err;
+  }catch(e){const errEl=document.getElementById('login-error');if(errEl)errEl.textContent="Couldn't reach the server — check your connection and reload.";}
 }
 
 // ── Comments ──
-let _cpCellId=null,_cpCtx=null;
+// Every call goes through sbAuthFetch (the user's token, refreshed before it expires and on a 401) and checks the
+// answer: a failed load says so instead of "No comments yet", and typed text leaves the box only once it's saved.
+let _cpCellId=null,_cpCtx=null,_cpPosting=false;
+const SB_CMT=`${SB_URL}/rest/v1/comments`;
+function _cmtWhy(r){return r.status===401?'your session has expired — sign in again':r.status===403?"you don't have access":'the server said '+r.status;}
+async function _cmtGet(qs){
+  const r=await sbAuthFetch(`${SB_CMT}?${qs}`);
+  const rows=r.ok?await r.json().catch(()=>null):null;
+  if(!Array.isArray(rows))throw new Error(_cmtWhy(r));
+  return rows;
+}
+function _cpErr(msg){
+  const el=document.getElementById('cp-err');
+  if(el){el.textContent=msg||'';el.style.display=msg?'block':'none';}
+}
 
 var _openCmtCells=null; // cells with unresolved comments, from the last refreshCommentDots()
 function cBtn(cellId,ctx){
-  // Returns dot + trigger icon HTML to embed in a table cell or card
-  const id=escAttr(cellId),c=escAttr(ctx);
-  return `<span class="cdot" data-cell="${id}"${_openCmtCells&&_openCmtCells.has(cellId)?' style="display:inline-block"':''} title="Open comment" onclick="event.stopPropagation();cpOpen('${id}','${c}')"></span><button class="ct-btn" onclick="event.stopPropagation();cpOpen('${id}','${c}')" title="Add comment"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>`;
+  // Returns dot + trigger icon HTML to embed in a table cell or card. The ids ride in HTML-escaped data-* attributes,
+  // never inside a JS string in the handler (the browser decodes &#39; back to ' before running it, so an apostrophe
+  // in a Xero account name would break the button — or run as code).
+  const a=`data-cell="${esc(cellId==null?'':String(cellId))}" data-ctx="${esc(ctx==null?'':String(ctx))}"`, on='event.stopPropagation();cpOpen(this.dataset.cell,this.dataset.ctx)';
+  return `<span class="cdot" ${a}${_openCmtCells&&_openCmtCells.has(cellId)?' style="display:inline-block"':''} title="Open comment" onclick="${on}"></span><button class="ct-btn" ${a} onclick="${on}" title="Add comment"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>`;
 }
 
 function cpOpen(cellId,ctx,evt){
@@ -6044,6 +6230,7 @@ function cpOpen(cellId,ctx,evt){
   _cpCellId=cellId;_cpCtx=ctx;
   const ctxEl=document.getElementById('cp-ctx');
   if(ctxEl)ctxEl.textContent=ctx;
+  _cpErr('');
   document.getElementById('cp-panel').classList.add('open');
   document.getElementById('cp-backdrop').style.display='block';
   cpLoadThread();
@@ -6055,14 +6242,12 @@ function cpClose(){
 }
 
 async function cpLoadThread(){
-  const thread=document.getElementById('cp-thread');
+  const thread=document.getElementById('cp-thread'), cell=_cpCellId;
   thread.innerHTML='<div style="padding:20px;color:var(--text3);font-size:13px;text-align:center">Loading…</div>';
   try{
-    const r=await fetch(`${SB_URL}/rest/v1/comments?cell_id=eq.${encodeURIComponent(_cpCellId)}&order=created_at.asc`,{
-      headers:{apikey:SB_KEY,Authorization:`Bearer ${_authToken||SB_KEY}`}
-    });
-    cpRenderThread(await r.json());
-  }catch(e){thread.innerHTML='<div style="padding:20px;color:var(--red);font-size:13px">Failed to load.</div>';}
+    const rows=await _cmtGet(`cell_id=eq.${encodeURIComponent(cell)}&order=created_at.asc`);
+    if(cell===_cpCellId)cpRenderThread(rows); // unless another thread was opened meanwhile
+  }catch(e){if(cell===_cpCellId)thread.innerHTML=`<div style="padding:20px;color:var(--red);font-size:13px">Couldn't load comments — ${escHtml(e.message)}.</div>`;}
 }
 
 function cpRenderThread(rows){
@@ -6080,12 +6265,12 @@ function cpRenderThread(rows){
   const resolved=rows.every(r=>r.resolved);
   let h='';
   rows.forEach(c=>{
-    const init=(c.author_email||'?')[0].toUpperCase();
+    const who=String(c.author_email||'?'), init=who[0].toUpperCase();
     h+=`<div class="cp-msg">
-      <div class="cp-avatar">${init}</div>
+      <div class="cp-avatar">${escHtml(init)}</div>
       <div style="flex:1;min-width:0">
         <div style="display:flex;gap:8px;align-items:baseline;margin-bottom:3px">
-          <span style="font-size:12px;font-weight:700;color:var(--text)">${escHtml(c.author_email.split('@')[0])}</span>
+          <span style="font-size:12px;font-weight:700;color:var(--text)">${escHtml(who.split('@')[0])}</span>
           <span style="font-size:11px;color:var(--text3)">${timeAgo(c.created_at)}</span>
         </div>
         <div style="font-size:13.5px;color:var(--text2);line-height:1.5;word-break:break-word">${escHtml(c.body)}</div>
@@ -6100,59 +6285,68 @@ function cpRenderThread(rows){
 
 async function cpPost(){
   const txt=document.getElementById('cp-txt');
-  const body=txt?.value.trim();
-  if(!body)return;
-  if(!CURRENT_USER){return;}
-  txt.value='';
+  const body=(txt&&txt.value||'').trim();
+  if(!body||_cpPosting)return;
+  if(!CURRENT_USER){_cpErr('Sign in to comment.');return;}
+  _cpPosting=true;_cpErr('');
   try{
-    await fetch(`${SB_URL}/rest/v1/comments`,{
+    const r=await sbAuthFetch(SB_CMT,{
       method:'POST',
-      headers:{apikey:SB_KEY,Authorization:`Bearer ${_authToken||SB_KEY}`,'Content-Type':'application/json',Prefer:'return=minimal'},
+      headers:{'Content-Type':'application/json',Prefer:'return=minimal'},
       body:JSON.stringify({cell_id:_cpCellId,cell_context:_cpCtx,body,author_email:CURRENT_USER.email,resolved:false})
     });
+    if(!r.ok)throw new Error(_cmtWhy(r));
+    if(txt.value.trim()===body)txt.value=''; // saved: now the box can be cleared
     cpLoadThread();
     refreshCommentDots();
-  }catch(e){console.error('cpPost:',e);}
+  }catch(e){_cpErr(`Comment not saved — ${e.message}. Your text is still in the box.`);}
+  finally{_cpPosting=false;}
 }
 
 async function cpResolve(){
+  const cell=_cpCellId;
+  _cpErr('');
   try{
-    await fetch(`${SB_URL}/rest/v1/comments?cell_id=eq.${encodeURIComponent(_cpCellId)}`,{
+    const r=await sbAuthFetch(`${SB_CMT}?cell_id=eq.${encodeURIComponent(cell)}&resolved=eq.false`,{
       method:'PATCH',
-      headers:{apikey:SB_KEY,Authorization:`Bearer ${_authToken||SB_KEY}`,'Content-Type':'application/json',Prefer:'return=minimal'},
+      headers:{'Content-Type':'application/json',Prefer:'return=minimal'},
       body:JSON.stringify({resolved:true,resolved_by:CURRENT_USER?.email,resolved_at:new Date().toISOString()})
     });
+    if(!r.ok)throw new Error(_cmtWhy(r));
+    // The access rules may let a PATCH through without changing every row: check nothing is left open
+    const left=await _cmtGet(`cell_id=eq.${encodeURIComponent(cell)}&resolved=eq.false&select=id`);
+    if(left.length)throw new Error(`${left.length} comment${left.length>1?'s are':' is'} still open — only their author or an admin/accountant can resolve ${left.length>1?'them':'it'}`);
     cpClose();
     refreshCommentDots();
     if(document.getElementById('screen-comments')?.classList.contains('active'))renderComments();
-  }catch(e){console.error('cpResolve:',e);}
+  }catch(e){_cpErr(`Not resolved — ${e.message}.`);if(cell===_cpCellId)cpLoadThread();}
 }
 
 async function cpReopenThread(cellId,evt){
   if(evt)evt.stopPropagation();
   try{
-    await fetch(`${SB_URL}/rest/v1/comments?cell_id=eq.${encodeURIComponent(cellId)}`,{
+    const r=await sbAuthFetch(`${SB_CMT}?cell_id=eq.${encodeURIComponent(cellId)}`,{
       method:'PATCH',
-      headers:{apikey:SB_KEY,Authorization:`Bearer ${_authToken||SB_KEY}`,'Content-Type':'application/json',Prefer:'return=minimal'},
+      headers:{'Content-Type':'application/json',Prefer:'return=representation'},
       body:JSON.stringify({resolved:false,resolved_by:null,resolved_at:null})
     });
+    const rows=r.ok?await r.json().catch(()=>null):null;
+    if(!Array.isArray(rows)||!rows.length)throw new Error(r.ok?"you can't reopen this thread":_cmtWhy(r));
     refreshCommentDots();
     renderComments();
-  }catch(e){console.error('cpReopenThread:',e);}
+  }catch(e){try{alert(`Couldn't reopen — ${e.message}.`);}catch(x){}}
 }
 
 async function refreshCommentDots(){
+  if(!_authToken)return; // comments are for signed-in users only
   try{
-    const r=await fetch(`${SB_URL}/rest/v1/comments?resolved=eq.false&select=cell_id`,{
-      headers:{apikey:SB_KEY,Authorization:`Bearer ${_authToken||SB_KEY}`}
-    });
-    const rows=await r.json();
+    const rows=await _cmtGet('resolved=eq.false&select=cell_id');
     const openSet=new Set(rows.map(r=>r.cell_id));
     _openCmtCells=openSet;
     document.querySelectorAll('.cdot').forEach(el=>{
       el.style.display=openSet.has(el.dataset.cell)?'inline-block':'none';
     });
-  }catch(e){}
+  }catch(e){} // couldn't check: keep the dots as they were
 }
 
 async function renderComments(){
@@ -6160,10 +6354,7 @@ async function renderComments(){
   if(!container)return;
   container.innerHTML='<div style="padding:40px;color:var(--text3);font-size:14px;text-align:center">Loading…</div>';
   try{
-    const r=await fetch(`${SB_URL}/rest/v1/comments?order=created_at.desc`,{
-      headers:{apikey:SB_KEY,Authorization:`Bearer ${_authToken||SB_KEY}`}
-    });
-    const all=await r.json();
+    const all=await _cmtGet('order=created_at.desc');
     if(!all.length){container.innerHTML='<div style="padding:60px;color:var(--text3);font-size:14px;text-align:center">No comments yet.</div>';return;}
     const byCell={};
     all.forEach(c=>{
@@ -6174,18 +6365,20 @@ async function renderComments(){
     const threads=Object.values(byCell);
     const open=threads.filter(t=>!t.resolved);
     const resolved=threads.filter(t=>t.resolved);
+    const dc=t=>`data-cell="${esc(t.cellId==null?'':String(t.cellId))}" data-ctx="${esc(t.ctx==null?'':String(t.ctx))}"`; // ids as data, not JS strings
+    const who=m=>escHtml(String(m.author_email||'?').split('@')[0]);
     let h='';
     if(open.length){
       h+=`<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.10em;margin-bottom:12px">Open · ${open.length}</div>`;
       open.forEach(t=>{
         const last=t.msgs[0];
-        h+=`<div class="cmt-card" onclick="cpOpen('${escAttr(t.cellId)}','${escAttr(t.ctx)}')">
+        h+=`<div class="cmt-card" ${dc(t)} onclick="cpOpen(this.dataset.cell,this.dataset.ctx)">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
             <span style="font-size:13px;font-weight:600;color:var(--text)">${escHtml(t.ctx)}</span>
             <span style="font-size:11px;color:var(--text3)">${t.msgs.length} comment${t.msgs.length>1?'s':''}</span>
           </div>
           <div style="font-size:13px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">"${escHtml(last.body)}"</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:5px">${escHtml(last.author_email.split('@')[0])} · ${timeAgo(last.created_at)}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:5px">${who(last)} · ${timeAgo(last.created_at)}</div>
         </div>`;
       });
     }
@@ -6196,15 +6389,15 @@ async function renderComments(){
         h+=`<div class="cmt-card" style="opacity:.55">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
             <span style="font-size:13px;font-weight:600;color:var(--text)">${escHtml(t.ctx)}</span>
-            <button onclick="cpReopenThread('${escAttr(t.cellId)}',event)" style="font-size:11px;padding:3px 10px;border-radius:5px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:var(--sans)">Reopen</button>
+            <button ${dc(t)} onclick="cpReopenThread(this.dataset.cell,event)" style="font-size:11px;padding:3px 10px;border-radius:5px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:var(--sans)">Reopen</button>
           </div>
           <div style="font-size:13px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">"${escHtml(last.body)}"</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:5px">${escHtml(last.author_email.split('@')[0])} · ${timeAgo(last.created_at)}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:5px">${who(last)} · ${timeAgo(last.created_at)}</div>
         </div>`;
       });
     }
     container.innerHTML=h;
-  }catch(e){container.innerHTML=`<div style="padding:40px;color:var(--red);font-size:13px">Error: ${escHtml(e.message)}</div>`;}
+  }catch(e){container.innerHTML=`<div style="padding:40px;color:var(--red);font-size:13px">Couldn't load comments — ${escHtml(e.message)}. <button type="button" onclick="renderComments()" style="margin-left:8px;font-size:12px;padding:3px 10px;border-radius:5px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:var(--sans)">Retry</button></div>`;}
 }
 
 function timeAgo(iso){
@@ -6215,7 +6408,9 @@ function timeAgo(iso){
   return Math.floor(s/86400)+'d ago';
 }
 function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
-function escAttr(s){return String(s||'').replace(/'/g,'&#39;');}
+// HTML attribute text only. Never use it (or esc) inside a JS string in an inline handler — the browser decodes the
+// entities before running the handler; pass data via data-* attributes or esc(JSON.stringify(v)) instead.
+function escAttr(s){return s==null?'':esc(String(s));}
 
 // ── Init ──
 // Restore any previously imported actuals from localStorage BEFORE first render
