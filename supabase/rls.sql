@@ -22,8 +22,12 @@
 --      again is safe. It replaces any existing policies on forecast_data and comments.
 --   4. Sign in once with each role. Check that the portal loads, that an admin or accountant can save, that a viewer
 --      can't save, and that comments work.
--- Rollback: run `alter table public.forecast_data disable row level security;` (and the same for comments). The
---   portal works either way, because it falls back to the anon key while the anon key is still accepted.
+-- Rollback (back to how things were before, including the anon key that the MCP falls back to and that older tabs use):
+--   alter table public.forecast_data disable row level security;
+--   alter table public.comments disable row level security;
+--   grant all on public.forecast_data, public.comments to anon, authenticated;
+-- If only the MCP stopped working, you don't need to roll back: set SUPABASE_SERVICE_KEY on its host and restart it.
+-- The new portal keeps working either way (it sends the signed-in user's token).
 
 begin;
 

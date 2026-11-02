@@ -2590,7 +2590,8 @@ function _bankRowsFromImport(){
     const used=new Set();
     accts.forEach(a=>{
       const tk=match(a.name);if(tk)used.add(tk);
-      out.push({name:a.name,entity:en,v:E.map((m,i)=>covered.has(m)?(a.vals[m]||0):(tk?(BANKS[tk][i]||0):0))});
+      let last=null; // a Balance-Sheet-only account keeps its latest covered balance in a GL-only month, as CLOSE counts it
+      out.push({name:a.name,entity:en,v:E.map((m,i)=>covered.has(m)?(last=a.vals[m]||0):tk?(BANKS[tk][i]||0):(last!==null&&!_bankPending[en.toLowerCase()].has(m)?last:0))});
     });
     tmpl.forEach(([name,vals])=>{ // template accounts the Balance Sheet never listed, for uncovered months only
       if(used.has(name))return;
@@ -3952,6 +3953,14 @@ function applyImport(entity,ftype){
   });
 
   const isB=entity==='bh';
+  // A P&L has no bank data: in a month another entity's import added, carry this entity's balances forward (as its own
+  // new months are), so the figures don't depend on which entity's file added the month (a reload replays BH first).
+  if(ftype==='pl')parsed.months.forEach(m=>{
+    const i=E.indexOf(m);if(i<=0||!_bankPending[entity].has(m))return;
+    const CL=isB?BH_CLOSE:BC_CLOSE, FXa=isB?BH_FX:BC_FX, INa=isB?BH_IN:BC_IN, OUTa=isB?BH_OUT:BC_OUT;
+    Object.values(isB?BH_BANKS:BC_BANKS).forEach(a=>{a[i]=a[i-1]||0;});
+    CL[i]=CL[i-1]||0;FXa[i]=Math.round((CL[i]-CL[i-1]-INa[i]+OUTa[i])*100)/100;
+  });
 
   if(ftype==='gl'){
     const IN_D=isB?BH_IN_D:BC_IN_D, OUT_D=isB?BH_OUT_D:BC_OUT_D;
@@ -3986,7 +3995,12 @@ function applyImport(entity,ftype){
     // before's balance — as the importing entity's own new months do.
     parsed.months.forEach(m=>{
       const i=E.indexOf(m);if(!_bankPending[entity].delete(m)||i<=0||bsM.has(m))return;
-      Object.keys(BANKS).forEach(k=>{if(!(glBank[k]&&glBank[k][m]!==undefined))BANKS[k][i]=BANKS[k][i-1]||0;});
+      const bsPrev=bsM.has(E[i-1])&&(isB?BH_BS:BC_BS); // month before is BS-covered: its BS balance, not the GL one written above
+      Object.keys(BANKS).forEach(k=>{
+        if(glBank[k]&&glBank[k][m]!==undefined)return;
+        const r=bsPrev&&bsPrev.find(x=>x.label&&normKey(x.label)===normKey(k));
+        BANKS[k][i]=(r&&r.v?r.v[i-1]:BANKS[k][i-1])||0;
+      });
     });
     E.forEach((_,i)=>{CLOSE[i]=closeFn(i);});
     // Recompute FX as the plug that makes the equation always balance:
@@ -4785,9 +4799,13 @@ function _reapplyFinImport(e,ft){
   const s=(window._actualsSnap||{})[e+'-'+ft];
   if(s&&(s.months||[]).length){
     const was=_sbPulling;_sbPulling=true; // a replay, not an edit: the caller saves
-    try{importState[e+'-'+ft]=JSON.parse(JSON.stringify(s));applyImport(e,ft);}
+    const k=e+'-'+ft, pend=importState[k], pf=(typeof _importFiles!=='undefined')&&_importFiles[k]; // a dropped file still waiting for Apply
+    try{importState[k]=JSON.parse(JSON.stringify(s));applyImport(e,ft);}
     catch(err){console.warn('re-apply import:',err);}
-    finally{_sbPulling=was;}
+    finally{
+      _sbPulling=was;
+      if(pend){importState[k]=pend;if(pf)_importFiles[k]=pf;try{renderImportPreview(e,pend,ft);}catch(err){}}
+    }
     return;
   }
   (ft==='pl'?[BH_PL,BC_PL,CONSO_PL]:[BH_BS,BC_BS,CONSO_BS]).forEach(ft==='pl'?recalcPLTotals:recalcBSTotals);
@@ -6232,13 +6250,16 @@ function _signedIn(){return !!(_authToken&&CURRENT_ROLE);}
 function _sbHdr(tok,extra){return {apikey:SB_KEY,Authorization:`Bearer ${tok||SB_KEY}`,...(extra||{})};}
 function _jwt(t){try{return JSON.parse(atob(String(t).split('.')[1].replace(/-/g,'+').replace(/_/g,'/')))||{};}catch(e){return {};}}
 let _authTimer=null, _authRefreshing=null;
+let _clockSkew=0; // this computer's clock minus Supabase's, from the iat of a token Supabase has just issued
+function _noteSkew(t){const i=_jwt(t).iat;if(i)_clockSkew=Date.now()-i*1000;}
+function _expMs(t){const e=_jwt(t).exp;return e?e*1000+_clockSkew:0;} // expiry on this computer's clock
 function _authSet(tok,refresh,user){
   _authToken=tok;_authRefresh=refresh||_authRefresh;_authDead=false;
   if(user&&user.id)CURRENT_USER={id:user.id,email:user.email};
   try{localStorage.setItem('fpa_session',JSON.stringify({token:_authToken,refresh:_authRefresh,user:CURRENT_USER}));}catch(e){}
   clearTimeout(_authTimer);
-  const exp=(_jwt(tok).exp||0)*1000||Date.now()+3600e3;
-  if(_authRefresh)_authTimer=setTimeout(()=>_authRefreshNow(),Math.max(5000,exp-Date.now()-120000-Math.random()*30000)); // jitter: tabs don't all refresh at once
+  const exp=_expMs(tok)||Date.now()+3600e3;
+  if(_authRefresh)_authTimer=setTimeout(()=>_authRefreshNow(),Math.min(3600e3,Math.max(5000,exp-Date.now()-120000-Math.random()*30000))); // jitter: tabs don't all refresh at once
 }
 function _authClear(){
   clearTimeout(_authTimer);_authToken=null;_authRefresh=null;_authDead=false;CURRENT_USER=null;CURRENT_ROLE=null;
@@ -6251,7 +6272,7 @@ function _authStored(){
 // A fresher token than ours that another tab already got (Supabase rotates refresh tokens, so tabs share one session)
 function _authAdopt(){
   const s=_authStored();
-  if(s&&s.token!==_authToken&&(_jwt(s.token).exp||0)*1000-Date.now()>120000){_authSet(s.token,s.refresh);return true;}
+  if(s&&s.token!==_authToken&&_expMs(s.token)-Date.now()>120000){_authSet(s.token,s.refresh);return true;}
   return false;
 }
 // New access token: adopt one another tab already got, else ask Supabase. One refresh at a time; resolves true/false.
@@ -6267,7 +6288,7 @@ function _authRefreshNow(){
       const r=await fetch(`${SB_AUTH}/token?grant_type=refresh_token`,{method:'POST',headers:{apikey:SB_KEY,'Content-Type':'application/json'},body:JSON.stringify({refresh_token:rt})});
       const d=await r.json().catch(()=>null);
       if(_authToken!==mine)return !!_authToken; // signed out (or in again) meanwhile: don't bring this session back
-      if(r.ok&&d&&d.access_token){_authSet(d.access_token,d.refresh_token,d.user);return true;}
+      if(r.ok&&d&&d.access_token){_noteSkew(d.access_token);_authSet(d.access_token,d.refresh_token,d.user);return true;}
       if(_authAdopt())return true; // another tab refreshed with the same token a moment earlier
       if(r.status===400||r.status===401){_authDead=true;_authExpiredNotice();}
       return false;
@@ -6283,8 +6304,8 @@ function _authExpiredNotice(){
 // fetch with the user's token (refreshed first if it is about to expire; on a 401, refreshed and sent once more)
 async function sbAuthFetch(url,opts){
   opts=opts||{};
-  const exp=_authToken&&_jwt(_authToken).exp;
-  if(exp&&exp*1000-Date.now()<60000)await _authRefreshNow();
+  const exp=_authToken&&_expMs(_authToken);
+  if(exp&&exp-Date.now()<60000)await _authRefreshNow();
   const send=()=>fetch(url,{...opts,headers:_sbHdr(_authToken,opts.headers)});
   let r=await send();
   if(r.status===401&&_authToken){if(await _authRefreshNow())r=await send();else if(_authDead)_authExpiredNotice();}
@@ -6408,6 +6429,7 @@ function _hideStaleBanner(){window._staleState=null;const el=document.getElement
 let _checkingRemote=false;
 async function _checkRemote(){
   if(!_signedIn()||_checkingRemote||_sbPushing||(typeof document.hidden==='boolean'&&document.hidden))return; // signed out: never fetch the data
+  if(!_autoPulled)return _sbAutoPull(); // the load after sign-in failed: try it again first
   _checkingRemote=true;
   try{
     const a=await _sbGetRow('updated_at');
@@ -6524,7 +6546,7 @@ async function _sbAutoPull(){
   _autoPulled=true;
   try{
     const got=await _sbGetRow('*');
-    if(!got){sbStatus('Offline — using local data',false);return;}
+    if(!got){_autoPulled=false;sbStatus('Offline — using local data',false);setTimeout(()=>{if(!_autoPulled)_sbAutoPull();},5000);return;}
     if(!got.row){sbStatus('Ready — no cloud data yet',null);return;}
     const d=got.row;
     _applyCloud(d);
@@ -6608,6 +6630,7 @@ async function doLogin(){
     });
     const data=await r.json().catch(()=>({}));
     if(!r.ok||!data.access_token||!data.user)throw new Error(data.error_description||data.msg||'Invalid email or password.');
+    _noteSkew(data.access_token);
     const err=await _authBegin(data.access_token,data.refresh_token,data.user);
     if(err){errEl.textContent=err;btn.textContent='Sign in →';btn.disabled=false;return;}
     _authShowApp();
@@ -6621,6 +6644,10 @@ async function doLogin(){
 const _LOCAL_DATA_KEYS=['ar_fcst','ap_fcst','actuals_snap','ct_map','gl_mappings','cf_tx_overrides','cf_net_overrides','ds_state','map_dirty','user_rows','cf_month_sel'];
 function _hasUnsaved(){
   try{return Object.keys(_dsState.dirty||{}).length>0||Object.values(_mapDirty||{}).some(s=>s&&Object.keys(s).length>0);}catch(e){return false;}
+}
+function _otherTabsUnsaved(){ // unsaved edits another open tab stored in shared localStorage that this tab doesn't hold
+  try{const d=(JSON.parse(localStorage.getItem('ds_state')||'{}')||{}).dirty||{}, m=(JSON.parse(localStorage.getItem('map_dirty')||'{}')||{}).e||{};
+    return Object.keys(d).some(k=>!(_dsState.dirty||{})[k])||Object.keys(m).some(st=>Object.keys(m[st]||{}).some(k=>!((_mapDirty||{})[st]||{})[k]));}catch(e){return false;}
 }
 function _wipeLocalData(){
   _LOCAL_DATA_KEYS.forEach(k=>{try{localStorage.removeItem(k);}catch(e){}});
@@ -6641,8 +6668,10 @@ async function doLogout(){
       if(!_sbPushing&&_hasUnsaved())await _sbPushNow();
     }
     if(!isViewer()&&_hasUnsaved()&&!confirm("Some of your changes haven't been saved to the cloud and will be lost. Sign out anyway?"))return;
+    if(!isViewer()&&_otherTabsUnsaved()&&!confirm("Another open tab has changes that haven't been saved yet; signing out will discard them. Sign out anyway?"))return;
     clearTimeout(_sbTimer);
     const tok=_authToken;
+    _wipeLocalData(); // before the session key goes: other tabs reload on that, so they must find clean storage
     _authClear(); // from here nothing new is fetched or saved
     const overlay=document.getElementById('auth-overlay'), shell=document.querySelector('.shell');
     if(overlay)overlay.style.display='flex';
