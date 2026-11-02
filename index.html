@@ -1336,7 +1336,13 @@ function bhClose(i){ return Object.values(BH_BANKS).reduce((s,v)=>s+v[i],0); }
 function bcClose(i){ return Object.values(BC_BANKS).reduce((s,v)=>s+v[i],0); }
 const BH_CLOSE = E.map((_,i)=>bhClose(i)); // [61296.01,95571.63,103153.61,114863.10]
 const BC_CLOSE = E.map((_,i)=>bcClose(i)); // [39049.72,57684.24,129728.04,162159.49]
-const BH_OPEN = 52761.77, BC_OPEN = 53659.32;
+// Cash at 31 Dec 2025 (the 1 Jan 2026 opening): the bank accounts' 'Opening Balance' rows in Xero's 2026 Account
+// Transactions export, at the Revalued (USD) figure for a foreign-currency account, else the USD book figure.
+// BH: Alaan 5,213.55 + ENBD-AED 36,737.90 + Payoneer USD 11,296.51 + PayPal USD 425.86 + WIO-AED 12.85 = 53,686.67
+// BC: Payoneer USD 43,968.45 + WIO-AED 9,705.85 (revalued; 9,911.14 at historical rates) = 53,674.30
+// Check: Jan FX (closing − opening − inflow + outflow) is then minus each P&L's Jan 'Bank Revaluations' (BH 288.86,
+// BC 14.98), i.e. the Dec 2025 close implied by the Jan BS, GL and P&L imports.
+const BH_OPEN = 53686.67, BC_OPEN = 53674.30;
 
 // ── P&L (exact from Xero) ──
 const BH_PL = [
@@ -1380,6 +1386,9 @@ const BH_PL = [
   {label:'Unrealised Currency Gains',type:'i',v:[0.01,0.01,4.29,13.08]},
   {label:'Wages and Salaries',     type:'i',v:[19054,19054,19060.58,19060.58]},
   {label:'Total Operating Expenses',type:'t',v:[27080.18,32123.55,40786.14,31407.77]},
+  // Non-operating income (interest etc.): below Gross Profit, so it counts in net profit but never as revenue
+  {g:'Other Income / (Expense)',type:'h'},
+  {label:'Total Other Income / (Expense)',type:'t',v:[0,0,0,0]},
   {label:'Net Profit',             type:'gt',v:[6454.35,6279,5128.82,-7880.72]},
 ];
 
@@ -1401,6 +1410,8 @@ const BC_PL = [
   {label:'Subscriptions',        type:'i',v:[28.04,28.4,109.81,109.56]},
   {label:'Team Costs - Contractors - S&M',type:'i',v:[2000,2000,2014.98,0]},
   {label:'Total Operating Expenses',type:'t',v:[2107.61,2107.96,2519.6,137.32]},
+  {g:'Other Income / (Expense)',type:'h'},
+  {label:'Total Other Income / (Expense)',type:'t',v:[0,0,0,0]},
   {label:'Net Income',           type:'gt',v:[1651.65,32580.25,19786.94,17180.93]},
 ];
 
@@ -1558,6 +1569,8 @@ const CONSO_PL = [
   {label:'Subscriptions',            entity:'BC',type:'i',v:[28.04,28.4,109.81,109.56]},
   {label:'Team Costs - Contractors - S&M',entity:'BC',type:'i',v:[2000,2000,2014.98,0]},
   {label:'Total Operating Expenses', type:'t',v:[29187.79,34231.51,43305.74,31545.09]},
+  {g:'Other Income / (Expense)',type:'h'},
+  {label:'Total Other Income / (Expense)',type:'t',v:[0,0,0,0]},
   {label:'Net Profit / Income',      type:'gt',v:[8106.00,38859.25,24915.76,9300.21]},
 ];
 
@@ -2296,8 +2309,9 @@ function runValidation(arr, key, ftype){
     }
     if(gp&&opex&&net){
       E.forEach((m,i)=>{
-        const exp=(gp.v[i]||0)-(opex.v[i]||0), act=net.v[i]||0;
-        if(Math.abs(exp-act)>1) issues.push(`<strong>${m} · Net Income</strong>: ${$f(act)} ≠ GP−OpEx ${$f(exp)}`);
+        const oth=find('Total Other Income'); // non-operating income sits below operating expenses
+        const exp=(gp.v[i]||0)-(opex.v[i]||0)+((oth&&oth.v[i])||0), act=net.v[i]||0;
+        if(Math.abs(exp-act)>1) issues.push(`<strong>${m} · Net Income</strong>: ${$f(act)} ≠ GP−OpEx${oth?'+Other':''} ${$f(exp)}`);
       });
     }
   }
@@ -2331,14 +2345,9 @@ function renderFin(){
     const title=ent==='bc'?'Bravecore FZ LLC — Balance Sheet':ent==='bh'?'Braveheart FZ LLC — Balance Sheet':'Consolidated Balance Sheet (BH + BC)';
     document.getElementById('bs-title').textContent=title;
     const vkey=ent==='conso'?'conso_bs':(ent+'_bs');
-    // Prefer rendering straight from the Xero import (complete + balanced); fall back to template.
-    const impRows=ent==='conso'?_consoBSRows():_impBSRows((window._importedFin||{})[ent+'_bs'],ent.toUpperCase());
-    if(impRows&&impRows.length){
-      renderFinTable('bst',impRows,ent);
-      try{runValidation(impRows,vkey,'bs');}catch(e){}
-    }else{
-      renderFinTable('bst',ent==='bc'?BC_BS:ent==='bh'?BH_BS:CONSO_BS,ent);
-    }
+    const rows=_bsRowsFor(ent);
+    renderFinTable('bst',rows,ent);
+    if(rows!==_bsTemplate(ent))try{runValidation(rows,vkey,'bs');}catch(e){} // validate the imported statement
     renderDataBanner('bs-banner',vkey);
   } else {
     const title=ent==='bc'?'Bravecore FZ LLC — Income Statement':ent==='bh'?'Braveheart FZ LLC — Profit & Loss':'Consolidated Income Statement (BH + BC)';
@@ -2377,6 +2386,20 @@ function renderFinFromImport(tableId,parsed,showYTD){
   document.getElementById(tableId).innerHTML=h;
 }
 
+// The Balance Sheet the Financials tab shows (and exports) for an entity: straight from the Xero import when there is
+// one (complete + balanced), else the template.
+function _bsTemplate(e){return e==='bc'?BC_BS:e==='bh'?BH_BS:CONSO_BS;}
+function _bsRowsFor(e){
+  const imp=e==='conso'?_consoBSRows():_impBSRows((window._importedFin||{})[e+'_bs'],e.toUpperCase());
+  return imp&&imp.length?imp:_bsTemplate(e);
+}
+// Statement rows as shown: a section with no line items and a zero total (e.g. Other Income for an entity with
+// none) is left out.
+function _finRowsShown(rows){
+  const empty=(h,t)=>h&&t&&(h.type==='h'||h.type==='sh')&&t.type==='t'&&!(t.v||[]).some(v=>v);
+  return rows.filter((r,i)=>!empty(r,rows[i+1])&&!empty(rows[i-1],r));
+}
+
 function renderFinTable(id,rows,curEnt,showYTD){
   const cols=showYTD?E.length+3:E.length+2;
   const yr=dashYear(), yIdx=yearIdx(yr), multiYr=E.some(m=>mYear(m)!==yr); // YTD = the latest year only
@@ -2384,13 +2407,14 @@ function renderFinTable(id,rows,curEnt,showYTD){
   E.forEach(m=>h+=`<th>${mFull(m)}</th>`);
   if(showYTD) h+=`<th>${multiYr?'YTD '+yr:'YTD'}</th>`;
   h+='</tr></thead><tbody>';
-  rows.forEach(r=>{
-    if(r.type==='h'){h+=`<tr class="fh"><td colspan="${cols}">${r.g}</td></tr>`;return;}
-    if(r.type==='sh'){h+=`<tr class="fsh"><td colspan="${cols}" style="padding-left:14px">${r.g}</td></tr>`;return;}
+  // Labels can come straight from an imported Xero file: always escaped
+  _finRowsShown(rows).forEach(r=>{
+    if(r.type==='h'){h+=`<tr class="fh"><td colspan="${cols}">${esc(r.g)}</td></tr>`;return;}
+    if(r.type==='sh'){h+=`<tr class="fsh"><td colspan="${cols}" style="padding-left:14px">${esc(r.g)}</td></tr>`;return;}
     const cls=r.type==='gt'?'fgt':r.type==='t'?'ft':'fi';
     const entCell=r.entity?eb(r.entity):'';
     const finCid=`fin|${id}|${r.label.replace(/[^a-zA-Z0-9]/g,'_').toLowerCase()}`;
-    h+=`<tr class="${cls}"><td>${r.label}${cBtn(finCid,'Financials · '+r.label)}</td><td>${entCell}</td>`;
+    h+=`<tr class="${cls}"><td>${esc(r.label)}${cBtn(finCid,'Financials · '+r.label)}</td><td>${entCell}</td>`;
     r.v.forEach(v=>{const c=v<0?'neg':'';h+=`<td class="${c}">${$f(v,2)}</td>`;});
     if(showYTD){const ytd=yIdx.reduce((s,i)=>s+(r.v[i]||0),0);const c=ytd<0?'neg':'';h+=`<td class="${c}" style="font-weight:600">${$f(ytd,2)}</td>`;}
     h+='</tr>';
@@ -2924,6 +2948,19 @@ function getPL(yr){
   const adjNet=ytdNet+ytdWages;
   return{ytdRev,ytdGP,ytdNet,adjNet,gpPct:ytdRev?ytdGP/ytdRev:0,adjNetPct:ytdRev?adjNet/ytdRev:0};
 }
+// Full-year revenue (the dashboard's "YYYY revenue" card), on one basis — invoiced, not cash: the P&L revenue of the
+// year's closed months, plus for the rest of that year the AR pipeline's invoiced USD value (gross of fees) by
+// invoice month. An invoice dated in a closed month is already in the P&L, so nothing is counted twice; one
+// collected next year still counts in the year it is invoiced.
+function getFullYearRev(yr){
+  yr=yr||dashYear();
+  const months=cfForecastMonths().filter(m=>mYear(m)===yr), inMonths=new Set(months);
+  const inEnt=r=>ent==='conso'||(r.entity||'BH').toUpperCase()===ent.toUpperCase();
+  const forecast=AR_FCST.filter(r=>inEnt(r)&&inMonths.has(normalizeCashMonth(r.invoiceMonth||r.cashMonth)))
+    .reduce((s,r)=>s+(r.usdValue||0),0);
+  const actual=getPL(yr).ytdRev;
+  return {actual,forecast,total:actual+forecast,months};
+}
 
 function getBSMetrics(){
   const i=E.length-1;
@@ -3035,9 +3072,11 @@ function renderDash(){
 
   // P&L KPIs (5-column row)
   const adjCls=pl.adjNet>=0?'pos':'neg';
-  const fcstRevMonths=cfForecastMonths().filter(m=>mYear(m)===yr); // rest of the reporting year (after the closed month)
-  const fcstRevTotal=fcstRevMonths.reduce((s,m)=>s+getFcastInflow(m),0);
-  const fullYearRev=pl.ytdRev+fcstRevTotal;
+  const fyRev=getFullYearRev(yr), fcstRevMonths=fyRev.months; // rest of the reporting year (after the closed month)
+  const fullYearRev=fyRev.total;
+  const plRng=yIdx.length?mRange(E[yIdx[0]],E[yIdx[yIdx.length-1]]):'';
+  const revSub=[plRng&&'P&L '+plRng,fcstRevMonths.length&&'invoiced '+mRange(fcstRevMonths[0],fcstRevMonths[fcstRevMonths.length-1])].filter(Boolean).join(' + ');
+  const revTip=esc(`P&L revenue ${$f(fyRev.actual)} + forecast invoices by invoice month ${$f(fyRev.forecast)}`);
   // Revenue per full-time person: this year's revenue (YTD + forecast to Dec, the card beside it) ÷ the display
   // groups tagged full-time (FT) in Cash flow → outflow by group, counting any that appear in actual or forecast
   // outflows that year.
@@ -3046,7 +3085,7 @@ function renderDash(){
   const revPerFT=ftPeople.length?fullYearRev/ftPeople.length:0;
   const ftTip=ftPeople.length?esc('Full-time: '+ftPeople.join(', ')):'Tag full-time people in Cash flow → outflow by group';
   document.getElementById('dash-pl').innerHTML=`
-    <div class="mc"><div class="mc-label">${yr} revenue${cBtn('dash|pl|2026-revenue','Dashboard · '+yr+' revenue')}</div><div class="mc-value neu">${$f(fullYearRev)}</div><div class="mc-sub">YTD + forecast to Dec</div></div>
+    <div class="mc" title="${revTip}"><div class="mc-label">${yr} revenue${cBtn(`dash|pl|${yr}-revenue`,'Dashboard · '+yr+' revenue')}</div><div class="mc-value neu">${$f(fullYearRev)}</div><div class="mc-sub">${revSub||'—'}</div></div>
     <div class="mc" title="${ftTip}"><div class="mc-label">Revenue per full-time person${cBtn('dash|pl|rev-per-ft','Dashboard · Revenue per full-time person')}</div><div class="mc-value neu">${ftPeople.length?$f(revPerFT):'—'}</div><div class="mc-sub">${yr} revenue ÷ ${ftPeople.length} full-time ${ftPeople.length===1?'person':'people'}</div></div>
     <div class="mc"><div class="mc-label">YTD revenue${cBtn('dash|pl|ytd-revenue','Dashboard · YTD revenue')}</div><div class="mc-value neu">${$f(pl.ytdRev)}</div><div class="mc-sub">${ytdLbl}</div></div>
     <div class="mc"><div class="mc-label">YTD gross profit${cBtn('dash|pl|ytd-gp','Dashboard · YTD gross profit')}</div><div class="mc-value pos">${$f(pl.ytdGP)}</div><div class="mc-sub">${ytdLbl}</div></div>
@@ -4435,19 +4474,25 @@ function exportBankBreakdown(){
   });
 }
 
+// One statement as an Excel sheet, laid out like the Financials table: section rows, then Account, Entity, every
+// month (and the YTD column for the P&L).
+function _finSheetRows(rows,showYTD){
+  const yr=dashYear(), yIdx=yearIdx(yr), multiYr=E.some(m=>mYear(m)!==yr);
+  const fmt=v=>Math.round((v||0)*100)/100;
+  const out=[['Account','Entity',...E.map(mFull),...(showYTD?[multiYr?'YTD '+yr:'YTD']:[])]];
+  _finRowsShown(rows).forEach(r=>{
+    if(r.type==='h'||r.type==='sh'){out.push([r.g||r.label||'']);return;}
+    if(!r.label||!r.v)return;
+    out.push([(r.type==='i'?'  ':'')+r.label,r.entity||'',...E.map((_,i)=>fmt(r.v[i])),...(showYTD?[fmt(yIdx.reduce((s,i)=>s+(r.v[i]||0),0))]:[])]);
+  });
+  return out;
+}
 function exportBS(){
   loadSheetJS(()=>{
     const wb=XLSX.utils.book_new();
-    const months=E.slice();const mHdrs=months.map(mFull);
-    const fmt=v=>typeof v==='number'?Math.round(v*100)/100:v;
-    function templateSheet(arr){
-      const rows=[['',  ...mHdrs]];
-      arr.forEach(r=>{if(!r.label)return;const indent=r.type==='t'||r.type==='gt'?'':r.indent?'  ':'';rows.push([indent+r.label,...months.map(m=>{const i=E.indexOf(m);return i>=0&&r.v?fmt(r.v[i]):'';})]);});
-      return XLSX.utils.aoa_to_sheet(rows);
-    }
-    XLSX.utils.book_append_sheet(wb,templateSheet(BH_BS),'BH Balance Sheet');
-    XLSX.utils.book_append_sheet(wb,templateSheet(BC_BS),'BC Balance Sheet');
-    XLSX.utils.book_append_sheet(wb,templateSheet(CONSO_BS),'Consolidated BS');
+    // Exactly the statements the Financials tab draws (from the Xero import when there is one), so the file balances
+    [['bh','BH Balance Sheet'],['bc','BC Balance Sheet'],['conso','Consolidated BS']].forEach(([e,name])=>
+      XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(_finSheetRows(_bsRowsFor(e))),name));
     XLSX.writeFile(wb,`Balance_Sheet_${new Date().toISOString().slice(0,10)}.xlsx`);
   });
 }
@@ -4455,16 +4500,8 @@ function exportBS(){
 function exportPL(){
   loadSheetJS(()=>{
     const wb=XLSX.utils.book_new();
-    const months=E.slice();const mHdrs=months.map(mFull);
-    const fmt=v=>typeof v==='number'?Math.round(v*100)/100:v;
-    function templateSheet(arr){
-      const rows=[['',  ...mHdrs]];
-      arr.forEach(r=>{if(!r.label)return;const indent=r.type==='t'||r.type==='gt'?'':r.indent?'  ':'';rows.push([indent+r.label,...months.map(m=>{const i=E.indexOf(m);return i>=0&&r.v?fmt(r.v[i]):'';})]);});
-      return XLSX.utils.aoa_to_sheet(rows);
-    }
-    XLSX.utils.book_append_sheet(wb,templateSheet(BH_PL),'BH P&L');
-    XLSX.utils.book_append_sheet(wb,templateSheet(BC_PL),'BC P&L');
-    XLSX.utils.book_append_sheet(wb,templateSheet(CONSO_PL),'Consolidated P&L');
+    [[BH_PL,'BH P&L'],[BC_PL,'BC P&L'],[CONSO_PL,'Consolidated P&L']].forEach(([arr,name])=>
+      XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(_finSheetRows(arr,true)),name));
     XLSX.writeFile(wb,`PL_${new Date().toISOString().slice(0,10)}.xlsx`);
   });
 }
@@ -4480,17 +4517,7 @@ function _doExportToExcel(){
   const yr=' 2026';
   const mHdrs=months.map(m=>m+yr);
   const fmt=v=>typeof v==='number'?Math.round(v*100)/100:v;
-
-  // Helper: build aoa from a template array (PL or BS)
-  function templateSheet(arr){
-    const rows=[['',  ...mHdrs]];
-    arr.forEach(r=>{
-      if(!r.label)return;
-      const indent=r.type==='t'||r.type==='gt'?'':r.indent?'  ':'';
-      rows.push([indent+r.label,...months.map(m=>{const i=E.indexOf(m);return i>=0&&r.v?fmt(r.v[i]):''})]);
-    });
-    return XLSX.utils.aoa_to_sheet(rows);
-  }
+  const finSheet=(rows,ytd)=>XLSX.utils.aoa_to_sheet(_finSheetRows(rows,ytd)); // as the Financials tab shows them
 
   // Cash Flow Summary
   const cfRows=[['',  ...mHdrs,'YTD']];
@@ -4529,14 +4556,14 @@ function _doExportToExcel(){
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(outRows),'CF Outflows');
 
   // P&L sheets
-  XLSX.utils.book_append_sheet(wb,templateSheet(BH_PL),'BH P&L');
-  XLSX.utils.book_append_sheet(wb,templateSheet(BC_PL),'BC P&L');
-  XLSX.utils.book_append_sheet(wb,templateSheet(CONSO_PL),'Consolidated P&L');
+  XLSX.utils.book_append_sheet(wb,finSheet(BH_PL,true),'BH P&L');
+  XLSX.utils.book_append_sheet(wb,finSheet(BC_PL,true),'BC P&L');
+  XLSX.utils.book_append_sheet(wb,finSheet(CONSO_PL,true),'Consolidated P&L');
 
   // Balance Sheet sheets
-  XLSX.utils.book_append_sheet(wb,templateSheet(BH_BS),'BH Balance Sheet');
-  XLSX.utils.book_append_sheet(wb,templateSheet(BC_BS),'BC Balance Sheet');
-  XLSX.utils.book_append_sheet(wb,templateSheet(CONSO_BS),'Consolidated BS');
+  XLSX.utils.book_append_sheet(wb,finSheet(_bsRowsFor('bh')),'BH Balance Sheet');
+  XLSX.utils.book_append_sheet(wb,finSheet(_bsRowsFor('bc')),'BC Balance Sheet');
+  XLSX.utils.book_append_sheet(wb,finSheet(_bsRowsFor('conso')),'Consolidated BS');
 
   // Bank balances
   const bnkRows=[['Bank Account','Entity',...mHdrs]];
@@ -4635,7 +4662,7 @@ function renderGLMapTable(){
       newRowList.innerHTML=`<div style="margin-top:8px;font-size:12px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">User-added rows</div>`+
         keyRows.map((r,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:4px 0;border-bottom:1px solid var(--border)">
           <span style="flex:1;font-size:13px">${esc(r.label)}</span>
-          <span style="color:var(--text3);font-size:13px">under <strong>${esc(r.section)}</strong></span>
+          <span style="color:var(--text3);font-size:13px">under <strong>${esc(_userRowSection(r))}</strong></span>
           ${r.xero?`<span style="color:var(--text3);font-size:13px">← Xero: ${esc(r.xero)}</span>`:''}
           <button onclick="deleteUserRow(${USER_ROWS.indexOf(r)})" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:15px;padding:2px 6px">🗑</button>
         </div>`).join('');
@@ -4645,31 +4672,77 @@ function renderGLMapTable(){
   }
 }
 
-// Insert a user-defined row into the correct position in a template array (idempotent)
+// Sections that are named differently per template (BH 'Trading Income', BC 'Income', consolidated 'Income / Revenue'…)
+const _SEC_ALIAS=[['trading income','income','income revenue'],['cost of sales','cost of goods sold'],['bank','cash and cash equivalents','bank cash']];
+function _findSection(arr,section){
+  const k=normKey(section), names=_SEC_ALIAS.find(a=>a.includes(k))||[k];
+  return arr.findIndex(r=>(r.type==='h'||r.type==='sh')&&names.includes(normKey(r.g||'')));
+}
+// Where rows of a section go: before the next 't', 'gt' or 'h' row after its header
+function _sectionEnd(arr,hIdx){
+  for(let i=hIdx+1;i<arr.length;i++)if(arr[i].type==='t'||arr[i].type==='gt'||arr[i].type==='h')return i;
+  return arr.length;
+}
+// Insert a user-defined row under its section in a template array (idempotent). A row placed here earlier (.user)
+// follows its section if that changed, keeping its values; built-in template rows are never moved. Returns true
+// when it inserted or moved the row.
 function _insertRowIntoArr(arr, section, label, entity){
-  if(arr.find(r=>r.label===label&&(!entity||r.entity===entity)))return; // already exists
-  // Find the section header
-  const hIdx=arr.findIndex(r=>(r.type==='h'||r.type==='sh')&&normKey(r.g||'')===normKey(section));
-  if(hIdx<0)return;
-  // Insert before the next 't', 'gt', or 'h' row
-  let ins=arr.length;
-  for(let i=hIdx+1;i<arr.length;i++){
-    if(arr[i].type==='t'||arr[i].type==='gt'||arr[i].type==='h'){ins=i;break;}
-  }
-  const row={label,type:'i',v:Array(E.length).fill(0)};
+  const hIdx=_findSection(arr,section);
+  const at=arr.findIndex(r=>r.label===label&&(!entity||r.entity===entity));
+  if(at>=0&&(!arr[at].user||hIdx<0||(at>hIdx&&at<_sectionEnd(arr,hIdx))))return false; // already in place
+  if(hIdx<0){console.warn(`Dashboard row "${label}": no section "${section}" in this statement`);return false;}
+  const row=at>=0?arr.splice(at,1)[0]:{label,type:'i',v:Array(E.length).fill(0),user:true};
   if(entity)row.entity=entity;
-  arr.splice(ins,0,row);
+  arr.splice(_sectionEnd(arr,_findSection(arr,section)),0,row);
+  return true;
+}
+// The template section a user row goes under. Non-operating income — interest, or any account the entity's imported
+// Xero P&L lists under an Other Income heading — goes to 'Other Income / (Expense)': below Gross Profit, so it counts
+// in net profit but never as revenue (there was no such section to pick before).
+const OTHER_INC_SEC='Other Income / (Expense)';
+function _userRowSection(r){
+  if(r.ftype!=='pl')return r.section;
+  const name=r.xero||r.label;
+  if(/\binterest (income|received|earned)\b/i.test(r.label+' '+name))return OTHER_INC_SEC;
+  const p=(window._importedFin||{})[r.entity+'_pl'];let hdr='';
+  const other=((p&&p.rows)||[]).some(x=>{
+    if(x.type==='h'||x.type==='sh'){hdr=x.label||'';return false;}
+    return x.type==='i'&&normKey(x.label)===normKey(name)&&/other income|non.?operating/i.test(hdr);
+  });
+  return other?OTHER_INC_SEC:r.section;
 }
 
-// Replay all USER_ROWS into template arrays (called at startup and after adding a row)
+// Replay all USER_ROWS into the entity and consolidated templates (startup, after a Pull, after adding or removing a
+// row). A consolidated row placed now takes its entity row's current values and the totals are recomputed, so the
+// consolidated P&L / BS and the dashboard include it straight away; imports keep it filled after that.
 function applyUserRows(){
-  USER_ROWS.forEach(({entity,ftype,section,label,xero})=>{
+  const touched=new Set();
+  USER_ROWS.forEach(r=>{
+    const {entity,ftype,label}=r, sec=_userRowSection(r), EN=entity.toUpperCase();
     const arr=ftype==='pl'?(entity==='bh'?BH_PL:BC_PL):(entity==='bh'?BH_BS:BC_BS);
-    _insertRowIntoArr(arr,section,label);
-    // Also add to CONSO with entity tag
     const consoArr=ftype==='pl'?CONSO_PL:CONSO_BS;
-    _insertRowIntoArr(consoArr,section,label,entity.toUpperCase());
+    if(_insertRowIntoArr(arr,sec,label))touched.add(arr);
+    if(_insertRowIntoArr(consoArr,sec,label,EN)){ // also into the consolidated statement, tagged with its entity
+      const src=arr.find(x=>x.label===label&&x.v), dst=consoArr.find(x=>x.label===label&&x.entity===EN);
+      if(src&&dst)dst.v=src.v.slice();
+      touched.add(consoArr);
+    }
   });
+  touched.forEach(a=>(a===BH_PL||a===BC_PL||a===CONSO_PL?recalcPLTotals:recalcBSTotals)(a));
+}
+// After a dashboard row is added or removed: re-apply the stored P&L / BS import, so the row's values, the
+// consolidated statement and every total are what a reload shows (no import yet: just recompute the totals).
+function _reapplyFinImport(e,ft){
+  const s=(window._actualsSnap||{})[e+'-'+ft];
+  if(s&&(s.months||[]).length){
+    const was=_sbPulling;_sbPulling=true; // a replay, not an edit: the caller saves
+    try{importState[e+'-'+ft]=JSON.parse(JSON.stringify(s));applyImport(e,ft);}
+    catch(err){console.warn('re-apply import:',err);}
+    finally{_sbPulling=was;}
+    return;
+  }
+  (ft==='pl'?[BH_PL,BC_PL,CONSO_PL]:[BH_BS,BC_BS,CONSO_BS]).forEach(ft==='pl'?recalcPLTotals:recalcBSTotals);
+  renderDash();renderFin();
 }
 
 function addNewDashboardRow(){
@@ -4683,42 +4756,41 @@ function addNewDashboardRow(){
   if(USER_ROWS.find(r=>r.entity===ekey&&r.ftype===ftkey&&normKey(r.label)===normKey(label))){
     alert('A row with this label already exists.');return;
   }
-  // Add to USER_ROWS
+  // Add to USER_ROWS and place it in the entity + consolidated templates now
   USER_ROWS.push({entity:ekey,ftype:ftkey,section,label,xero:xero||''});
-  // Insert into template arrays now
-  const arr=ftkey==='pl'?(ekey==='bh'?BH_PL:BC_PL):(ekey==='bh'?BH_BS:BC_BS);
-  _insertRowIntoArr(arr,section,label);
-  const consoArr=ftkey==='pl'?CONSO_PL:CONSO_BS;
-  _insertRowIntoArr(consoArr,section,label,ekey.toUpperCase());
+  applyUserRows();
   // If Xero label given, also add GL mapping
   if(xero){
     if(!GL_MAPPINGS[glmKey])GL_MAPPINGS[glmKey]=[];
     const exists=GL_MAPPINGS[glmKey].find(m=>normKey(m.xero)===normKey(xero));
     if(exists)exists.tmpl=label; else GL_MAPPINGS[glmKey].push({xero,tmpl:label});
   }
-  // Persist
   try{localStorage.setItem('user_rows',JSON.stringify(USER_ROWS));}catch(e){}
-  saveGLMappings();
+  _reapplyFinImport(ekey,ftkey); // fill it from the stored import; totals + dashboard update now
+  saveGLMappings(); // persist + sync (after the replay, so the saved snapshot carries the user rows)
   // Clear inputs
   document.getElementById('newrow-label').value='';
   document.getElementById('newrow-xero').value='';
   renderGLMapTable();
-  // Re-render Financials so new row shows immediately
-  if(document.getElementById('screen-fin').classList.contains('active'))renderFin();
 }
 
 function deleteUserRow(idx){
-  if(!confirm('Remove this row from the dashboard template?'))return;
   const r=USER_ROWS[idx];
-  // Remove from template arrays
+  if(!r)return;
+  const what=r.ftype==='pl'?'P&L':'Balance Sheet';
+  if(!confirm(`Remove "${r.label}" from the ${what} template?`+(r.xero?`\n\nXero account "${r.xero}" is mapped to this row: it will no longer be counted in the ${what} unless you map it to another row.`:'')))return;
+  // Remove the rows applyUserRows placed for it (never a built-in template row with the same label)
+  const EN=r.entity.toUpperCase();
   const arr=r.ftype==='pl'?(r.entity==='bh'?BH_PL:BC_PL):(r.entity==='bh'?BH_BS:BC_BS);
-  const i=arr.findIndex(row=>row.label===r.label&&!row.entity);
+  const i=arr.findIndex(row=>row.user&&row.label===r.label);
   if(i>=0)arr.splice(i,1);
   const consoArr=r.ftype==='pl'?CONSO_PL:CONSO_BS;
-  const ci=consoArr.findIndex(row=>row.label===r.label&&row.entity===r.entity.toUpperCase());
+  const ci=consoArr.findIndex(row=>row.user&&row.label===r.label&&row.entity===EN);
   if(ci>=0)consoArr.splice(ci,1);
   USER_ROWS.splice(idx,1);
+  applyUserRows(); // another entry for the same row keeps it
   try{localStorage.setItem('user_rows',JSON.stringify(USER_ROWS));}catch(e){}
+  _reapplyFinImport(r.entity,r.ftype); // totals + dashboard drop it now, as after a reload
   saveGLMappings(); // persist + sync the removal (snapshot carries user rows to teammates)
   renderGLMapTable();
 }
