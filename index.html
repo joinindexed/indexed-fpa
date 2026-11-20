@@ -415,6 +415,7 @@ tr:hover .ct-btn,.mc:hover .ct-btn{opacity:1}
     <div class="page-sub" id="sub-dash">Jan–Apr 2026 actuals · All values in USD · Toggle entity below</div></div>
   </div>
   <div class="content">
+    <div class="itabs" id="dash-year-tabs" role="tablist" aria-label="Dashboard year" style="background:transparent;padding:0;margin-bottom:14px;border-bottom:1px solid var(--border)"></div>
     <div class="metrics" id="dash-kpis" style="grid-template-columns:repeat(5,1fr)"></div>
     <div class="dash-pl-metrics" id="dash-pl"></div>
     <div class="card">
@@ -422,7 +423,7 @@ tr:hover .ct-btn,.mc:hover .ct-btn{opacity:1}
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:16px" id="dash-liab"></div>
     </div>
     <div class="card">
-      <div class="card-head"><span class="card-title">Closing cash balance</span><span class="card-hint">Month-end bank balance</span></div>
+      <div class="card-head"><span class="card-title">Closing cash balance</span><span class="card-hint" id="dash-chart-hint">Month-end bank balance</span></div>
       <div id="dash-chart-area"></div>
     </div>
   </div>
@@ -3012,8 +3013,8 @@ function getFullYearRev(yr){
   return {actual,forecast,total:actual+forecast,months};
 }
 
-function getBSMetrics(){
-  const i=E.length-1;
+function getBSMetrics(i){
+  if(i==null)i=E.length-1; // default: the latest actual month (the dashboard passes the selected year's latest)
   // Read directly from template arrays — applyImport+recalcBSTotals keeps them current.
   function bsVal(hardArr,...labels){
     for(const lbl of labels){
@@ -3092,39 +3093,80 @@ function getDecClosingBalance(yr){
 // Opening cash of a year: the Jan opening for the base year, otherwise the previous December's close.
 function getYearOpening(yr){
   const d=getD(), idx=yearIdx(yr);
-  return !idx.length||idx[0]===0?d.open:d.close[idx[0]-1];
+  if(idx.length)return idx[0]===0?d.open:d.close[idx[0]-1];
+  // No actual months in that year yet (e.g. next year): it opens on the previous December's close (actual or forecast)
+  return E.length&&yr>mYear(E[0])?getDecClosingBalance(yr-1):d.open;
+}
+
+// ── Dashboard year tabs ──
+// One tab per calendar year that has actual months (E) or forecast months (FCST_MONTHS), from the base year on.
+// The selected tab scopes every card and the chart to that year. null = follow the reporting year (dashYear).
+let dashSelYear=null;
+function dashYears(){
+  const ys=new Set([...E,...FCST_MONTHS].map(mYear).filter(y=>!isNaN(y)&&y>=BASE_YEAR));
+  ys.add(dashYear());
+  return [...ys].sort((a,b)=>a-b);
+}
+function dashSelectedYear(){
+  const ys=dashYears();
+  return dashSelYear!=null&&ys.includes(dashSelYear)?dashSelYear:dashYear();
+}
+function swDashYear(yr){dashSelYear=yr;renderDash();}
+// Comment ids: the base year keeps the ids comments were saved under before the tabs existed; other years get their own.
+function dashCid(id,yr){return yr===BASE_YEAR?id:`${id}|${yr}`;}
+function dashSubText(yr){
+  yr=yr||dashSelectedYear();
+  const a=yearIdx(yr), f=FCST_MONTHS.filter(m=>mYear(m)===yr);
+  const parts=[];
+  if(a.length)parts.push(`${mRange(E[a[0]],E[a[a.length-1]])} actuals`);
+  if(f.length)parts.push(`${mRange(f[0],f[f.length-1])} forecast`);
+  if(!parts.length)parts.push(`No ${yr} data yet`);
+  return `${parts.join(' + ')} · All values in USD · Toggle entity below`;
 }
 
 function renderDash(){
-  const d=getD(), yr=dashYear(), yIdx=reportIdx(yr);
+  const d=getD(), yr=dashSelectedYear(), yIdx=reportIdx(yr), aIdx=yearIdx(yr);
+  const hasAct=aIdx.length>0, hasClosed=yIdx.length>0;
+  const lastAi=hasAct?aIdx[aIdx.length-1]:-1;
   const ytdIn=yIdx.reduce((s,i)=>s+d.in[i],0);
   const ytdOut=yIdx.reduce((s,i)=>s+d.out[i],0);
-  const net=ytdIn-ytdOut;
   const founderPmt=getFounderPayments(yr);
-  const adjNet=net+founderPmt;
   const decClose=getDecClosingBalance(yr);
   const founderEarnings=decClose-getYearOpening(yr)+founderPmt;
-  const pl=getPL();
-  const bs=getBSMetrics();
+  const pl=getPL(yr);
+  const bs=hasAct?getBSMetrics(lastAi):null;
   const pct=n=>(n*100).toFixed(1)+'%';
+  const neg=v=>'($'+$f(Math.abs(v)).replace('$','')+')';
+  const DASH='—';
   const lbl={'conso':'· Consolidated (Braveheart & Bravecore)','bh':'· Braveheart','bc':'· Bravecore'};
   const el=document.getElementById('dash-el');
   if(el) el.textContent=lbl[ent];
+  const sub=document.getElementById('sub-dash');
+  if(sub) sub.textContent=dashSubText(yr);
 
-  // Cash KPIs (5-col: add AR)
-  const lastM=E[E.length-1],firstM=E[yIdx[0]||0],closeLbl=mFull(lastM),ytdLbl=mRange(firstM,lastM);
+  // Year tabs
+  const tabs=document.getElementById('dash-year-tabs');
+  if(tabs) tabs.innerHTML=dashYears().map(y=>`<button type="button" class="itab${y===yr?' active':''}" role="tab" aria-selected="${y===yr}" onclick="swDashYear(${y})">${y}</button>`).join('');
+
+  // Cash KPIs (5-col: add AR). Point-in-time cards read the latest actual month of the selected year; YTD cards sum
+  // its closed months. A year with no actuals yet shows the forecast year-end cash and a dash for the rest.
+  const closeLbl=hasAct?mFull(E[lastAi]):`Forecast · Dec ${yr}`;
+  const ytdLbl=hasClosed?mRange(E[yIdx[0]],E[yIdx[yIdx.length-1]]):`No closed ${yr} months yet`;
+  const noBS=`No ${yr} balance sheet yet`;
+  const closeVal=hasAct?d.close[lastAi]:decClose;
+  const C=(id,label)=>cBtn(dashCid(id,yr),'Dashboard · '+(yr===BASE_YEAR?'':yr+' ')+label);
   document.getElementById('dash-kpis').innerHTML=`
-    <div class="mc"><div class="mc-label">Closing cash balance${cBtn('dash|kpi|closing-cash','Dashboard · Closing cash balance')}</div><div class="mc-value neu">${$f(d.close[E.length-1])}</div><div class="mc-sub">${closeLbl}</div></div>
-    <div class="mc"><div class="mc-label">Accounts receivable${cBtn('dash|kpi|ar','Dashboard · Accounts receivable')}</div><div class="mc-value neu">${$f(bs.ar)}</div><div class="mc-sub">${closeLbl}</div></div>
-    <div class="mc"><div class="mc-label">YTD inflow${cBtn('dash|kpi|ytd-inflow','Dashboard · YTD inflow')}</div><div class="mc-value pos">${$f(ytdIn)}</div><div class="mc-sub">${ytdLbl}</div></div>
-    <div class="mc"><div class="mc-label">YTD outflow${cBtn('dash|kpi|ytd-outflow','Dashboard · YTD outflow')}</div><div class="mc-value neg">($${$f(ytdOut).replace('$','')})</div><div class="mc-sub">${ytdLbl}</div></div>
-    <div class="mc"><div class="mc-label">Founder cash earnings${cBtn('dash|kpi|founder-earnings','Dashboard · Founder cash earnings')}</div><div class="mc-value ${founderEarnings>=0?'pos':'neg'}">${founderEarnings>=0?$f(founderEarnings):'($'+$f(Math.abs(founderEarnings)).replace('$','')+')'}</div><div class="mc-sub">Dec ${yr} closing − opening + founder pmts</div></div>`;
+    <div class="mc"><div class="mc-label">Closing cash balance${C('dash|kpi|closing-cash','Closing cash balance')}</div><div class="mc-value neu">${$f(closeVal)}</div><div class="mc-sub">${closeLbl}</div></div>
+    <div class="mc"><div class="mc-label">Accounts receivable${C('dash|kpi|ar','Accounts receivable')}</div><div class="mc-value neu">${bs?$f(bs.ar):DASH}</div><div class="mc-sub">${bs?closeLbl:noBS}</div></div>
+    <div class="mc"><div class="mc-label">YTD inflow${C('dash|kpi|ytd-inflow','YTD inflow')}</div><div class="mc-value ${hasClosed?'pos':'neu'}">${hasClosed?$f(ytdIn):DASH}</div><div class="mc-sub">${ytdLbl}</div></div>
+    <div class="mc"><div class="mc-label">YTD outflow${C('dash|kpi|ytd-outflow','YTD outflow')}</div><div class="mc-value ${hasClosed?'neg':'neu'}">${hasClosed?neg(ytdOut):DASH}</div><div class="mc-sub">${ytdLbl}</div></div>
+    <div class="mc"><div class="mc-label">Founder cash earnings${C('dash|kpi|founder-earnings','Founder cash earnings')}</div><div class="mc-value ${founderEarnings>=0?'pos':'neg'}">${founderEarnings>=0?$f(founderEarnings):neg(founderEarnings)}</div><div class="mc-sub">Dec ${yr} closing${hasClosed?'':' (forecast)'} − opening + founder pmts</div></div>`;
 
   // P&L KPIs (5-column row)
-  const adjCls=pl.adjNet>=0?'pos':'neg';
-  const fyRev=getFullYearRev(yr), fcstRevMonths=fyRev.months; // rest of the reporting year (after the closed month)
+  const adjCls=!hasClosed?'neu':pl.adjNet>=0?'pos':'neg';
+  const fyRev=getFullYearRev(yr), fcstRevMonths=fyRev.months; // rest of the selected year (after the closed month)
   const fullYearRev=fyRev.total;
-  const plRng=yIdx.length?mRange(E[yIdx[0]],E[yIdx[yIdx.length-1]]):'';
+  const plRng=hasClosed?mRange(E[yIdx[0]],E[yIdx[yIdx.length-1]]):'';
   const revSub=[plRng&&'P&L '+plRng,fcstRevMonths.length&&'invoiced '+mRange(fcstRevMonths[0],fcstRevMonths[fcstRevMonths.length-1])].filter(Boolean).join(' + ');
   const revTip=esc(`P&L revenue ${$f(fyRev.actual)} + forecast invoices by invoice month ${$f(fyRev.forecast)}`);
   // Revenue per full-time person: this year's revenue (YTD + forecast to Dec, the card beside it) ÷ the display
@@ -3134,44 +3176,58 @@ function renderDash(){
     .filter(g=>peopleKind(g)==='ft').sort();
   const revPerFT=ftPeople.length?fullYearRev/ftPeople.length:0;
   const ftTip=ftPeople.length?esc('Full-time: '+ftPeople.join(', ')):'Tag full-time people in Cash flow → outflow by group';
+  const P=txt=>hasClosed?txt:DASH; // YTD P&L cards: a dash until the year has a closed month
   document.getElementById('dash-pl').innerHTML=`
     <div class="mc" title="${revTip}"><div class="mc-label">${yr} revenue${cBtn(`dash|pl|${yr}-revenue`,'Dashboard · '+yr+' revenue')}</div><div class="mc-value neu">${$f(fullYearRev)}</div><div class="mc-sub">${revSub||'—'}</div></div>
-    <div class="mc" title="${ftTip}"><div class="mc-label">Revenue per full-time person${cBtn('dash|pl|rev-per-ft','Dashboard · Revenue per full-time person')}</div><div class="mc-value neu">${ftPeople.length?$f(revPerFT):'—'}</div><div class="mc-sub">${yr} revenue ÷ ${ftPeople.length} full-time ${ftPeople.length===1?'person':'people'}</div></div>
-    <div class="mc"><div class="mc-label">YTD revenue${cBtn('dash|pl|ytd-revenue','Dashboard · YTD revenue')}</div><div class="mc-value neu">${$f(pl.ytdRev)}</div><div class="mc-sub">${ytdLbl}</div></div>
-    <div class="mc"><div class="mc-label">YTD gross profit${cBtn('dash|pl|ytd-gp','Dashboard · YTD gross profit')}</div><div class="mc-value pos">${$f(pl.ytdGP)}</div><div class="mc-sub">${ytdLbl}</div></div>
-    <div class="mc"><div class="mc-label">Gross profit %${cBtn('dash|pl|gp-pct','Dashboard · Gross profit %')}</div><div class="mc-value pos">${pct(pl.gpPct)}</div><div class="mc-sub">GP / Revenue</div></div>
-    <div class="mc"><div class="mc-label">Adj. net profit${cBtn('dash|pl|adj-net','Dashboard · Adj. net profit')}</div><div class="mc-value ${adjCls}">${pl.adjNet>=0?$f(pl.adjNet):'($'+$f(Math.abs(pl.adjNet)).replace('$','')+')'}</div><div class="mc-sub">Net + wages &amp; salaries</div></div>
-    <div class="mc"><div class="mc-label">Adj. net profit %${cBtn('dash|pl|adj-net-pct','Dashboard · Adj. net profit %')}</div><div class="mc-value ${adjCls}">${pct(pl.adjNetPct)}</div><div class="mc-sub">Adj. net / Revenue</div></div>`;
+    <div class="mc" title="${ftTip}"><div class="mc-label">Revenue per full-time person${C('dash|pl|rev-per-ft','Revenue per full-time person')}</div><div class="mc-value neu">${ftPeople.length?$f(revPerFT):'—'}</div><div class="mc-sub">${yr} revenue ÷ ${ftPeople.length} full-time ${ftPeople.length===1?'person':'people'}</div></div>
+    <div class="mc"><div class="mc-label">YTD revenue${C('dash|pl|ytd-revenue','YTD revenue')}</div><div class="mc-value neu">${P($f(pl.ytdRev))}</div><div class="mc-sub">${ytdLbl}</div></div>
+    <div class="mc"><div class="mc-label">YTD gross profit${C('dash|pl|ytd-gp','YTD gross profit')}</div><div class="mc-value ${hasClosed?'pos':'neu'}">${P($f(pl.ytdGP))}</div><div class="mc-sub">${ytdLbl}</div></div>
+    <div class="mc"><div class="mc-label">Gross profit %${C('dash|pl|gp-pct','Gross profit %')}</div><div class="mc-value ${hasClosed?'pos':'neu'}">${P(pct(pl.gpPct))}</div><div class="mc-sub">GP / Revenue</div></div>
+    <div class="mc"><div class="mc-label">Adj. net profit${C('dash|pl|adj-net','Adj. net profit')}</div><div class="mc-value ${adjCls}">${P(pl.adjNet>=0?$f(pl.adjNet):neg(pl.adjNet))}</div><div class="mc-sub">Net + wages &amp; salaries</div></div>
+    <div class="mc"><div class="mc-label">Adj. net profit %${C('dash|pl|adj-net-pct','Adj. net profit %')}</div><div class="mc-value ${adjCls}">${P(pct(pl.adjNetPct))}</div><div class="mc-sub">Adj. net / Revenue</div></div>`;
 
-  // Chart
-  const cIdx=E.map((_,i)=>i).slice(-12); // trailing 12 actual months
-  const chartH=150, maxBar=chartH-32, maxV=Math.max(1,...cIdx.map(i=>d.close[i]));
-  let chart=`<div style="position:relative;height:${chartH}px;display:flex;align-items:flex-end;gap:14px;padding:0 24px">`;
-  [33,66].forEach(p=>chart+=`<div style="position:absolute;left:24px;right:24px;bottom:${p}%;height:1px;background:var(--border);pointer-events:none"></div>`);
-  cIdx.map(i=>d.close[i]).forEach(v=>{
-    const bh=Math.max(Math.round(v/maxV*maxBar),4);
-    chart+=`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;justify-content:flex-end;height:100%;z-index:1">
-      <div style="font-size:13px;font-weight:500;color:var(--text2);white-space:nowrap">${$f(v)}</div>
-      <div style="width:52%;height:${bh}px;background:var(--accent);border-radius:5px 5px 0 0"></div>
+  // Chart: the selected year's months — actual month-end balances, then the forecast chain (as Cash flow →
+  // Actuals + Forecast shows it) for the months after the last actual, drawn lighter.
+  const fc=cfForecastChain(d), fcClose=new Map(fc.map(x=>[x.m,x.close]));
+  const bars=[...aIdx.map(i=>({m:E[i],v:d.close[i],f:false})),
+    ...FCST_MONTHS.filter(m=>mYear(m)===yr&&fcClose.has(m)).map(m=>({m,v:fcClose.get(m),f:true}))];
+  const anyF=bars.some(b=>b.f);
+  const hint=document.getElementById('dash-chart-hint');
+  if(hint) hint.textContent=anyF?(bars.some(b=>!b.f)?'Month-end bank balance · lighter bars are forecast':'Forecast month-end bank balance'):'Month-end bank balance';
+  let chart;
+  if(!bars.length){
+    chart=`<div style="padding:28px 24px;text-align:center;color:var(--text3);font-size:14px">No ${yr} cash data yet</div>`;
+  } else {
+    const chartH=150, maxBar=chartH-32, maxV=Math.max(1,...bars.map(b=>b.v));
+    chart=`<div style="position:relative;height:${chartH}px;display:flex;align-items:flex-end;gap:14px;padding:0 24px">`;
+    [33,66].forEach(p=>chart+=`<div style="position:absolute;left:24px;right:24px;bottom:${p}%;height:1px;background:var(--border);pointer-events:none"></div>`);
+    bars.forEach(b=>{
+      const bh=Math.max(Math.round(Math.max(b.v,0)/maxV*maxBar),4);
+      const fill=b.f?'background:var(--accent);opacity:.35;outline:1px dashed var(--accent);outline-offset:-1px':'background:var(--accent)';
+      chart+=`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;justify-content:flex-end;height:100%;z-index:1" title="${esc(mFull(b.m)+(b.f?' · forecast':' · actual'))}">
+      <div style="font-size:13px;font-weight:500;color:var(--text2);white-space:nowrap${b.f?';font-style:italic':''}">${b.v<0?neg(b.v):$f(b.v)}</div>
+      <div style="width:52%;height:${bh}px;${fill};border-radius:5px 5px 0 0"></div>
     </div>`;
-  });
-  chart+=`</div><div style="display:flex;gap:14px;padding:7px 24px 16px;border-top:1px solid var(--border)">`;
-  cIdx.forEach(i=>chart+=`<div style="flex:1;text-align:center;font-size:14px;font-weight:600;color:var(--text3)">${mLabel(E[i])}</div>`);
-  chart+='</div>';
+    });
+    chart+=`</div><div style="display:flex;gap:14px;padding:7px 24px 16px;border-top:1px solid var(--border)">`;
+    bars.forEach(b=>chart+=`<div style="flex:1;text-align:center;font-size:14px;font-weight:600;color:var(--text3)${b.f?';font-style:italic':''}">${_MN[mOrd(b.m)%12]}</div>`);
+    chart+='</div>';
+  }
   document.getElementById('dash-chart-area').innerHTML=chart;
 
   // Liabilities
-  const periodLbl=mFull(lastM);
-  document.getElementById('dash-liab-sub').textContent=periodLbl;
+  const periodLbl=hasAct?mFull(E[lastAi]):noBS;
+  document.getElementById('dash-liab-sub').textContent=hasAct?periodLbl:'';
   const liabItems=[
-    ['Accounts payable',     bs.ap],
-    ['Accruals',             bs.accruals],
-    ['Directors loan acct',  bs.dirLoan],
-    ['Loan from director',   bs.loanDir],
+    ['Accounts payable',     bs&&bs.ap],
+    ['Accruals',             bs&&bs.accruals],
+    ['Directors loan acct',  bs&&bs.dirLoan],
+    ['Loan from director',   bs&&bs.loanDir],
   ];
   document.getElementById('dash-liab').innerHTML=liabItems.map(([label,val])=>{
     const cid=`dash|liab|${label.replace(/[^a-zA-Z0-9]/g,'_').toLowerCase()}`;
-    return `<div class="mc"><div class="mc-label">${label}${cBtn(cid,'Dashboard · '+label)}</div><div class="mc-value ${val>0?'neg':'neu'}">${val>0?'($'+$f(val).replace('$','')+')':(val===0?'—':$f(val))}</div><div class="mc-sub">${periodLbl}</div></div>`;
+    const shown=!bs||val===0?DASH:val>0?neg(val):$f(val);
+    return `<div class="mc"><div class="mc-label">${label}${C(cid,label)}</div><div class="mc-value ${bs&&val>0?'neg':'neu'}">${shown}</div><div class="mc-sub">${periodLbl}</div></div>`;
   }).join('');
 }
 
@@ -4193,7 +4249,7 @@ function updateActualsLabels(){
   const actRange=mRange(E[0]||'Jan',lastAct);
   const fcstRange=FCST_MONTHS.length?mRange(FCST_MONTHS[0],FCST_MONTHS[FCST_MONTHS.length-1]):'—';
   const s=id=>document.getElementById(id);
-  if(s('sub-dash'))s('sub-dash').textContent=`${actRange} actuals · All values in USD · Toggle entity below`;
+  if(s('sub-dash'))s('sub-dash').textContent=dashSubText();
   if(s('sub-cf'))s('sub-cf').textContent=`${actRange} actuals · All values in USD`;
   if(s('sub-fin'))s('sub-fin').textContent=`${actRange} · Exact from Xero · Toggle entity below`;
   if(s('sub-ar'))s('sub-ar').textContent=`Forecast cash collections · ${fcstRange}`;
